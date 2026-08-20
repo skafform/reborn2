@@ -1,0 +1,362 @@
+/* Feuille de style de la console.
+ *
+ * Le langage visuel est repris de la console de référence
+ * (skafform-reborn/Console) — même palette, même échelle, même retenue — et
+ * réécrit ici plutôt qu'importé : cette console-là parle à une autre pile.
+ *
+ * Deux règles tenues d'un bout à l'autre :
+ *
+ * - **Les jetons vivent sur `.console`, pas sur `:root`.** Un jeton sur
+ *   `:root` s'applique au document entier — une promesse que ce fichier n'a
+ *   pas à faire.
+ * - **Seulement ce qui existe aujourd'hui.** Chaque règle sert un élément
+ *   rendu par un écran présent. Le reste viendra avec les écrans.
+ *
+ * Pas de framework CSS, et pas de police embarquée : la pile système est ce
+ * que ces machines résolvent de toute façon, et passer à Inter plus tard tient
+ * dans un `@font-face`.
+ */
+
+.console {
+  --console-background: #f4f4f5;
+  --console-panel-background: #ffffff;
+  --console-foreground: #111111;
+  --console-border: #dddddd;
+  --console-border-subtle: rgb(0 0 0 / 10%);
+
+  --console-accent: #b45309;
+  --console-accent-muted: rgb(180 83 9 / 15%);
+  --console-danger: #b91c1c;
+
+  --console-foreground-muted: #6b7280;
+
+  --console-radius-sm: 4px;
+  --console-radius: 6px;
+  --console-radius-lg: 10px;
+
+  --console-font-sans:
+    ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --console-font-mono: ui-monospace, SFMono-Regular, Menlo, monospace;
+
+  --console-font-size-xs: 12px;
+  --console-font-size-sm: 13px;
+  --console-font-size-base: 14px;
+  --console-font-size-2xl: 24px;
+  --console-font-size-3xl: 28px;
+  --console-tracking-tight: -0.02em;
+
+  font-family: var(--console-font-sans);
+  font-size: var(--console-font-size-base);
+}
+
+@media (prefers-color-scheme: dark) {
+  .console {
+    --console-background: #050506;
+    --console-panel-background: #1a1b1f;
+    --console-foreground: #f3f4f6;
+    --console-border: #374151;
+    --console-border-subtle: rgb(255 255 255 / 10%);
+
+    --console-accent: #f59e0b;
+    --console-accent-muted: rgb(245 158 11 / 20%);
+    --console-danger: #ef4444;
+
+    --console-foreground-muted: #9ca3af;
+
+    color-scheme: dark;
+  }
+}
+
+/* Aucun framework, donc aucun preflight n'a tourné. Ces deux déclarations sont
+   le reset — délibérément pas normalize.css, qui serait une dépendance pour
+   deux déclarations. */
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+}
+
+/* --- Panneau centré --- */
+
+/* La disposition des écrans qui existent avant qu'il y ait une coque où les
+   poser : s'inscrire, se connecter, et l'instant où la session se lit encore. */
+.console-centered {
+  display: flex;
+  min-height: 100vh;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: var(--console-background);
+  color: var(--console-foreground);
+}
+
+.console-panel {
+  width: 100%;
+  max-width: 360px;
+  padding: 28px;
+  background: var(--console-panel-background);
+  border: 1px solid var(--console-border-subtle);
+  border-radius: var(--console-radius-lg);
+}
+
+/* Les écrans qui portent une liste ou un tableau : la largeur d'un formulaire
+   y écraserait les colonnes. */
+.console-panel--wide {
+  max-width: 640px;
+}
+
+.console-page-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 20px;
+}
+
+/* Le titre porte sa marge basse pour les pages de texte ; dans la rangée d'en-
+   tête c'est l'alignement flex qui fait ce travail, donc on la retire. */
+.console-page-header h1 {
+  margin: 0;
+}
+
+/* --- Contrôles --- */
+
+.console-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 14px;
+  font-family: inherit;
+  font-size: var(--console-font-size-sm);
+  font-weight: 500;
+  border: 1px solid var(--console-border);
+  border-radius: var(--console-radius-sm);
+  background: transparent;
+  color: var(--console-foreground);
+  cursor: pointer;
+  transition:
+    border-color 0.15s,
+    color 0.15s,
+    opacity 0.15s;
+}
+
+.console-button:hover:not(:disabled) {
+  border-color: var(--console-accent);
+  color: var(--console-accent);
+}
+
+.console-button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.console-button--primary {
+  background: var(--console-accent);
+  border-color: var(--console-accent);
+  color: #fff;
+}
+
+.console-button--primary:hover:not(:disabled) {
+  opacity: 0.9;
+  color: #fff;
+}
+
+.console-button--block {
+  width: 100%;
+  justify-content: center;
+}
+
+/* Un lien qui doit se lire comme une action — quitter l'écran d'invitation.
+   C'est un lien parce qu'il navigue ; on lui emprunte les règles du bouton
+   plutôt que de troquer l'élément. */
+a.console-button {
+  justify-content: center;
+  text-decoration: none;
+}
+
+.console-input {
+  display: block;
+  width: 100%;
+  padding: 8px 10px;
+  font-family: inherit;
+  font-size: var(--console-font-size-base);
+  border: 1px solid var(--console-border);
+  border-radius: var(--console-radius-sm);
+  background: var(--console-background);
+  color: var(--console-foreground);
+  transition:
+    border-color 0.15s,
+    box-shadow 0.15s;
+}
+
+.console-input:focus {
+  outline: none;
+  border-color: var(--console-accent);
+  box-shadow: 0 0 0 3px var(--console-accent-muted);
+}
+
+.console-field {
+  display: block;
+  margin-bottom: 14px;
+}
+
+.console-label {
+  display: block;
+  margin-bottom: 6px;
+  font-size: var(--console-font-size-sm);
+  font-weight: 500;
+}
+
+/* Les sorties d'un formulaire — créer un compte, revenir à la connexion.
+   Assez discrètes pour ne jamais être prises pour l'action attendue. */
+.console-form-footer {
+  margin: 16px 0 0;
+  text-align: center;
+  font-size: var(--console-font-size-sm);
+}
+
+.console-inline-form {
+  padding: 16px;
+  margin-bottom: 20px;
+  border: 1px solid var(--console-border);
+  border-radius: var(--console-radius);
+  background: var(--console-background);
+}
+
+/* --- Listes et tableaux --- */
+
+.console-list {
+  list-style: none;
+  padding: 0;
+  margin: 0 0 20px;
+}
+
+.console-list li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--console-border-subtle);
+}
+
+.console-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.console-table th {
+  padding: 8px;
+  text-align: left;
+  font-size: var(--console-font-size-xs);
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--console-foreground-muted);
+  border-bottom: 1px solid var(--console-border);
+}
+
+.console-table td {
+  padding: 10px 8px;
+  font-size: var(--console-font-size-base);
+  vertical-align: middle;
+  border-bottom: 1px solid var(--console-border-subtle);
+}
+
+/* Alignées à droite : l'œil lit les adresses le long de la gauche et retrouve
+   toutes les actions dans une seule colonne. */
+.console-row-actions {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
+.console-badge {
+  display: inline-block;
+  padding: 2px 8px;
+  border: 1px solid var(--console-border);
+  border-radius: 999px;
+  font-size: var(--console-font-size-xs);
+  font-weight: 500;
+  color: var(--console-foreground-muted);
+}
+
+/* --- Retours --- */
+
+.console-banner {
+  padding: 12px 14px;
+  margin-bottom: 20px;
+  border: 1px solid var(--console-accent);
+  border-radius: var(--console-radius);
+  background: var(--console-accent-muted);
+  font-size: var(--console-font-size-sm);
+}
+
+.console-banner--error {
+  border-color: var(--console-danger);
+  background: transparent;
+  color: var(--console-danger);
+}
+
+.console-muted {
+  color: var(--console-foreground-muted);
+  font-size: var(--console-font-size-sm);
+}
+
+.console-code {
+  display: block;
+  padding: 12px;
+  font-family: var(--console-font-mono);
+  font-size: var(--console-font-size-sm);
+  white-space: pre-wrap;
+  word-break: break-word;
+  border: 1px solid var(--console-border);
+  border-radius: var(--console-radius-sm);
+  background: var(--console-background);
+}
+
+/* --- Contenu de base --- */
+
+.console h1 {
+  margin: 0 0 0.75rem;
+  font-size: var(--console-font-size-3xl);
+  font-weight: 700;
+  letter-spacing: var(--console-tracking-tight);
+}
+
+.console h2 {
+  margin: 0 0 0.625rem;
+  font-size: var(--console-font-size-2xl);
+  font-weight: 600;
+  letter-spacing: var(--console-tracking-tight);
+}
+
+.console p {
+  margin: 0 0 1rem;
+  font-size: var(--console-font-size-base);
+  line-height: 1.6;
+}
+
+.console p:last-child {
+  margin-bottom: 0;
+}
+
+.console-text-link {
+  color: var(--console-accent);
+  text-decoration: none;
+}
+
+.console-text-link:hover {
+  text-decoration: underline;
+}
+
+.console-status {
+  font-size: var(--console-font-size-xs);
+  color: var(--console-foreground-muted);
+}
+
+.console-status--error {
+  color: var(--console-danger);
+}

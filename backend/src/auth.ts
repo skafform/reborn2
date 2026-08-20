@@ -21,6 +21,19 @@ export const auth = betterAuth({
   secret: env.BETTER_AUTH_SECRET,
   baseURL: env.BETTER_AUTH_URL,
 
+  /**
+   * Origines admises pour une requête authentifiante, en plus de `baseURL`.
+   *
+   * Un client servi depuis une autre adresse — une interface d'administration,
+   * une application mobile — envoie son propre en-tête `Origin`, que
+   * Better-Auth compare à cette liste avant d'ouvrir une session. Elle borne
+   * aussi les `callbackURL` de confirmation d'adresse, ce qui empêche de faire
+   * rebondir un lien de confirmation vers un site tiers.
+   *
+   * Le serveur ne nomme aucun client : il lit des adresses de confiance.
+   */
+  trustedOrigins: env.TRUSTED_ORIGINS,
+
   emailAndPassword: {
     enabled: true,
 

@@ -4,12 +4,8 @@ import { after, before, describe, it } from "node:test";
 import { and, eq } from "drizzle-orm";
 import { app } from "../app.ts";
 import { closePool, withContext } from "../db/client.ts";
-import {
-  organizationMembers,
-  organizations,
-  projectMembers,
-  roles,
-} from "../db/schema.ts";
+import { organizationMembers, roles } from "../db/schema.ts";
+import { destroyOrganization, destroyUsers } from "../test-support/cleanup.ts";
 import { createVerifiedUser } from "../test-support/users.ts";
 
 /**
@@ -69,13 +65,8 @@ describe("routes de gestion", () => {
   });
 
   after(async () => {
-    await withContext({ userId: owner.userId, organizationId }, async (tx) => {
-      await tx.delete(projectMembers);
-      await tx.delete(organizationMembers);
-    }).catch(() => {});
-    await withContext({ userId: owner.userId, organizationId }, (tx) =>
-      tx.delete(organizations).where(eq(organizations.id, organizationId)),
-    ).catch(() => {});
+    await destroyOrganization(owner.userId, organizationId);
+    await destroyUsers([owner.userId, viewer.userId, outsider.userId]);
     await closePool();
   });
 
@@ -93,6 +84,54 @@ describe("routes de gestion", () => {
     const theirs = await call("/api/organizations", outsider);
     const empty = (await theirs.json()) as { id: string }[];
     assert.ok(!empty.some((o) => o.id === organizationId));
+  });
+
+  it("liste les rôles d'une organization, des deux portées", async () => {
+    const response = await call(`/api/organizations/${organizationId}/roles`, owner);
+    assert.equal(response.status, 200);
+
+    const list = (await response.json()) as {
+      name: string;
+      scope: string;
+      isSystem: boolean;
+    }[];
+
+    assert.deepEqual(
+      list
+        .filter((role) => role.scope === "organization")
+        .map((r) => r.name)
+        .sort(),
+      ["admin", "owner", "viewer"],
+    );
+    assert.deepEqual(
+      list
+        .filter((role) => role.scope === "project")
+        .map((r) => r.name)
+        .sort(),
+      ["contributor", "editor", "guest"],
+    );
+    assert.ok(
+      list.every((role) => role.isSystem),
+      "une organization neuve n'a que ses rôles système",
+    );
+  });
+
+  it("refuse la liste des rôles à qui ne gère pas les membres", async () => {
+    const response = await call(`/api/organizations/${organizationId}/roles`, viewer);
+    assert.equal(
+      response.status,
+      403,
+      "elle sert à attribuer un rôle, pas à en consulter le catalogue",
+    );
+  });
+
+  it("ne montre pas les rôles d'une organization à un étranger", async () => {
+    const response = await call(`/api/organizations/${organizationId}/roles`, outsider);
+    assert.equal(
+      response.status,
+      404,
+      "404 et non 403 : l'existence même de l'organization ne doit pas fuir",
+    );
   });
 
   it("laisse le owner créer un projet", async () => {

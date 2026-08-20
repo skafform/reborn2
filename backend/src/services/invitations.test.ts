@@ -7,13 +7,8 @@ import { AuthorizationError } from "../auth/escalation.ts";
 import { auth } from "../auth.ts";
 import { INVITATION_RATE_LIMIT } from "../config/constants.ts";
 import { closePool, withContext } from "../db/client.ts";
-import {
-  invitations,
-  organizationMembers,
-  organizations,
-  projectMembers,
-  roles,
-} from "../db/schema.ts";
+import { invitations, roles } from "../db/schema.ts";
+import { destroyOrganization, destroyUsers } from "../test-support/cleanup.ts";
 import {
   acceptInvitation,
   cancelInvitation,
@@ -29,11 +24,14 @@ import { createOrganization, createProject } from "./organizations.ts";
  * sur la console. Les tests n'en dépendent pas — ils vérifient le jeton
  * retourné, pas le message.
  */
+const createdUsers: string[] = [];
+
 async function makeUser(prefix: string) {
   const email = `${prefix}-${randomUUID()}@skafform.test`;
   const result = await auth.api.signUpEmail({
     body: { email, password: "MotDePasseTest123!", name: prefix },
   });
+  createdUsers.push(result.user.id);
   return { id: result.user.id, email };
 }
 
@@ -76,14 +74,8 @@ describe("invitations", () => {
   });
 
   after(async () => {
-    await withContext({ userId: owner.id, organizationId }, async (tx) => {
-      await tx.delete(invitations);
-      await tx.delete(projectMembers);
-      await tx.delete(organizationMembers);
-    }).catch(() => {});
-    await withContext({ userId: owner.id, organizationId }, (tx) =>
-      tx.delete(organizations).where(eq(organizations.id, organizationId)),
-    ).catch(() => {});
+    await destroyOrganization(owner.id, organizationId);
+    await destroyUsers(createdUsers);
     await closePool();
   });
 

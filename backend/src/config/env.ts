@@ -24,6 +24,29 @@ export const envSchema = z
     BETTER_AUTH_URL: z.url(),
 
     /**
+     * Origines autorisées à ouvrir une session, en plus de `BETTER_AUTH_URL`.
+     * Séparées par des virgules.
+     *
+     * Better-Auth compare l'en-tête `Origin` de chaque requête authentifiante
+     * à cette liste, et refuse les autres — c'est une protection CSRF, qui
+     * vaut aussi pour les `callbackURL` de confirmation d'adresse.
+     *
+     * Le serveur ne sait pas ce qui se trouve derrière ces origines : il
+     * connaît des adresses de confiance, pas des clients. Vide par défaut,
+     * donc *fail-closed* — une origine non déclarée est refusée.
+     */
+    TRUSTED_ORIGINS: z
+      .string()
+      .default("")
+      .transform((value) =>
+        value
+          .split(",")
+          .map((origin) => origin.trim())
+          .filter(Boolean),
+      )
+      .pipe(z.array(z.url())),
+
+    /**
      * Envoi d'emails. Facultative hors production, où son absence bascule sur
      * un mailer de console — un email perdu en local est sans conséquence, un
      * email perdu en production ne l'est pas.

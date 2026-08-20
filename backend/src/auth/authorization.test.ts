@@ -5,13 +5,9 @@ import { and, eq } from "drizzle-orm";
 import { auth } from "../auth.ts";
 import { PERMISSION_KEYS } from "../config/permissions.ts";
 import { closePool, withContext } from "../db/client.ts";
-import {
-  organizationMembers,
-  organizations,
-  projectMembers,
-  roles,
-} from "../db/schema.ts";
+import { organizationMembers, projectMembers, roles } from "../db/schema.ts";
 import { createOrganization, createProject } from "../services/organizations.ts";
+import { destroyOrganization, destroyUsers } from "../test-support/cleanup.ts";
 import { can, resolveActor } from "./authorization.ts";
 import {
   AuthorizationError,
@@ -21,6 +17,7 @@ import {
 } from "./escalation.ts";
 
 const created: { organizationId: string; ownerId: string }[] = [];
+const createdUsers: string[] = [];
 
 async function makeUser(prefix: string): Promise<string> {
   const result = await auth.api.signUpEmail({
@@ -30,6 +27,7 @@ async function makeUser(prefix: string): Promise<string> {
       name: prefix,
     },
   });
+  createdUsers.push(result.user.id);
   return result.user.id;
 }
 
@@ -101,14 +99,9 @@ describe("autorisation", () => {
 
   after(async () => {
     for (const { organizationId: id, ownerId } of created) {
-      await withContext({ userId: ownerId, organizationId: id }, async (tx) => {
-        await tx.delete(projectMembers);
-        await tx.delete(organizationMembers);
-      }).catch(() => {});
-      await withContext({ userId: ownerId, organizationId: id }, (tx) =>
-        tx.delete(organizations).where(eq(organizations.id, id)),
-      ).catch(() => {});
+      await destroyOrganization(ownerId, id);
     }
+    await destroyUsers(createdUsers);
     await closePool();
   });
 

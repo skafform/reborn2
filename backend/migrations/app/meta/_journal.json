@@ -134,6 +134,13 @@
       "when": 1787243712534,
       "tag": "0018_api_keys_self_contained_policies",
       "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1787243713534,
+      "tag": "0019_delete_organization_cascade",
+      "breakpoints": true
     }
   ]
 }

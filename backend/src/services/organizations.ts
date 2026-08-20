@@ -106,6 +106,28 @@ export function listOrganizationsForUser(userId: string) {
   );
 }
 
+/**
+ * Les rôles définis dans une organization — ceux copiés à sa création comme
+ * ceux qu'elle a ajoutés depuis.
+ *
+ * Le `scope` distingue les rôles d'organization de ceux de projet : un rôle de
+ * projet ne s'attribue qu'avec un projet, et l'appelant a besoin de le savoir
+ * pour ne pas proposer une combinaison que le service refusera.
+ */
+export function listRoles(userId: string, organizationId: string) {
+  return withContext({ userId, organizationId }, (tx) =>
+    tx
+      .select({
+        id: roles.id,
+        name: roles.name,
+        scope: roles.scope,
+        isSystem: roles.isSystem,
+      })
+      .from(roles)
+      .where(eq(roles.organizationId, organizationId)),
+  );
+}
+
 /** Les permissions détenues par un utilisateur dans une organization. */
 export function permissionsForMember(userId: string, organizationId: string) {
   return withContext({ userId, organizationId }, (tx) =>

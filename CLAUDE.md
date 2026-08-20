@@ -61,19 +61,47 @@ effaçable est interdite : ni `enum`, ni paramètres-propriétés, ni `namespace
 Les variables d'environnement sont chargées par `--env-file=.env`, sans
 `dotenv`.
 
-**Ce n'est pas un monorepo.** Deux projets **indépendants** dans ce dépôt :
+**Ce n'est pas un monorepo, et pas non plus un dépôt à deux paquets.** Ce sont
+**deux serveurs distincts**, réunis dans un seul git par commodité de
+sauvegarde :
 
 - `backend/` — l'API Hono
 - `console/` — l'interface d'administration (React Router 8, SPA)
 
-Ils ne partagent **ni workspace, ni package, ni outillage de build**, et se
-déploient séparément. Ne jamais en introduire : c'est ce qui rend le mode RPC
-de Hono impraticable et impose le contrat OpenAPI
-([ADR 0005](docs/adr/0005-depots-separes-contrat-openapi.md)).
+Le dépôt est un contenant, **pas une frontière d'architecture**. Raisonner
+comme si les deux répertoires vivaient sur des machines différentes, parce que
+c'est ce qu'ils feront.
+
+### Les deux doivent rester agnostiques l'un de l'autre
+
+C'est plus fort que « séparés », et c'est la règle qui gouverne les autres.
+
+- **Le backend ignore qu'une console existe.** Il sert une API que n'importe
+  quel client peut consommer. Aucune route, aucun en-tête, aucun réglage, aucun
+  cas particulier ne doit la nommer ni supposer sa présence
+- **La console ne connaît du backend qu'une adresse et un contrat.** Elle ne
+  suppose ni son langage, ni sa base de données, ni sa disposition de fichiers.
+  L'adresse est de la **configuration** (`API_PROXY_TARGET` dans `console/.env`),
+  jamais un littéral — le port 3000 n'est pas plus garanti que le 5432 ne
+  l'était
+
+⚠️ **Rien ne traverse la frontière**, jamais :
+
+- aucun import de `console/` vers `../backend/` ni l'inverse. Une règle Biome
+  (`noRestrictedImports` sur `../../**`) le refuse mécaniquement dans
+  `console/biome.json` — la discipline seule ne suffisait pas
+- ni workspace, ni `pnpm-workspace.yaml`, ni paquet partagé, ni tsconfig commun
+- **aucun chemin de fichier** — y compris pour la spec OpenAPI, qui se récupère
+  **par HTTP** sur le serveur en marche, jamais à `../backend/openapi.json`
+
+C'est cette séparation qui rend le mode RPC de Hono impraticable et impose le
+contrat OpenAPI ([ADR 0005](docs/adr/0005-depots-separes-contrat-openapi.md)).
+Une commodité qui la franchit marcherait ici et casserait le jour où les deux
+se séparent — ce qui doit rester bon marché à tout moment.
 
 Ils communiquent par HTTP. En développement, un proxy Vite renvoie `/api` vers
-`localhost:3000`, ce qui rend chaque requête *same-origin* — **aucun CORS n'est
-donc nécessaire en local**, et le backend n'a pas à être modifié pour une
+`API_PROXY_TARGET`, ce qui rend chaque requête *same-origin* — **aucun CORS
+n'est donc nécessaire en local**, et le backend n'a pas à être modifié pour une
 commodité de développement.
 
 ## Stack

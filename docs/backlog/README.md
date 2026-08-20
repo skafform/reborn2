@@ -42,3 +42,5 @@ n'est jamais réattribué.
 | [0007](0007-amorcage-et-verification-db.md) | Amorçage de la base et vérification des préconditions | 🔴 | **fait** |
 | [0008](0008-resolution-des-projets-d-un-membre.md) | Résolution des projets d'un membre de projet | 🟢 À mesurer d'abord | ouvert |
 | [0009](0009-rate-limiting-des-invitations.md) | Rate limiting des invitations | 🟠 | **fait** (étape 5) |
+| [0010](0010-suppression-d-organization-bloquee.md) | Une organization ne peut pas être supprimée | 🔴 | **fait** (migration 0019) |
+| [0011](0011-nettoyage-des-tests-avale-ses-erreurs.md) | Le nettoyage des tests avale ses erreurs | 🟠 | **fait** |

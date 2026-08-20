@@ -14,6 +14,7 @@ import {
   createProject,
   listOrganizationsForUser,
   listProjects,
+  listRoles,
 } from "../services/organizations.ts";
 import { requireOrganization, requireSession, type Variables } from "./middleware.ts";
 
@@ -109,6 +110,39 @@ managementRoutes.openapi(
       name,
     });
     return c.json(project, 201);
+  },
+);
+
+const RoleSchema = z
+  .object({
+    id: z.uuid(),
+    name: z.string(),
+    scope: z.enum(["organization", "project"]),
+    isSystem: z.boolean(),
+  })
+  .openapi("Role");
+
+/**
+ * Les rôles assignables dans une organization.
+ *
+ * Gardée par `member.manage` et non `role.manage` : cette liste sert à
+ * **attribuer** un rôle, pas à en définir un. Le garde-fou d'escalade s'exerce
+ * de toute façon au moment de l'assignation — on peut voir un rôle plus
+ * puissant que le sien sans pouvoir l'accorder (ADR 0011).
+ */
+managementRoutes.openapi(
+  createRoute({
+    method: "get",
+    path: "/organizations/{organizationId}/roles",
+    summary: "Les rôles d'une organization",
+    middleware: [requireSession, requireOrganization] as const,
+    request: { params: z.object({ organizationId: z.uuid() }) },
+    responses: { 200: json(z.array(RoleSchema), "Liste") },
+  }),
+  async (c) => {
+    const { organizationId } = c.req.valid("param");
+    requirePermission(c.get("actor"), "member.manage");
+    return c.json(await listRoles(c.get("userId"), organizationId));
   },
 );
 

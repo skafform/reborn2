@@ -6,13 +6,8 @@ import { keyCan, resolveActor } from "../auth/authorization.ts";
 import { AuthorizationError } from "../auth/escalation.ts";
 import { auth } from "../auth.ts";
 import { closePool, withContext } from "../db/client.ts";
-import {
-  apiKeys,
-  organizationMembers,
-  organizations,
-  projectMembers,
-  roles,
-} from "../db/schema.ts";
+import { organizationMembers, roles } from "../db/schema.ts";
+import { destroyOrganization, destroyUsers } from "../test-support/cleanup.ts";
 import {
   ApiKeyError,
   createApiKey,
@@ -24,11 +19,14 @@ import {
 } from "./api-keys.ts";
 import { createOrganization, createProject } from "./organizations.ts";
 
+const createdUsers: string[] = [];
+
 async function makeUser(prefix: string) {
   const email = `${prefix}-${randomUUID()}@skafform.test`;
   const result = await auth.api.signUpEmail({
     body: { email, password: "MotDePasseTest123!", name: prefix },
   });
+  createdUsers.push(result.user.id);
   return { id: result.user.id, email };
 }
 
@@ -53,14 +51,8 @@ describe("clés API", () => {
   });
 
   after(async () => {
-    await withContext({ userId: owner.id, organizationId }, async (tx) => {
-      await tx.delete(apiKeys);
-      await tx.delete(projectMembers);
-      await tx.delete(organizationMembers);
-    }).catch(() => {});
-    await withContext({ userId: owner.id, organizationId }, (tx) =>
-      tx.delete(organizations).where(eq(organizations.id, organizationId)),
-    ).catch(() => {});
+    await destroyOrganization(owner.id, organizationId);
+    await destroyUsers(createdUsers);
     await closePool();
   });
 
