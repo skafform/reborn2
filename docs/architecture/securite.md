@@ -1,0 +1,125 @@
+# Sécurité
+
+## La menace principale : BOLA
+
+**Broken Object Level Authorization** est le risque n°1 du OWASP API Security
+Top 10 (API1:2023). En multi-tenant, il se manifeste en *escalade
+horizontale* : un client accède aux données d'un autre.
+
+La formulation d'OWASP explique pourquoi c'est la classe de faille la plus
+difficile à empêcher par la seule discipline de code :
+
+> BOLA n'est pas causé par des développeurs qui oublient une ligne de code
+> précise — il survient quand l'autorisation au niveau objet **n'est appliquée
+> par défaut nulle part** dans la pile applicative.
+
+Sans garde-fou en base, le cadrage correct d'une requête est un **acte de
+mémoire répété**, par chaque personne qui touche au code, indéfiniment.
+
+## Décision : RLS pour la frontière, TypeScript pour les rôles
+
+| Ce qui est protégé | Où |
+|---|---|
+| **Frontière multi-tenant** — ne jamais voir les lignes d'un autre locataire | **RLS Postgres**, une policy simple par table sur la colonne de cadrage (`organization_id` / `environment_id`) |
+| **Modèle de rôles** — `owner` vs `editor` vs `contributor`, lecture vs écriture, droit de publier | **TypeScript**, dans le middleware — voir [roles-permissions.md](./roles-permissions.md) |
+
+### Pourquoi pas RLS intégral
+
+Le gain de sécurité n'est pas proportionnel à ce qu'on pousse dans RLS.
+
+Le saut décisif est la frontière multi-tenant : elle fait passer le rayon
+d'explosion d'*illimité* à *un seul locataire*. Encoder en plus le modèle de
+rôles dans des policies apporte un gain marginal bien plus faible, contre une
+complexité qui devient elle-même une surface de vulnérabilité — une policy SQL
+subtilement fausse échoue aussi silencieusement qu'un `WHERE` oublié, et se
+teste beaucoup moins bien qu'une fonction TypeScript.
+
+C'est l'architecture en couches recommandée par OWASP : la couche service
+applique les décisions au niveau objet, la couche d'accès aux données ajoute
+la défense en profondeur avec les contraintes de locataire.
+
+## Rayon d'explosion
+
+| | Sans RLS | Avec RLS sur la frontière |
+|---|---|---|
+| `WHERE` de cadrage oublié | Toutes les données de tous les locataires, en 200 OK | Zéro ligne |
+| Injection SQL réussie | Dump complet de la base | Limité au locataire courant |
+| Bug de logique de rôle | Selon le bug | Limité au locataire courant |
+| Détection | Un test ciblé, ou un client qui s'en aperçoit | La requête renvoie vide, l'erreur saute aux yeux |
+
+RLS **n'empêche pas** l'injection SQL — les requêtes paramétrées restent
+obligatoires — mais elle en **contient** la portée.
+
+## Ce que RLS ne protège pas
+
+À savoir, pour ne pas créer un faux sentiment de sécurité :
+
+- Les erreurs de rôle **à l'intérieur** d'un locataire (un `viewer` qui écrit,
+  un `contributor` qui publie) — c'est la couche TypeScript
+- Une clé API fuitée : elle résout un environnement légitime, RLS la laisse
+  passer
+- Les bugs d'attribution de rôle eux-mêmes
+- L'audit, besoin distinct — voir [audit.md](./audit.md)
+
+## Les trois risques de configuration
+
+Tous relèvent du réglage initial : vérifiables une fois, puis stables.
+
+**1. Contournement par le propriétaire.** Superusers et propriétaires de tables
+ignorent RLS par défaut. Il faut un **rôle applicatif dédié qui n'est pas
+propriétaire** des tables, et `FORCE ROW LEVEL SECURITY` sur chacune. C'est le
+pire scénario : se croire protégé sans l'être. Se teste en une requête.
+
+**2. Fuite par le pooler.** Le contexte doit être posé avec
+`set_config('app.…', $1, true)` — le troisième argument à `true` en limite la
+portée à la transaction. Un `SET` simple persiste sur la connexion, et la
+requête suivante hérite du contexte du locataire précédent. Conséquence :
+**chaque requête tourne dans une transaction explicite**.
+
+**3. Policy qui échoue en mode ouvert.** Le comportement par défaut est le bon :
+`current_setting('app.x', true)` renvoie `NULL` si la variable est absente, la
+comparaison vaut `NULL`, aucune ligne ne passe — *fail-closed*.
+
+> **Règle : aucune policy ne doit comporter de valeur de repli.** Un `COALESCE`
+> de confort détruirait cette propriété et ouvrirait tout.
+
+## Les deux modèles d'accès
+
+Se tromper de modèle produit une route qui fonctionne — mais faussement.
+
+- **Routes de contenu**, authentifiées par clé API (publique / preview /
+  secrète). L'appelant est une machine, sans identité utilisateur. Le contexte
+  RLS est l'`environment_id` que la clé résout — voir [api.md](./api.md)
+- **Routes d'administration**, authentifiées par session Better-Auth.
+  L'identité vient **toujours** de la session vérifiée, jamais d'un `user_id`
+  ou `organization_id` envoyé par l'appelant
+
+## Exceptions et contraintes
+
+**Pas de RLS sur les tables de Better-Auth.** Il gère `user`, `session`,
+`account` et `verification` avec son propre pool et doit pouvoir lire
+n'importe quel utilisateur au moment du login, avant qu'une session existe.
+Ces tables ne sont d'ailleurs pas cadrées par locataire — un utilisateur
+n'appartient pas intrinsèquement à une organization. Voir
+[database.md](./database.md).
+
+**Index.** RLS ajoute un `WHERE colonne_de_cadrage = …` implicite à chaque
+requête. La colonne de cadrage doit être en **tête de chaque index** des
+tables concernées, sinon Postgres bascule en balayage complet. À concevoir dès
+la création des tables.
+
+## Écarté volontairement
+
+**Chiffrement applicatif par locataire.** Une troisième couche qu'on rencontre
+dans la littérature sur les fuites multi-tenant : chiffrer les colonnes
+sensibles avec une clé propre à chaque locataire, de sorte qu'une ligne
+obtenue par erreur reste illisible.
+
+Pertinent pour des données réglementées, pas pour du contenu de site web
+destiné à être publié. Ne résout aucun problème que ce projet a réellement.
+
+## Sources
+
+- [API1:2023 Broken Object Level Authorization | OWASP](https://owasp.org/API-Security/editions/2023/en/0xa1-broken-object-level-authorization/)
+- [Multi Tenant Security Cheat Sheet | OWASP](https://cheatsheetseries.owasp.org/cheatsheets/Multi_Tenant_Security_Cheat_Sheet.html)
+- Détail de la recherche : [../research/rls-multi-tenant.md](../research/rls-multi-tenant.md)

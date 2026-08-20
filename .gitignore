@@ -1,0 +1,42 @@
+# Secrets — ne jamais committer.
+# `.env.example` est le modèle et doit rester versionné.
+.env
+.env.*
+!.env.example
+
+# Dépendances. `pnpm-lock.yaml` est volontairement absent d'ici : le
+# verrouillage des versions doit être versionné.
+node_modules/
+.pnpm-store/
+
+# Sorties de compilation. Le projet n'a pas d'étape de build (ADR 0010), mais
+# un `tsc` lancé sans `--noEmit` en produirait.
+dist/
+*.tsbuildinfo
+
+# Tests
+coverage/
+
+# Logs
+*.log
+npm-debug.log*
+pnpm-debug.log*
+
+# Claude Code : les réglages personnels restent locaux, la configuration
+# partagée du projet est versionnée.
+.claude/settings.local.json
+
+# Éditeurs
+.vscode/*
+!.vscode/extensions.json
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# À NE PAS ignorer, pour mémoire :
+#   backend/migrations/**/*.sql  — trace versionnée du schéma (ADR 0009)
+#   pnpm-lock.yaml               — reproductibilité des installations
+#   pnpm-workspace.yaml          — emplacement de configuration pnpm 11

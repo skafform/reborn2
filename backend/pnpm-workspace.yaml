@@ -1,0 +1,7 @@
+# Ce n'est pas un monorepo. pnpm 11 utilise ce fichier comme emplacement de
+# configuration générale, indépendamment des workspaces.
+#
+# Biome installe un binaire natif : son script d'installation doit être
+# explicitement autorisé, pnpm les bloquant par défaut.
+allowBuilds:
+  '@biomejs/biome': true

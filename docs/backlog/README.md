@@ -1,0 +1,39 @@
+# Backlog
+
+Items de travail **numérotés, à identifiant stable**. C'est le seul endroit
+référençable depuis le code, un commit ou une discussion : `backlog #7`.
+
+Un item ne réexplique jamais le fond — il renvoie au document qui le porte.
+
+## Répartition avec les autres documents
+
+| Document | Répond à |
+|---|---|
+| **Ce backlog** | *Que faire, et où en est-on ?* |
+| [../roadmap.md](../roadmap.md) | *Dans quel ordre ?* — les grandes étapes |
+| [../architecture/decisions-ouvertes.md](../architecture/decisions-ouvertes.md) | *Quelles questions restent sans réponse ?* — des questions, pas des tâches |
+| [../architecture/evolutions-prevues.md](../architecture/evolutions-prevues.md) | *Pourquoi telle fonctionnalité sera peu coûteuse plus tard ?* — les coutures |
+| [../adr/](../adr/) | *Pourquoi a-t-on tranché ainsi ?* — l'histoire |
+
+Une question qui trouve sa réponse devient un item ici. Un item terminé qui
+tranchait une décision structurante devient un ADR.
+
+## États
+
+`ouvert` · `en cours` · `fait` · `abandonné`
+
+Un item `fait` reste dans le fichier : son numéro peut être cité ailleurs.
+
+## Convention
+
+Un fichier par item : `NNNN-titre-court.md`. Le numéro ne change jamais et
+n'est jamais réattribué.
+
+## Index
+
+| # | Item | Priorité | État |
+|---|---|---|---|
+| [0001](0001-verification-email-inscription-libre.md) | Vérification d'email à l'inscription libre | 🔴 Bloquant avant mise en ligne | ouvert |
+| [0002](0002-force-row-level-security.md) | `FORCE ROW LEVEL SECURITY` sur les tables applicatives | 🔴 À la création des tables | ouvert |
+| [0003](0003-transaction-et-contexte-rls.md) | Transaction explicite et contexte RLS par requête | 🔴 Avant la première requête applicative | ouvert |
+| [0004](0004-cors-admin-ui.md) | CORS pour l'admin UI | 🟡 Quand l'admin UI existe | ouvert |
