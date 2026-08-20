@@ -23,6 +23,8 @@ pnpm dev                  # serveur en rechargement automatique (node --watch)
 pnpm start                # serveur
 pnpm auth:migrate         # migrations Better-Auth : écrit le SQL, n'applique pas
 pnpm auth:migrate:apply   # migrations Better-Auth : écrit et applique
+pnpm db:generate          # génère une migration Drizzle depuis le schéma
+pnpm db:migrate           # applique les migrations Drizzle
 pnpm test                 # node:test — touche la base locale
 pnpm typecheck            # tsc --noEmit
 pnpm lint                 # biome check
@@ -247,6 +249,11 @@ fonctionne — mais faussement.
   L'identité vient **toujours** de la session vérifiée, jamais d'un `user_id`
   ou `organization_id` envoyé par l'appelant
 
+⚠️ **Toute requête applicative passe par `withContext`** (`src/db/client.ts`).
+L'objet `db` de Drizzle n'est **pas exporté** : c'est ce qui rend le
+contournement impossible par construction. `withContext` ouvre la transaction
+et y pose le contexte RLS.
+
 ⚠️ **Trois règles RLS dont la violation est silencieuse** — on se croit protégé
 sans l'être :
 
@@ -365,8 +372,21 @@ opérante (voir *Sécurité*) :
 | `skafform_app` | Le serveur. Ni superuser, ni propriétaire, sans `BYPASSRLS` → **soumis aux policies** | `DATABASE_URL` |
 | `skafform_owner` | Propriétaire du schéma, **réservé aux migrations** | `DATABASE_MIGRATION_URL` |
 
-⚠️ Connecter le serveur avec `skafform_owner` désactiverait RLS
-silencieusement.
+⚠️ Connecter le serveur avec `skafform_owner` ne suffirait pas à contourner
+RLS — `FORCE ROW LEVEL SECURITY` y soumet aussi le propriétaire — mais lui
+donnerait le droit de modifier le schéma en pleine exécution.
+
+Conséquence pratique : **aucun rôle disponible ne peut lire ou purger les
+tables applicatives sans contexte**, y compris pour nettoyer après un test.
+Les tests passent donc par `withContext`, ce qui est plus fidèle de toute
+façon.
+
+⚠️ **Ces rôles et leurs droits ne sont dans aucune migration.** Ils existent
+avant elles. Un environnement provisionné sans eux ferait tourner
+l'application en `postgres` et **RLS serait inerte, silencieusement**. La
+marche à suivre est dans
+[database.md](docs/architecture/database.md#provisionnement-dun-environnement) ;
+l'automatisation et son contrôle sont au [backlog #0007](docs/backlog/0007-amorcage-et-verification-db.md).
 
 **Supabase a été abandonné.** Une pile Supabase (conteneurs
 `supabase_*_Backend`) subsiste à l'arrêt, vestige d'une itération précédente.

@@ -1,4 +1,4 @@
-import { mkdir, readdir, writeFile } from "node:fs/promises";
+import { mkdir, readdir, readFile, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { getMigrations } from "better-auth/db/migration";
@@ -46,15 +46,28 @@ if (toBeCreated.length === 0 && toBeAdded.length === 0) {
 }
 
 const sql = await compileMigrations();
+const content = `${sql.trimEnd()}\n`;
 
 await mkdir(MIGRATIONS_DIR, { recursive: true });
 const existing = (await readdir(MIGRATIONS_DIR)).filter((f) => f.endsWith(".sql"));
-const next = String(existing.length + 1).padStart(4, "0");
-const file = join(MIGRATIONS_DIR, `${next}_auth.sql`);
-await writeFile(file, `${sql.trimEnd()}\n`, "utf8");
+
+// Sur une base vierge, `getMigrations` recompose la création complète du
+// schéma — identique à une migration déjà versionnée. L'écrire produirait un
+// doublon. On ne versionne donc que du SQL réellement nouveau.
+const known = await Promise.all(
+  existing.map((f) => readFile(join(MIGRATIONS_DIR, f), "utf8")),
+);
+const duplicate = known.findIndex((seen) => seen === content);
 
 console.log(sql);
-console.log(`-- Written to migrations/auth/${next}_auth.sql`);
+
+if (duplicate >= 0) {
+  console.log(`-- Already versioned as migrations/auth/${existing[duplicate]}`);
+} else {
+  const next = String(existing.length + 1).padStart(4, "0");
+  await writeFile(join(MIGRATIONS_DIR, `${next}_auth.sql`), content, "utf8");
+  console.log(`-- Written to migrations/auth/${next}_auth.sql`);
+}
 
 if (apply) {
   await runMigrations();

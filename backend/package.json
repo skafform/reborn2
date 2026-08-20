@@ -7,10 +7,13 @@
     "node": ">=24"
   },
   "scripts": {
+    "db:bootstrap": "node --env-file=.env scripts/bootstrap-db.ts",
     "dev": "node --watch --env-file=.env src/index.ts",
     "start": "node --env-file=.env src/index.ts",
     "auth:migrate": "node --env-file=.env scripts/migrate-auth.ts",
     "auth:migrate:apply": "node --env-file=.env scripts/migrate-auth.ts --apply",
+    "db:generate": "node --env-file=.env node_modules/drizzle-kit/bin.cjs generate",
+    "db:migrate": "node --env-file=.env node_modules/drizzle-kit/bin.cjs migrate",
     "test": "node --env-file=.env --test \"src/**/*.test.ts\"",
     "typecheck": "tsc --noEmit",
     "lint": "biome check .",
@@ -20,6 +23,7 @@
     "@hono/node-server": "^2.1.1",
     "@hono/zod-openapi": "^1.6.1",
     "better-auth": "^1.7.1",
+    "drizzle-orm": "^0.45.2",
     "hono": "^4.13.3",
     "pg": "^8.23.0",
     "zod": "^4.4.3"
@@ -28,6 +32,7 @@
     "@biomejs/biome": "^2.5.9",
     "@types/node": "^26.2.0",
     "@types/pg": "^8.23.1",
+    "drizzle-kit": "^0.31.10",
     "typescript": "^5.9.3"
   }
 }

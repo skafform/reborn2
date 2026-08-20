@@ -1,7 +1,11 @@
 # Ce n'est pas un monorepo. pnpm 11 utilise ce fichier comme emplacement de
 # configuration générale, indépendamment des workspaces.
 #
-# Biome installe un binaire natif : son script d'installation doit être
-# explicitement autorisé, pnpm les bloquant par défaut.
+# Ces paquets installent un binaire natif : leur script d'installation doit
+# être explicitement autorisé, pnpm les bloquant par défaut.
+#
+#   biome   — lint et formatage
+#   esbuild — utilisé par drizzle-kit
 allowBuilds:
   '@biomejs/biome': true
+  esbuild: true

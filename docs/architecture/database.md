@@ -60,6 +60,62 @@ Comportement à la suppression d'un utilisateur :
 | `invitations.invited_by` | `SET NULL` | L'invitation survit à la suppression de son émetteur |
 | `documents` (auteur) | `SET NULL` | Le contenu ne disparaît jamais avec un compte |
 
+## Provisionnement d'un environnement
+
+⚠️ **Ce qui suit n'est dans aucune migration.** Les migrations créent les
+tables, policies, fonctions et triggers — mais pas les **rôles ni les droits**,
+qui existent forcément avant elles.
+
+C'est pourtant ce sur quoi repose tout le modèle de sécurité. Un environnement
+provisionné sans ces rôles fera tourner l'application avec le rôle par défaut,
+souvent `postgres` : **RLS devient alors inerte, silencieusement**. Tout
+fonctionne, les tests passent, et chaque locataire voit les données de tous les
+autres.
+
+### La marche à suivre
+
+```bash
+pnpm db:bootstrap         # rôles et droits — une fois par environnement
+pnpm auth:migrate:apply   # tables Better-Auth
+pnpm db:migrate           # tables applicatives, policies, triggers
+```
+
+L'ordre des migrations n'est pas indifférent : les clés étrangères applicatives
+pointent vers `user.id`.
+
+`scripts/bootstrap-db.ts` est idempotent et requiert `DATABASE_ADMIN_URL` — une
+connexion administrateur, utilisée uniquement là, jamais par le serveur. Il
+fait, dans l'ordre :
+
+| Étape | Ce qu'elle achète |
+|---|---|
+| `CREATE ROLE` × 2 | Le propriétaire du schéma, et le rôle applicatif — ni superuser, ni propriétaire, sans `BYPASSRLS` |
+| `ALTER SCHEMA public OWNER TO` | Les tables appartiennent au propriétaire, pas à l'application |
+| `GRANT USAGE ON SCHEMA` | L'application peut atteindre le schéma |
+| `REVOKE CREATE ON SCHEMA public FROM PUBLIC` | Personne d'autre n'y crée d'objets |
+| `GRANT CREATE ON DATABASE` | drizzle-kit peut créer son schéma de journal |
+| `ALTER DEFAULT PRIVILEGES` | Toute table future est accessible à l'application **sans lui appartenir** — évite un `GRANT` manuel après chaque migration |
+
+### ⚠️ Les rôles appartiennent au cluster, pas à la base
+
+Amorcer une **seconde base sur la même instance** avec les noms par défaut
+réécrit les mots de passe des rôles de la première et la casse silencieusement.
+Constaté en testant le script.
+
+Sur une instance hébergeant plusieurs environnements, donner des noms
+distincts : `DATABASE_OWNER_ROLE` et `DATABASE_APP_ROLE`.
+
+### Préconditions à vérifier
+
+Une configuration *absente* échoue bruyamment ; une configuration *fausse* ne
+fait aucun bruit. D'où l'intérêt de contrôler explicitement :
+
+| Précondition | Contrôle |
+|---|---|
+| Le rôle applicatif n'est ni superuser ni porteur de `BYPASSRLS` | `pg_roles.rolsuper`, `rolbypassrls` |
+| Il ne possède aucune table applicative | `pg_tables.tableowner` |
+| RLS est **activé et forcé** sur chaque table applicative | `pg_class.relrowsecurity`, `relforcerowsecurity` |
+
 ## Row Level Security
 
 Les tables applicatives portent des policies RLS cadrant la **frontière

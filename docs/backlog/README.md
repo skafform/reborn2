@@ -34,6 +34,9 @@ n'est jamais réattribué.
 | # | Item | Priorité | État |
 |---|---|---|---|
 | [0001](0001-verification-email-inscription-libre.md) | Vérification d'email à l'inscription libre | 🔴 Bloquant avant mise en ligne | ouvert |
-| [0002](0002-force-row-level-security.md) | `FORCE ROW LEVEL SECURITY` sur les tables applicatives | 🔴 À la création des tables | ouvert |
-| [0003](0003-transaction-et-contexte-rls.md) | Transaction explicite et contexte RLS par requête | 🔴 Avant la première requête applicative | ouvert |
+| [0002](0002-force-row-level-security.md) | `FORCE ROW LEVEL SECURITY` sur les tables applicatives | 🔴 À la création des tables | **fait** (étape 3a) |
+| [0003](0003-transaction-et-contexte-rls.md) | Transaction explicite et contexte RLS par requête | 🔴 Avant la première requête applicative | **fait** (étape 3a) |
 | [0004](0004-cors-admin-ui.md) | CORS pour l'admin UI | 🟡 Quand l'admin UI existe | ouvert |
+| [0005](0005-policy-organizations-par-appartenance.md) | Policy `organizations` par appartenance | 🔴 Étape 3b | **fait** (étape 3b) |
+| [0006](0006-garde-fous-escalade-privileges.md) | Garde-fous d'escalade de privilèges | 🔴 Étape 4, avant toute route de gestion des rôles | ouvert |
+| [0007](0007-amorcage-et-verification-db.md) | Amorçage de la base et vérification des préconditions | 🔴 | **fait** |
