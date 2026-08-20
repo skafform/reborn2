@@ -2,7 +2,10 @@ import { createRoute, OpenAPIHono, z } from "@hono/zod-openapi";
 import { HTTPException } from "hono/http-exception";
 import { AuthorizationError } from "./auth/escalation.ts";
 import { auth } from "./auth.ts";
+import { env } from "./config/env.ts";
 import { managementRoutes } from "./http/routes.ts";
+import { previewRoutes } from "./mail/preview.ts";
+import { InvitationError } from "./services/invitations.ts";
 
 export const app = new OpenAPIHono();
 
@@ -13,7 +16,7 @@ export const app = new OpenAPIHono();
  * (CWE-280, ADR 0012).
  */
 app.onError((error, c) => {
-  if (error instanceof AuthorizationError) {
+  if (error instanceof AuthorizationError || error instanceof InvitationError) {
     return c.json({ error: error.message, reason: error.reason }, error.status);
   }
   // Définir `onError` retire à Hono le traitement par défaut : les
@@ -55,6 +58,12 @@ const healthRoute = createRoute({
 app.openapi(healthRoute, (c) => c.json({ status: "ok" as const }));
 
 app.route("/api", managementRoutes);
+
+// Prévisualisation des emails : jamais en production, elle expose la
+// structure des gabarits sans raison.
+if (env.NODE_ENV !== "production") {
+  app.route("/dev/emails", previewRoutes);
+}
 
 app.doc("/openapi.json", {
   openapi: "3.0.0",

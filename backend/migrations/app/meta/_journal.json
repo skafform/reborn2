@@ -57,6 +57,34 @@
       "when": 1787237992772,
       "tag": "0007_project_members_rls",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1787239843684,
+      "tag": "0008_colorful_omega_red",
+      "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1787240443337,
+      "tag": "0009_invitations_rls",
+      "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1787240491781,
+      "tag": "0010_invitation_token_policy",
+      "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1787240982027,
+      "tag": "0011_invitation_token_reveals",
+      "breakpoints": true
     }
   ]
 }

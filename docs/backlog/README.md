@@ -41,3 +41,4 @@ n'est jamais réattribué.
 | [0006](0006-garde-fous-escalade-privileges.md) | Garde-fous d'escalade de privilèges | 🔴 | **fait** (étape 4) |
 | [0007](0007-amorcage-et-verification-db.md) | Amorçage de la base et vérification des préconditions | 🔴 | **fait** |
 | [0008](0008-resolution-des-projets-d-un-membre.md) | Résolution des projets d'un membre de projet | 🟢 À mesurer d'abord | ouvert |
+| [0009](0009-rate-limiting-des-invitations.md) | Rate limiting des invitations | 🟠 Avant mise en ligne | ouvert |

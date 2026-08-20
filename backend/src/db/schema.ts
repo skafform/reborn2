@@ -210,3 +210,49 @@ export const projectMembers = pgTable(
     index("project_members_organization_id_idx").on(table.organizationId),
   ],
 );
+
+/**
+ * Invitation à rejoindre une organization ou un projet précis.
+ *
+ * `project_id` nul → invitation au niveau organization ; renseigné →
+ * invitation à un projet, qui ne crée **jamais** d'adhésion à l'organization
+ * (architecture/invitations.md).
+ *
+ * Seul le **hachage** du jeton est stocké : le jeton lui-même ne vit que dans
+ * l'email. Même raisonnement que pour la clé API secrète — si la base fuit,
+ * les invitations en attente restent inutilisables.
+ *
+ * `email` est immuable : corriger une adresse impose d'annuler et de recréer,
+ * sans quoi une invitation validée pour une personne serait redirigée vers une
+ * autre.
+ */
+export const invitations = pgTable(
+  "invitations",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    organizationId: uuid("organization_id")
+      .notNull()
+      .references(() => organizations.id, { onDelete: "cascade" }),
+    projectId: uuid("project_id").references(() => projects.id, {
+      onDelete: "cascade",
+    }),
+    email: text("email").notNull(),
+    roleId: uuid("role_id").notNull(),
+    tokenHash: text("token_hash").notNull().unique(),
+    /** `SET NULL` : l'invitation survit à la suppression de son émetteur. */
+    invitedBy: text("invited_by"),
+    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+    acceptedAt: timestamp("accepted_at", { withTimezone: true }),
+    cancelledAt: timestamp("cancelled_at", { withTimezone: true }),
+    createdAt: timestamps.createdAt,
+  },
+  (table) => [
+    foreignKey({
+      columns: [table.organizationId, table.roleId],
+      foreignColumns: [roles.organizationId, roles.id],
+      name: "invitations_role_fk",
+    }),
+    index("invitations_organization_id_idx").on(table.organizationId),
+    index("invitations_email_idx").on(table.email),
+  ],
+);

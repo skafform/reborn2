@@ -1,5 +1,14 @@
 import { createRoute, OpenAPIHono, z } from "@hono/zod-openapi";
+import { HTTPException } from "hono/http-exception";
 import { requirePermission } from "../auth/escalation.ts";
+import { auth } from "../auth.ts";
+import {
+  acceptInvitation,
+  cancelInvitation,
+  createInvitation,
+  describeInvitation,
+  listPendingInvitations,
+} from "../services/invitations.ts";
 import {
   createOrganization,
   createProject,
@@ -100,5 +109,128 @@ managementRoutes.openapi(
       name,
     });
     return c.json(project, 201);
+  },
+);
+
+// ---------------------------------------------------------------------------
+// Invitations
+// ---------------------------------------------------------------------------
+
+const InvitationInput = z
+  .object({
+    email: z.email(),
+    roleId: z.uuid(),
+    projectId: z.uuid().optional(),
+  })
+  .openapi("InvitationInput");
+
+managementRoutes.openapi(
+  createRoute({
+    method: "get",
+    path: "/organizations/{organizationId}/invitations",
+    summary: "Les invitations en attente",
+    middleware: [requireSession, requireOrganization] as const,
+    request: { params: z.object({ organizationId: z.uuid() }) },
+    responses: { 200: json(z.array(z.any()), "Liste") },
+  }),
+  async (c) => {
+    const { organizationId } = c.req.valid("param");
+    requirePermission(c.get("actor"), "member.manage");
+    return c.json(await listPendingInvitations(c.get("userId"), organizationId));
+  },
+);
+
+managementRoutes.openapi(
+  createRoute({
+    method: "post",
+    path: "/organizations/{organizationId}/invitations",
+    summary: "Inviter quelqu'un",
+    middleware: [requireSession, requireOrganization] as const,
+    request: {
+      params: z.object({ organizationId: z.uuid() }),
+      body: { content: { "application/json": { schema: InvitationInput } } },
+    },
+    responses: { 201: json(z.object({ id: z.uuid() }), "Envoyée") },
+  }),
+  async (c) => {
+    const { organizationId } = c.req.valid("param");
+    const body = c.req.valid("json");
+    const actor = c.get("actor");
+
+    // Le droit d'inviter dépend du rôle accordé, vérifié dans le service :
+    // inviter, c'est accorder (ADR 0011).
+    const [organization] = await listOrganizationsForUser(c.get("userId")).then(
+      (list) => list.filter((o) => o.id === organizationId),
+    );
+    if (!organization) throw new HTTPException(404, { message: "introuvable" });
+
+    const session = await auth.api.getSession({ headers: c.req.raw.headers });
+    const { id } = await createInvitation({
+      actor,
+      invitedByName: session?.user.name ?? "Un membre",
+      organizationId,
+      organizationName: organization.name,
+      email: body.email,
+      roleId: body.roleId,
+      ...(body.projectId ? { projectId: body.projectId } : {}),
+    });
+    return c.json({ id }, 201);
+  },
+);
+
+managementRoutes.openapi(
+  createRoute({
+    method: "delete",
+    path: "/organizations/{organizationId}/invitations/{invitationId}",
+    summary: "Annuler une invitation",
+    middleware: [requireSession, requireOrganization] as const,
+    request: {
+      params: z.object({ organizationId: z.uuid(), invitationId: z.uuid() }),
+    },
+    responses: { 204: { description: "Annulée" } },
+  }),
+  async (c) => {
+    const { organizationId, invitationId } = c.req.valid("param");
+    requirePermission(c.get("actor"), "member.manage");
+    await cancelInvitation({ actor: c.get("actor"), organizationId, invitationId });
+    return c.body(null, 204);
+  },
+);
+
+/**
+ * Consulter une invitation depuis son jeton. **Sans session** : le
+ * destinataire n'a pas encore de compte le plus souvent, et le jeton fait
+ * office d'autorisation.
+ */
+managementRoutes.openapi(
+  createRoute({
+    method: "get",
+    path: "/invitations/{token}",
+    summary: "Décrire une invitation",
+    request: { params: z.object({ token: z.string().min(1) }) },
+    responses: { 200: json(z.any(), "Détail") },
+  }),
+  async (c) => c.json(await describeInvitation(c.req.valid("param").token)),
+);
+
+managementRoutes.openapi(
+  createRoute({
+    method: "post",
+    path: "/invitations/{token}/accept",
+    summary: "Accepter une invitation",
+    middleware: [requireSession] as const,
+    request: { params: z.object({ token: z.string().min(1) }) },
+    responses: { 200: json(z.any(), "Acceptée") },
+  }),
+  async (c) => {
+    const session = await auth.api.getSession({ headers: c.req.raw.headers });
+    if (!session) throw new HTTPException(401);
+    return c.json(
+      await acceptInvitation({
+        token: c.req.valid("param").token,
+        userId: session.user.id,
+        userEmail: session.user.email,
+      }),
+    );
   },
 );

@@ -26,6 +26,12 @@ export type QueryContext = {
   userId?: string;
   /** Organization à laquelle la requête est cadrée. */
   organizationId?: string;
+  /**
+   * Hachage d'un jeton d'invitation. La possession du jeton **est**
+   * l'autorisation : elle rend visible exactement la ligne correspondante,
+   * ce qui permet d'accepter une invitation avant d'être membre.
+   */
+  invitationTokenHash?: string;
 };
 
 export type Transaction = Parameters<Parameters<typeof db.transaction>[0]>[0];
@@ -51,6 +57,9 @@ export function withContext<T>(
     );
     await tx.execute(
       sql`select set_config('app.current_organization_id', ${context.organizationId ?? ""}, true)`,
+    );
+    await tx.execute(
+      sql`select set_config('app.invitation_token_hash', ${context.invitationTokenHash ?? ""}, true)`,
     );
     return fn(tx);
   });
