@@ -61,11 +61,20 @@ effaçable est interdite : ni `enum`, ni paramètres-propriétés, ni `namespace
 Les variables d'environnement sont chargées par `--env-file=.env`, sans
 `dotenv`.
 
-**Ce n'est pas un monorepo.** Deux dépôts distincts, déployés séparément :
-l'API (ce dépôt, répertoire `backend/`) et l'admin UI, qui vit ailleurs. Ils
-communiquent uniquement par HTTP, sous le même domaine racine (sous-domaines)
-pour que les cookies de session soient partagés. Ne jamais introduire ici de
-workspace, de package partagé ou d'outillage de monorepo.
+**Ce n'est pas un monorepo.** Deux projets **indépendants** dans ce dépôt :
+
+- `backend/` — l'API Hono
+- `console/` — l'interface d'administration (React Router 8, SPA)
+
+Ils ne partagent **ni workspace, ni package, ni outillage de build**, et se
+déploient séparément. Ne jamais en introduire : c'est ce qui rend le mode RPC
+de Hono impraticable et impose le contrat OpenAPI
+([ADR 0005](docs/adr/0005-depots-separes-contrat-openapi.md)).
+
+Ils communiquent par HTTP. En développement, un proxy Vite renvoie `/api` vers
+`localhost:3000`, ce qui rend chaque requête *same-origin* — **aucun CORS n'est
+donc nécessaire en local**, et le backend n'a pas à être modifié pour une
+commodité de développement.
 
 ## Stack
 
