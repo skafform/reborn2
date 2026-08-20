@@ -8,6 +8,7 @@ const valid = {
   DATABASE_MIGRATION_URL: "postgresql://o:p@127.0.0.1:5433/db",
   BETTER_AUTH_SECRET: "x".repeat(32),
   BETTER_AUTH_URL: "http://localhost:3000",
+  PLATFORM_MAIL_FROM: "noreply@example.test",
 };
 
 describe("envSchema", () => {
@@ -44,5 +45,19 @@ describe("envSchema", () => {
   it("rejects a malformed URL", () => {
     const result = envSchema.safeParse({ ...valid, PLATFORM_URL: "not-a-url" });
     assert.equal(result.success, false);
+  });
+
+  it("allows a missing Resend key outside production", () => {
+    const result = envSchema.safeParse({ ...valid, NODE_ENV: "development" });
+    assert.equal(result.success, true, "un email perdu en local est sans conséquence");
+  });
+
+  it("requires the Resend key in production", () => {
+    const result = envSchema.safeParse({ ...valid, NODE_ENV: "production" });
+    assert.equal(
+      result.success,
+      false,
+      "en production, le repli console ferait disparaître les emails",
+    );
   });
 });
