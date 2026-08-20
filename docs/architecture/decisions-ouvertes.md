@@ -11,31 +11,6 @@ devient aussi un [ADR](../adr/).
 Les écarts entre le code et l'architecture ne sont **pas** ici : ce sont des
 tâches, elles vivent dans le [backlog](../backlog/).
 
-## À trancher avant d'écrire les clés API
-
-### À quoi une clé API est-elle rattachée ?
-
-[api.md](./api.md) les scope à `environment_id`. Or les environnements sont un
-concept **CMS** — ils existent pour tester un changement de schéma contre du
-contenu réel ([environments.md](./environments.md)).
-
-Cela compte parce que les clés API sont considérées comme faisant partie du
-**socle réutilisable**, au même titre que l'authentification, les rôles et les
-invitations. Un socle générique scoperait plutôt à un **projet**.
-
-- **Rattacher au projet** — socle net, mais il faut un mécanisme pour qu'une
-  clé désigne un environnement
-- **Rattacher à l'environnement** — plus simple maintenant, moins net à
-  extraire
-
-À trancher **avant** d'écrire la table, pas après.
-
-Note connexe : le triplet publique / preview / secrète est lui aussi
-CMS-spécifique — la clé *preview* n'existe que parce qu'il y a des brouillons.
-Le mécanisme (clé hachée, portée, capacités, révocation) est générique. Même
-ligne de découpe que dans [`config/permissions.ts`](../../backend/src/config/permissions.ts),
-qui mêle déjà `member.manage` et `org.*` à `content.*` et `schema.*`.
-
 ## À trancher avant d'écrire la couche contenu
 
 ### Quand la validation s'applique-t-elle ?

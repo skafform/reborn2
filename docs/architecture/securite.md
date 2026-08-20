@@ -61,6 +61,49 @@ obligatoires — mais elle en **contient** la portée.
 - Les bugs d'attribution de rôle eux-mêmes
 - L'audit, besoin distinct — voir [audit.md](./audit.md)
 
+## Les policies doivent être autonomes
+
+⚠️ **Une policy qui interroge une autre table dont la policy revient vers elle
+forme un cycle que Postgres refuse** — « infinite recursion detected », ou un
+épuisement de la pile quand le cycle est plus long.
+
+Deux cycles ont été rencontrés en construisant : `projects` ↔ `environments`,
+puis `api_keys` ↔ `environments`.
+
+`SECURITY DEFINER` ne les résout **pas** : `FORCE ROW LEVEL SECURITY` soumet
+aussi le propriétaire aux policies, donc la fonction rencontre la même boucle.
+C'est pourtant le réflexe naturel, et c'est ce qui rend le piège coûteux.
+
+**Le remède est structurel : chaque table porte sa colonne de cadrage.**
+`environments` et `api_keys` portent un `organization_id` dénormalisé, garanti
+cohérent par une clé étrangère composite. Chaque policy se suffit alors à
+elle-même, et les requêtes y gagnent — résoudre une clé API ne touche qu'une
+seule table.
+
+Règle à tenir : **une policy ne référence jamais une autre table protégée par
+RLS.**
+
+## Migrer des données sous RLS
+
+`FORCE` soumet le propriétaire aux policies, donc un `UPDATE` de remplissage
+lancé par une migration **ne touche aucune ligne** — sans erreur, silencieusement.
+
+Il faut lever `FORCE` le temps de l'opération :
+
+```sql
+ALTER TABLE t NO FORCE ROW LEVEL SECURITY;
+-- remplissage
+ALTER TABLE t FORCE ROW LEVEL SECURITY;
+```
+
+Supprimer les policies ne conviendrait pas : une table sans policy est
+**fermée**, pas ouverte.
+
+⚠️ Une migration qui échoue entre les deux laisse la table **sans FORCE** —
+donc son propriétaire hors RLS. C'est arrivé. Le contrôle de préconditions
+(`src/db/preconditions.ts`) l'attrape au démarrage suivant, ce qui est
+précisément sa raison d'être.
+
 ## Les trois risques de configuration
 
 Tous relèvent du réglage initial : vérifiables une fois, puis stables.

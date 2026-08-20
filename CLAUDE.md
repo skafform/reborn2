@@ -4,16 +4,23 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## État du projet
 
-Étapes 1 à 4 faites :
+👉 **[docs/etat.md](docs/etat.md) dit où on en est, ce qui reste, et par quoi
+commencer.** À lire en premier en reprenant le travail.
+
+
+Le **socle est complet** — étapes 1 à 6a :
 
 - Squelette Hono + `@hono/zod-openapi`, validation d'environnement
-- Better-Auth sur Postgres (`pg.Pool`), inscription et connexion
+- Better-Auth sur Postgres (`pg.Pool`), confirmation d'adresse obligatoire,
+  réinitialisation de mot de passe
 - Tables applicatives sous RLS forcé, point de passage `withContext`
-- Rôles par organization, catalogue de permissions, `can()`, garde-fous
-  d'escalade, et quatre routes de gestion
+- Rôles personnalisables par organization, catalogue de permissions, `can()`,
+  garde-fous d'escalade, routes de gestion
+- Invitations et emails (gabarits maison, prévisualisation sur `/dev/emails`)
+- Clés API : publique, preview, secrète — par environnement
 
-**Pas encore** : invitations et envoi d'emails (étape 5), clés API et contenu
-(étape 6).
+**Pas encore** : schémas de contenu et documents (étape 6b) — c'est là que le
+CMS commence, tout ce qui précède est réutilisable.
 
 ## Commandes
 
@@ -53,9 +60,6 @@ effaçable est interdite : ni `enum`, ni paramètres-propriétés, ni `namespace
 
 Les variables d'environnement sont chargées par `--env-file=.env`, sans
 `dotenv`.
-
-Aucun outil de test n'est encore installé — à choisir au moment où la première
-logique testable apparaît.
 
 **Ce n'est pas un monorepo.** Deux dépôts distincts, déployés séparément :
 l'API (ce dépôt, répertoire `backend/`) et l'admin UI, qui vit ailleurs. Ils
@@ -263,6 +267,18 @@ fonctionne — mais faussement.
 L'objet `db` de Drizzle n'est **pas exporté** : c'est ce qui rend le
 contournement impossible par construction. `withContext` ouvre la transaction
 et y pose le contexte RLS.
+
+⚠️ **Une policy ne référence jamais une autre table sous RLS.** Deux policies
+qui se consultent mutuellement forment un cycle que Postgres refuse, et
+`SECURITY DEFINER` n'y change rien puisque `FORCE` soumet aussi le
+propriétaire. Chaque table porte donc sa colonne de cadrage, dénormalisée et
+garantie par une clé étrangère composite.
+
+⚠️ **Une migration de données sous RLS doit lever `FORCE` le temps de
+l'opération** — sinon le remplissage ne touche aucune ligne, silencieusement.
+Et si elle échoue entre les deux, la table reste **sans FORCE** : le contrôle
+de préconditions l'attrape au démarrage suivant. Voir
+[securite.md](docs/architecture/securite.md).
 
 ⚠️ **Trois règles RLS dont la violation est silencieuse** — on se croit protégé
 sans l'être :

@@ -32,6 +32,15 @@ export type QueryContext = {
    * ce qui permet d'accepter une invitation avant d'être membre.
    */
   invitationTokenHash?: string;
+  /**
+   * Clé API présentée, en clair et hachée. Une clé publique ou preview est
+   * stockée en clair, une clé secrète sous forme de hachage : les deux
+   * comparaisons sont donc nécessaires. Comme le jeton d'invitation, la clé
+   * est son propre laissez-passer — elle arrive avant qu'on sache de quel
+   * locataire il s'agit.
+   */
+  apiKeyToken?: string;
+  apiKeyTokenHash?: string;
 };
 
 export type Transaction = Parameters<Parameters<typeof db.transaction>[0]>[0];
@@ -60,6 +69,12 @@ export function withContext<T>(
     );
     await tx.execute(
       sql`select set_config('app.invitation_token_hash', ${context.invitationTokenHash ?? ""}, true)`,
+    );
+    await tx.execute(
+      sql`select set_config('app.api_key_token', ${context.apiKeyToken ?? ""}, true)`,
+    );
+    await tx.execute(
+      sql`select set_config('app.api_key_token_hash', ${context.apiKeyTokenHash ?? ""}, true)`,
     );
     return fn(tx);
   });

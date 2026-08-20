@@ -139,7 +139,11 @@ export async function createProject(input: {
       if (!project) throw new Error("project insert returned no row");
 
       // Un projet sans environnement ne doit jamais exister (ADR 0006).
-      await tx.insert(environments).values({ projectId: project.id, name: "master" });
+      await tx.insert(environments).values({
+        projectId: project.id,
+        organizationId: input.organizationId,
+        name: "master",
+      });
 
       return { id: project.id, name: project.name };
     },

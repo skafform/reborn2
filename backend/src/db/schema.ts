@@ -63,12 +63,26 @@ export const environments = pgTable(
     projectId: uuid("project_id")
       .notNull()
       .references(() => projects.id, { onDelete: "cascade" }),
+    /**
+     * Dénormalisé depuis `projects`. Deux raisons : cadrer un environnement
+     * sans jointure, et surtout **rompre un cycle de policies** — sans cela,
+     * lire `projects` consulte `environments`, dont la policy consulte
+     * `projects`. Postgres détecte la récursion et refuse la requête.
+     */
+    organizationId: uuid("organization_id").notNull(),
     name: text("name").notNull(),
     createdAt: timestamps.createdAt,
   },
   (table) => [
     unique("environments_project_id_name_key").on(table.projectId, table.name),
     index("environments_project_id_idx").on(table.projectId),
+    index("environments_organization_id_idx").on(table.organizationId),
+    unique("environments_id_organization_id_key").on(table.id, table.organizationId),
+    foreignKey({
+      columns: [table.projectId, table.organizationId],
+      foreignColumns: [projects.id, projects.organizationId],
+      name: "environments_project_fk",
+    }),
     // Le nom finit dans des URLs d'API (ADR 0006, convention Sanity).
     check(
       "environments_name_format",
@@ -254,5 +268,64 @@ export const invitations = pgTable(
     }),
     index("invitations_organization_id_idx").on(table.organizationId),
     index("invitations_email_idx").on(table.email),
+  ],
+);
+
+export const apiKeyKind = pgEnum("api_key_kind", ["public", "preview", "secret"]);
+
+/**
+ * Clés d'accès machine, rattachées à un **environnement** (ADR 0013) : deux
+ * environnements dans un projet font deux triplets.
+ *
+ * Le stockage est asymétrique, et c'est délibéré (architecture/api.md) :
+ *
+ * - `token` porte la clé en clair pour les types **publique** et **preview**,
+ *   qu'il faut pouvoir reconsulter pour les recopier dans un site
+ * - `token_hash` porte le hachage de la clé **secrète**, affichée une seule
+ *   fois à la création. Seule elle donne un droit d'écriture ; si la base
+ *   fuit, elle reste inutilisable
+ *
+ * Exactement une des deux colonnes est renseignée, ce que garantit une
+ * contrainte de vérification.
+ */
+export const apiKeys = pgTable(
+  "api_keys",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    environmentId: uuid("environment_id")
+      .notNull()
+      .references(() => environments.id, { onDelete: "cascade" }),
+    /**
+     * Dénormalisé, comme sur `environments`. Une policy qui traverse une autre
+     * table dont la policy revient vers elle forme un cycle que Postgres
+     * refuse. Porter la colonne de cadrage rend chaque policy autonome — et
+     * résoudre une clé devient une requête sur une seule table.
+     */
+    organizationId: uuid("organization_id").notNull(),
+    kind: apiKeyKind("kind").notNull(),
+    name: text("name").notNull(),
+    /** Clé en clair — types publique et preview uniquement. */
+    token: text("token").unique(),
+    /** Hachage — type secret uniquement. */
+    tokenHash: text("token_hash").unique(),
+    /** Préfixe affichable, pour reconnaître une clé secrète sans la révéler. */
+    hint: text("hint").notNull(),
+    revokedAt: timestamp("revoked_at", { withTimezone: true }),
+    lastUsedAt: timestamp("last_used_at", { withTimezone: true }),
+    ...timestamps,
+  },
+  (table) => [
+    index("api_keys_environment_id_idx").on(table.environmentId),
+    index("api_keys_organization_id_idx").on(table.organizationId),
+    foreignKey({
+      columns: [table.environmentId, table.organizationId],
+      foreignColumns: [environments.id, environments.organizationId],
+      name: "api_keys_environment_fk",
+    }),
+    check(
+      "api_keys_secret_is_hashed",
+      sql`(${table.kind} = 'secret' AND ${table.tokenHash} IS NOT NULL AND ${table.token} IS NULL)
+       OR (${table.kind} <> 'secret' AND ${table.token} IS NOT NULL AND ${table.tokenHash} IS NULL)`,
+    ),
   ],
 );

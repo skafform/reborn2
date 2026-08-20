@@ -51,7 +51,11 @@ async function seed() {
       .values({ organizationId: ACME, name: "Site Client A" })
       .returning();
     assert.ok(project);
-    await tx.insert(environments).values({ projectId: project.id, name: "master" });
+    await tx.insert(environments).values({
+      projectId: project.id,
+      organizationId: ACME,
+      name: "master",
+    });
   });
 }
 
@@ -132,7 +136,11 @@ describe("isolation multi-tenant", () => {
     assert.ok(project);
     await assert.rejects(() =>
       withContext({ organizationId: ACME }, (tx) =>
-        tx.insert(environments).values({ projectId: project.id, name: "Master Prod" }),
+        tx.insert(environments).values({
+          projectId: project.id,
+          organizationId: ACME,
+          name: "Master Prod",
+        }),
       ),
     );
   });

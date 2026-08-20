@@ -145,3 +145,26 @@ export function can(actor: Actor, permission: Permission, projectId?: string): b
 export function heldPermissions(actor: Actor): ReadonlySet<Permission> {
   return actor.grant?.permissions ?? new Set();
 }
+
+/**
+ * Acteur machine : une clé API résolue.
+ *
+ * Elle n'a **pas** d'utilisateur — d'où l'acteur polymorphe du journal d'audit
+ * (ADR 0008). Sa portée est un environnement, pas une organization : c'est le
+ * seul acteur dont les droits ne viennent pas d'une adhésion.
+ */
+export type KeyActor = {
+  apiKeyId: string;
+  environmentId: string;
+  organizationId: string;
+  permissions: ReadonlySet<Permission>;
+};
+
+/**
+ * Vérification pour un acteur machine. Même catalogue que `can()`, refus par
+ * défaut identique — un seul vocabulaire d'autorisation pour les deux types
+ * d'acteurs (ADR 0004).
+ */
+export function keyCan(actor: KeyActor, permission: Permission): boolean {
+  return actor.permissions.has(permission);
+}

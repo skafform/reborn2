@@ -50,3 +50,4 @@ Court : si un ADR dépasse une page, c'est souvent qu'il en contient deux.
 | [0010](0010-typescript-natif-sans-etape-de-build.md) | TypeScript exécuté nativement, sans étape de build | 2026-08-20 |
 | [0011](0011-roles-personnalises-par-organization.md) | Rôles personnalisés par organization | 2026-08-20 |
 | [0012](0012-resolution-des-permissions-par-requete.md) | Résolution des permissions par requête, et codes de refus | 2026-08-20 |
+| [0013](0013-cles-api-rattachees-a-un-environnement.md) | Une clé API appartient à un environnement | 2026-08-20 |

@@ -30,3 +30,10 @@ export const INVITATION_RATE_LIMIT = { count: 50, windowHours: 24 } as const;
  * par énumération.
  */
 export const INVITATION_TOKEN_BYTES = 32;
+
+/**
+ * Longueur du jeton d'une clé API, en octets avant encodage. Même exigence
+ * d'entropie que pour une invitation : ces jetons sont des identifiants
+ * d'accès à part entière.
+ */
+export const API_KEY_TOKEN_BYTES = 32;
