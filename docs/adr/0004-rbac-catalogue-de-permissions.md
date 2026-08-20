@@ -1,7 +1,14 @@
 # ADR 0004 — RBAC : catalogue de permissions et point de vérification unique
 
-**Statut** : Accepté
+**Statut** : Accepté, **partiellement remplacé par
+[ADR 0011](0011-roles-personnalises-par-organization.md)**
 **Date** : 2026-08-20
+
+> ⚠️ Une seule décision de cet ADR est caduque : la correspondance rôle →
+> permissions ne vit plus dans une constante en code mais en base, le besoin de
+> rôles personnalisés par organization ayant été exprimé depuis. Tout le reste —
+> catalogue défini en code, règle de découpage, point de vérification unique,
+> catalogue partagé avec les clés API — reste en vigueur.
 
 ## Contexte
 
@@ -41,6 +48,8 @@ disperse les exceptions ; c'est la cause d'échec identifiée ci-dessus.
 **Rôles personnalisés définis par les clients, dès maintenant.** Contentful et
 Sanity réservent tous deux cette fonctionnalité à leurs paliers payants — c'est
 une fonctionnalité produit monétisable, pas un prérequis technique.
+*(Décision renversée le lendemain : voir
+[ADR 0011](0011-roles-personnalises-par-organization.md).)*
 
 **ReBAC façon Zanzibar (OpenFGA, SpiceDB).** Résout des graphes d'autorisation
 que ce projet n'a pas ; deux niveaux de rôles fixes ne justifient pas un moteur
