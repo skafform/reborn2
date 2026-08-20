@@ -4,15 +4,16 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## État du projet
 
-Cadrage terminé. Pas 1 et 2 faits :
+Étapes 1 à 4 faites :
 
-- Squelette Hono + `@hono/zod-openapi`, endpoint `/health`, validation
-  d'environnement
-- Better-Auth branché sur Postgres (`pg.Pool`), inscription et connexion
-  email/mot de passe fonctionnelles
+- Squelette Hono + `@hono/zod-openapi`, validation d'environnement
+- Better-Auth sur Postgres (`pg.Pool`), inscription et connexion
+- Tables applicatives sous RLS forcé, point de passage `withContext`
+- Rôles par organization, catalogue de permissions, `can()`, garde-fous
+  d'escalade, et quatre routes de gestion
 
-**Pas encore** : tables applicatives (Drizzle), RLS, rôles, invitations, tests.
-Pas de dépôt git pour l'instant.
+**Pas encore** : invitations et envoi d'emails (étape 5), clés API et contenu
+(étape 6).
 
 ## Commandes
 
@@ -231,10 +232,19 @@ API Top 10) : en multi-tenant, un client accédant aux données d'un autre.
   des policies RLS
 
 ⚠️ **Jamais de `if (role === 'editor')` dans un handler.** Toute décision
-d'autorisation passe par `can()`. La matrice complète est dans
-[roles-permissions.md](docs/architecture/roles-permissions.md) — elle est
-purement déclarative, sans exception à compléter en code, et **c'est le seul
-endroit où elle se modifie**.
+d'autorisation passe par `can()` (`src/auth/authorization.ts`) ou par
+`requirePermission()` (`src/auth/escalation.ts`), qui lève une
+`AuthorizationError` traitée en un seul endroit.
+
+Les permissions sont résolues **une fois par requête** dans le middleware et
+tenues en mémoire ; `can()` n'accède jamais à la base. Aucun cache ne survit à
+la requête — c'est ce qui fait qu'un retrait de rôle prend effet à la suivante.
+Ne pas y ajouter de cache sans lire l'[ADR 0012](docs/adr/0012-resolution-des-permissions-par-requete.md).
+
+⚠️ **On n'accorde jamais une permission qu'on ne détient pas.** À vérifier
+aux **deux** moments où des permissions changent de mains : création ou
+modification d'un rôle, **et** assignation. Vérifier seulement à la création
+laisserait assigner un rôle préexistant plus puissant que soi.
 
 Les **clés API partagent ce catalogue** : un seul `can()` sert les acteurs
 humains et machines. Ne pas créer de second chemin d'autorisation pour les clés.
