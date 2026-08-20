@@ -55,6 +55,33 @@ comme contexte d'affichage (voir
 - Si l'invitation existante est **expirée**, une nouvelle invitation peut être
   créée normalement
 
+## Inviter quelqu'un déjà là
+
+Refusé en **409 `already_member`**. Sans ce contrôle l'invitation partait et
+devenait **inacceptable à jamais** : l'acceptation insère dans
+`organization_members`, dont la clé primaire est `(organization_id, user_id)`,
+et la violation remontait en 500.
+
+Le contrôle vise exactement ce que cette insertion violerait :
+
+| Invitation | Refusée si la personne est déjà |
+|---|---|
+| d'organization | membre de l'organization |
+| de projet | membre **de ce projet** |
+
+Un membre de l'organization peut donc toujours être invité sur un projet —
+c'est le cas normal, et la portée des deux adhésions est distincte.
+
+⚠️ **Ce n'est pas la façon de changer un rôle.** Inviter un `owner` en `admin`
+serait une rétrogradation déguisée. Le changement de rôle est une opération
+distincte, avec son propre garde-fou d'escalade.
+
+**Le contrôle à la création ne suffit pas.** L'adhésion peut naître entre
+l'envoi et le clic — ajoutée à la main, ou par une autre invitation. Sous
+concurrence, seule la clé primaire tranche : l'acceptation traite donc la
+violation `23505` comme un refus lisible, jamais comme un 500. Même raisonnement
+que pour le doublon d'invitation ci-dessus.
+
 ## Annulation
 
 - La personne qui a envoyé l'invitation (ou un admin habilité) peut annuler

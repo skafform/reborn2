@@ -7,7 +7,7 @@ import { AuthorizationError } from "../auth/escalation.ts";
 import { auth } from "../auth.ts";
 import { INVITATION_RATE_LIMIT } from "../config/constants.ts";
 import { closePool, withContext } from "../db/client.ts";
-import { invitations, roles } from "../db/schema.ts";
+import { invitations, organizationMembers, roles } from "../db/schema.ts";
 import { destroyOrganization, destroyUsers } from "../test-support/cleanup.ts";
 import {
   acceptInvitation,
@@ -307,5 +307,88 @@ describe("invitations", () => {
         return true;
       },
     );
+  });
+
+  describe("déjà membre", () => {
+    const refusal = (error: unknown) => {
+      assert.ok(error instanceof InvitationError);
+      assert.equal(error.status, 409);
+      assert.equal(error.reason, "already_member");
+      return true;
+    };
+
+    it("refuse d'inviter quelqu'un déjà membre de l'organization", async () => {
+      // Le cas rencontré en éprouvant la console : le owner s'invitant
+      // lui-même. L'invitation partait et devenait inacceptable à jamais.
+      await assert.rejects(() => invite(owner.email, viewerRoleId), refusal);
+    });
+
+    it("refuse quelle que soit la casse de l'adresse", async () => {
+      await assert.rejects(
+        () => invite(owner.email.toUpperCase(), viewerRoleId),
+        refusal,
+        "l'adresse est normalisée avant comparaison, des deux côtés",
+      );
+    });
+
+    it("laisse inviter un membre de l'organization sur un projet", async () => {
+      const membre = await makeUser("deja-org");
+      const { token } = await invite(membre.email, viewerRoleId);
+      await acceptInvitation({
+        token,
+        userId: membre.id,
+        userEmail: membre.email,
+      });
+
+      // Appartenir à l'organization n'est pas appartenir au projet : le
+      // contrôle vise ce que l'insertion violerait, rien de plus.
+      await assert.doesNotReject(() => invite(membre.email, guestRoleId, projectId));
+    });
+
+    it("refuse d'inviter deux fois sur le même projet", async () => {
+      const pigiste = await makeUser("deja-projet");
+      const { token } = await invite(pigiste.email, guestRoleId, projectId);
+      await acceptInvitation({
+        token,
+        userId: pigiste.id,
+        userEmail: pigiste.email,
+      });
+
+      await assert.rejects(
+        () => invite(pigiste.email, guestRoleId, projectId),
+        refusal,
+      );
+    });
+
+    /**
+     * La course que le contrôle de création ne peut pas couvrir : l'adhésion
+     * naît entre l'envoi et le clic. Seule la clé primaire tranche, et sa
+     * violation doit se lire comme un refus, jamais comme un 500.
+     */
+    it("répond 409 si l'adhésion apparaît entre l'envoi et le clic", async () => {
+      const rapide = await makeUser("course");
+      const { token } = await invite(rapide.email, viewerRoleId);
+
+      // Entre-temps, quelqu'un l'ajoute à la main. L'invitation reste valide
+      // et son jeton intact : le contrôle de création ne peut rien contre cet
+      // intervalle.
+      await withContext({ userId: owner.id, organizationId }, (tx) =>
+        tx.insert(organizationMembers).values({
+          organizationId,
+          userId: rapide.id,
+          roleId: viewerRoleId,
+        }),
+      );
+
+      await assert.rejects(
+        () =>
+          acceptInvitation({
+            token,
+            userId: rapide.id,
+            userEmail: rapide.email,
+          }),
+        refusal,
+      );
+    });
   });
 });

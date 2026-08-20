@@ -46,6 +46,64 @@ export class InvitationError extends Error {
 const hashToken = (token: string) => createHash("sha256").update(token).digest("hex");
 
 /**
+ * Refuse d'inviter quelqu'un qui est déjà là.
+ *
+ * Sans ce contrôle, l'invitation partait et devenait **inacceptable à jamais** :
+ * l'acceptation insère dans `organization_members`, dont la clé primaire est
+ * `(organization_id, user_id)`, et la violation remontait en 500.
+ *
+ * Le contrôle vise exactement ce que cette insertion violerait — l'adhésion à
+ * l'organization pour une invitation d'organization, l'adhésion au projet pour
+ * une invitation de projet. Un membre de l'organization peut donc toujours
+ * être invité sur un projet, ce qui est le cas normal.
+ *
+ * ⚠️ Ce n'est pas le moyen de **changer** le rôle de quelqu'un. Inviter un
+ * `owner` en `admin` serait une rétrogradation déguisée ; le changement de
+ * rôle est une opération distincte, avec son propre garde-fou d'escalade.
+ */
+async function assertAlreadyNotMember(
+  tx: Transaction,
+  target: { organizationId: string; email: string; projectId: string | null },
+) {
+  // `"user"` appartient à Better-Auth et n'est pas déclarée dans le schéma
+  // Drizzle (ADR 0002) : la jointure passe donc par du SQL, avec des valeurs
+  // paramétrées. `user` est aussi un mot réservé, d'où les guillemets.
+  const [row] = target.projectId
+    ? await tx
+        .select({ count: sql<number>`count(*)::int` })
+        .from(projectMembers)
+        .where(
+          and(
+            eq(projectMembers.projectId, target.projectId),
+            sql`exists (select 1 from "user" u
+                        where u.id = ${projectMembers.userId}
+                          and lower(u.email) = ${target.email})`,
+          ),
+        )
+    : await tx
+        .select({ count: sql<number>`count(*)::int` })
+        .from(organizationMembers)
+        .where(
+          and(
+            eq(organizationMembers.organizationId, target.organizationId),
+            sql`exists (select 1 from "user" u
+                        where u.id = ${organizationMembers.userId}
+                          and lower(u.email) = ${target.email})`,
+          ),
+        );
+
+  if ((row?.count ?? 0) > 0) {
+    throw new InvitationError(
+      409,
+      "already_member",
+      target.projectId
+        ? "cette adresse est déjà membre du projet"
+        : "cette adresse est déjà membre de l'organization",
+    );
+  }
+}
+
+/**
  * Le comptage se fait sur la table elle-même : `created_at` et
  * `organization_id` y sont déjà, donc aucun stockage supplémentaire. Les
  * invitations annulées comptent — sinon annuler puis réinviter contournerait
@@ -107,6 +165,12 @@ export async function createInvitation(input: {
       name: role.name,
       isSystem: role.isSystem,
       permissions: granted.map((g) => g.key as Permission),
+    });
+
+    await assertAlreadyNotMember(tx, {
+      organizationId,
+      email,
+      projectId: input.projectId ?? null,
     });
 
     await assertUnderRateLimit(tx, organizationId);
@@ -258,21 +322,46 @@ export async function acceptInvitation(input: {
         throw new InvitationError(410, "expired", "invitation expirée");
       }
 
+      /**
+       * L'adhésion peut avoir été créée entre l'envoi et le clic — ajoutée à
+       * la main, ou par une autre invitation. `createInvitation` refuse déjà
+       * d'inviter un membre, mais il ne peut rien contre cet intervalle : la
+       * clé primaire est le seul juge sous concurrence.
+       *
+       * 23505 devient donc un refus lisible, jamais un 500.
+       */
+      const alreadyMember = (error: unknown) => {
+        if ((error as { cause?: { code?: string } }).cause?.code === "23505") {
+          throw new InvitationError(
+            409,
+            "already_member",
+            "cette adresse est déjà membre",
+          );
+        }
+        throw error;
+      };
+
       if (invitation.projectId) {
         // Une invitation à un projet ne crée **jamais** d'adhésion à
         // l'organization (architecture/invitations.md).
-        await tx.insert(projectMembers).values({
-          projectId: invitation.projectId,
-          organizationId: invitation.organizationId,
-          userId: input.userId,
-          roleId: invitation.roleId,
-        });
+        await tx
+          .insert(projectMembers)
+          .values({
+            projectId: invitation.projectId,
+            organizationId: invitation.organizationId,
+            userId: input.userId,
+            roleId: invitation.roleId,
+          })
+          .catch(alreadyMember);
       } else {
-        await tx.insert(organizationMembers).values({
-          organizationId: invitation.organizationId,
-          userId: input.userId,
-          roleId: invitation.roleId,
-        });
+        await tx
+          .insert(organizationMembers)
+          .values({
+            organizationId: invitation.organizationId,
+            userId: input.userId,
+            roleId: invitation.roleId,
+          })
+          .catch(alreadyMember);
       }
 
       return {
