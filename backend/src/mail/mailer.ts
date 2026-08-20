@@ -67,10 +67,33 @@ export function createResendMailer(apiKey: string, from: string): Mailer {
 }
 
 /**
- * Le mailer du serveur. En l'absence de clé — développement local — les
- * emails sont écrits dans la console plutôt que perdus silencieusement.
- * `env.ts` exige la clé en production, donc ce repli n'y survient jamais.
+ * Le mailer utilisé par l'application.
+ *
+ * Il part **délibérément** sur la console : importer un module ne doit jamais
+ * suffire à activer un envoi réel. Une suite de tests qui charge un service
+ * enverrait alors de vrais emails — c'est arrivé, et ça a épuisé le quota
+ * d'envoi.
+ *
+ * L'envoi réel est installé par le point d'entrée du serveur, jamais à
+ * l'import. Un test qui veut inspecter le contenu installe le mailer mémoire.
  */
-export const mailer: Mailer = env.RESEND_API_KEY
-  ? createResendMailer(env.RESEND_API_KEY, env.PLATFORM_MAIL_FROM)
-  : createConsoleMailer();
+let current: Mailer = createConsoleMailer();
+
+export const mailer: Mailer = {
+  send: (message) => current.send(message),
+};
+
+export function useMailer(next: Mailer): void {
+  current = next;
+}
+
+/**
+ * Installe l'envoi réel si une clé est disponible. Appelé au démarrage du
+ * serveur uniquement. `env.ts` exige la clé en production, donc le repli
+ * console n'y survient jamais.
+ */
+export function installConfiguredMailer(): void {
+  if (env.RESEND_API_KEY) {
+    useMailer(createResendMailer(env.RESEND_API_KEY, env.PLATFORM_MAIL_FROM));
+  }
+}
