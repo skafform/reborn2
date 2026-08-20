@@ -1,34 +1,17 @@
 # 0001 — Vérification d'email à l'inscription libre
 
-**État** : ouvert
-**Priorité** : 🔴 Bloquant avant toute mise en ligne
-**Ouvert le** : 2026-08-20
+**État** : **fait**
+**Ouvert le** : 2026-08-20 · **Clos le** : 2026-08-20
 
-## Écart actuel
+`requireEmailVerification: true` avec `sendVerificationEmail` et
+`autoSignInAfterVerification`. La réinitialisation de mot de passe est branchée
+au passage — un utilisateur qui ne peut ni se connecter ni réinitialiser serait
+bloqué. Voir [architecture/auth.md](../architecture/auth.md), qui note l'écart
+avec l'esquisse initiale et pourquoi.
 
-`backend/src/auth.ts` porte `requireEmailVerification: false`.
 
-[architecture/auth.md](../architecture/auth.md) décrit l'inverse :
-l'inscription libre passe par un lien à usage unique prouvant la possession de
-l'adresse, après quoi l'utilisateur complète son compte (nom + mot de passe).
+## Ce qui a été fait
 
-## Pourquoi c'est en l'état
-
-Le flux exige l'envoi d'emails, qui n'existe pas encore — c'est l'étape 5 de
-la [roadmap](../roadmap.md).
-
-## Risque tant que ça tient
-
-**N'importe qui peut créer un compte avec l'adresse d'un tiers.** Acceptable
-en développement local, inacceptable en ligne.
-
-## Levée
-
-Quand Resend est branché :
-
-- passer `requireEmailVerification` à `true`
-- brancher le flux par lien à usage unique décrit dans
-  [architecture/auth.md](../architecture/auth.md)
-- retirer le commentaire d'écart dans `backend/src/auth.ts`
-- retirer l'entrée correspondante de
-  [architecture/decisions-ouvertes.md](../architecture/decisions-ouvertes.md)
+- `requireEmailVerification: true`
+- email de confirmation à l'inscription, session ouverte au clic
+- email de réinitialisation de mot de passe

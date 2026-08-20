@@ -1,5 +1,6 @@
 import { Hono } from "hono";
-import { render } from "./template.ts";
+import { type Rendered, render, type Template } from "./template.ts";
+import { resetPasswordEmail, verifyEmail } from "./templates/auth.ts";
 import { invitationEmail } from "./templates/invitation.ts";
 
 /**
@@ -10,7 +11,20 @@ import { invitationEmail } from "./templates/invitation.ts";
  * **Montée uniquement hors production** : elle expose la structure des emails
  * et n'a aucune raison d'être publique.
  */
-const templates = [invitationEmail] as const;
+
+/**
+ * Lie chaque gabarit à ses propres données d'exemple. Sans cette étape, un
+ * tableau de gabarits aux propriétés différentes forme une union que le
+ * compilateur ne peut pas rapprocher de son échantillon.
+ */
+function bind<Props>(template: Template<Props>): {
+  name: string;
+  render: () => Rendered;
+} {
+  return { name: template.name, render: () => render(template, template.sample) };
+}
+
+const templates = [bind(invitationEmail), bind(verifyEmail), bind(resetPasswordEmail)];
 
 export const previewRoutes = new Hono();
 
@@ -28,7 +42,7 @@ previewRoutes.get("/:name", (c) => {
   const template = templates.find((t) => t.name === c.req.param("name"));
   if (!template) return c.notFound();
 
-  const rendered = render(template, template.sample);
+  const rendered = template.render();
 
   if (c.req.query("format") === "text") {
     return c.text(`${rendered.subject}\n\n${rendered.text}`);

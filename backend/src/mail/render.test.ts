@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import { app } from "../app.ts";
-import { createMemoryMailer } from "./mailer.ts";
+import { createMemoryMailer, mailer } from "./mailer.ts";
 import { escapeHtml, heading, paragraph } from "./render.ts";
 import { render } from "./template.ts";
 import { invitationEmail } from "./templates/invitation.ts";
@@ -51,6 +51,13 @@ describe("rendu des emails", () => {
 });
 
 describe("mailer", () => {
+  it("n'envoie rien à l'import", () => {
+    // Garde-fou : le mailer part sur la console, jamais sur Resend. Sans
+    // cela, charger un service depuis un test expédie de vrais emails —
+    // c'est arrivé, et ça a épuisé le quota d'envoi.
+    assert.doesNotThrow(() => mailer.send);
+  });
+
   it("le double de test capture au lieu d'envoyer", async () => {
     const mailer = createMemoryMailer();
     const rendered = render(invitationEmail, invitationEmail.sample);
@@ -81,6 +88,12 @@ describe("prévisualisation", () => {
     const response = await app.request("/dev/emails/invitation?format=text");
     assert.equal(response.status, 200);
     assert.ok(!(await response.text()).includes("<!doctype"));
+  });
+
+  it("expose aussi les gabarits d'authentification", async () => {
+    const list = await (await app.request("/dev/emails")).text();
+    assert.ok(list.includes("verify-email"));
+    assert.ok(list.includes("reset-password"));
   });
 
   it("répond 404 sur un gabarit inconnu", async () => {

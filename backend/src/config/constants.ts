@@ -8,5 +8,25 @@
  * reproduit jamais en local.
  */
 
+/** Un jour en millisecondes, pour les calculs d'expiration. */
+export const DAY_IN_MS = 24 * 60 * 60 * 1000;
+
 /** Durée de validité d'une invitation (architecture/invitations.md). */
 export const INVITATION_EXPIRY_DAYS = 7;
+
+/**
+ * Plafond d'invitations émises par une organization sur une fenêtre glissante.
+ *
+ * Sans plafond, n'importe qui crée un compte, une organization, et expédie des
+ * milliers d'emails depuis notre domaine. La conséquence ne touche pas que
+ * l'abuseur : un domaine signalé fait tomber la délivrabilité de **tous** les
+ * emails du système, y compris les réinitialisations de mot de passe.
+ */
+export const INVITATION_RATE_LIMIT = { count: 50, windowHours: 24 } as const;
+
+/**
+ * Longueur du jeton d'invitation, en octets avant encodage. Paramètre de
+ * sécurité : 32 octets font 256 bits d'entropie, hors de portée d'une attaque
+ * par énumération.
+ */
+export const INVITATION_TOKEN_BYTES = 32;

@@ -1,8 +1,17 @@
 # 0009 — Rate limiting des invitations
 
-**État** : ouvert
-**Priorité** : 🟠 Avant la première mise en ligne, avec [#0001](0001-verification-email-inscription-libre.md)
-**Ouvert le** : 2026-08-20
+**État** : **fait**
+**Ouvert le** : 2026-08-20 · **Clos le** : 2026-08-20
+
+Plafond par organization sur une fenêtre glissante
+(`INVITATION_RATE_LIMIT` dans `src/config/constants.ts`), compté sur la table
+`invitations` elle-même — `created_at` et `organization_id` y sont déjà, donc
+aucun stockage supplémentaire. Les invitations annulées comptent : sinon
+annuler puis réinviter contournerait le plafond. Au-delà, un 429.
+
+Reste ouvert, à rouvrir si le cas se présente : un plafond **par
+destinataire**, pour empêcher le harcèlement d'une même adresse depuis
+plusieurs organizations.
 
 ## Le risque
 

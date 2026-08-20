@@ -33,7 +33,7 @@ n'est jamais réattribué.
 
 | # | Item | Priorité | État |
 |---|---|---|---|
-| [0001](0001-verification-email-inscription-libre.md) | Vérification d'email à l'inscription libre | 🔴 Bloquant avant mise en ligne | ouvert |
+| [0001](0001-verification-email-inscription-libre.md) | Vérification d'email à l'inscription libre | 🔴 | **fait** (étape 5) |
 | [0002](0002-force-row-level-security.md) | `FORCE ROW LEVEL SECURITY` sur les tables applicatives | 🔴 À la création des tables | **fait** (étape 3a) |
 | [0003](0003-transaction-et-contexte-rls.md) | Transaction explicite et contexte RLS par requête | 🔴 Avant la première requête applicative | **fait** (étape 3a) |
 | [0004](0004-cors-admin-ui.md) | CORS pour l'admin UI | 🟡 Quand l'admin UI existe | ouvert |
@@ -41,4 +41,4 @@ n'est jamais réattribué.
 | [0006](0006-garde-fous-escalade-privileges.md) | Garde-fous d'escalade de privilèges | 🔴 | **fait** (étape 4) |
 | [0007](0007-amorcage-et-verification-db.md) | Amorçage de la base et vérification des préconditions | 🔴 | **fait** |
 | [0008](0008-resolution-des-projets-d-un-membre.md) | Résolution des projets d'un membre de projet | 🟢 À mesurer d'abord | ouvert |
-| [0009](0009-rate-limiting-des-invitations.md) | Rate limiting des invitations | 🟠 Avant mise en ligne | ouvert |
+| [0009](0009-rate-limiting-des-invitations.md) | Rate limiting des invitations | 🟠 | **fait** (étape 5) |

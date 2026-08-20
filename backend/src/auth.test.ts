@@ -17,6 +17,13 @@ async function removeTestUser() {
   await pool.query('DELETE FROM "user" WHERE email = $1', [EMAIL]);
 }
 
+/** Ce que produirait un clic sur le lien de confirmation. */
+async function markVerified(email: string) {
+  await pool.query('UPDATE "user" SET "emailVerified" = true WHERE email = $1', [
+    email,
+  ]);
+}
+
 const post = (path: string, body: unknown, headers: Record<string, string> = {}) =>
   app.request(path, {
     method: "POST",
@@ -31,13 +38,27 @@ describe("email + password flow", () => {
     await pool.end();
   });
 
-  it("signs up, then signs in, then resolves the session", async () => {
+  it("refuses to sign in before the address is confirmed", async () => {
     const signUp = await post("/api/auth/sign-up/email", {
       email: EMAIL,
       password: PASSWORD,
       name: "Auth Flow",
     });
-    assert.equal(signUp.status, 200);
+    assert.equal(signUp.status, 200, "the account is created");
+
+    const tooEarly = await post("/api/auth/sign-in/email", {
+      email: EMAIL,
+      password: PASSWORD,
+    });
+    assert.notEqual(
+      tooEarly.status,
+      200,
+      "an unconfirmed address must not open a session",
+    );
+  });
+
+  it("signs in once confirmed, then resolves the session", async () => {
+    await markVerified(EMAIL);
 
     const signIn = await post("/api/auth/sign-in/email", {
       email: EMAIL,

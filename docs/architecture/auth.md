@@ -13,22 +13,40 @@
 Point d'entrée réel du système (pas une organization qui invite en premier —
 il faut bien qu'un premier `owner` existe).
 
-- L'utilisateur entre son email sur la page d'inscription
-- Il reçoit un email avec un **lien à usage unique** (mécanisme magic-link de
-  Better-Auth, utilisé ici uniquement pour prouver la possession de l'email —
-  pas comme méthode de connexion récurrente, voir *Sessions* ci-dessous)
-- En cliquant, il complète son compte (nom + mot de passe)
-- Une fois le compte créé, il accède à son **espace personnel**, pas encore
-  rattaché à une organization
+- L'utilisateur s'inscrit avec son email, son nom et un mot de passe
+- Il reçoit aussitôt un email de **confirmation d'adresse**, à usage unique
+- **Tant qu'il n'a pas cliqué, il ne peut pas se connecter** —
+  `requireEmailVerification` refuse la session
+- Le clic confirme l'adresse et ouvre directement la session
+  (`autoSignInAfterVerification`), sans redemander le mot de passe
+- Il accède alors à son **espace personnel**, pas encore rattaché à une
+  organization
 - Depuis cet espace, il peut créer une ou plusieurs organizations — il en
   devient automatiquement `owner` (voir
   [multi-tenant.md](./multi-tenant.md))
 
-Ce flux est volontairement identique dans sa mécanique à l'acceptation
-d'invitation pour un nouvel utilisateur (voir
-[invitations.md](./invitations.md)) : lien à usage unique → complétion du
-compte. Après cette étape initiale, les connexions suivantes se font par
-email + mot de passe, pas par un nouveau lien à chaque fois.
+Ce que ça ferme : sans confirmation, n'importe qui crée un compte avec
+l'adresse d'un tiers et s'en sert — pour recevoir les invitations qui lui
+étaient destinées, notamment.
+
+### Écart avec l'esquisse initiale
+
+Le cadrage décrivait un flux inverse — entrer son email, recevoir un lien,
+*puis* choisir nom et mot de passe. C'est le chemin standard de Better-Auth qui
+a été retenu : éprouvé, et il ferme le même risque.
+
+Il en reste une différence, mineure : dans le flux implémenté, un compte non
+confirmé **existe** avec l'adresse visée, ce qui empêche son propriétaire
+légitime de s'inscrire — l'adresse est prise. Une gêne, pas une brèche. La
+parade usuelle est de renvoyer l'email de confirmation lorsqu'une inscription
+vise une adresse déjà prise mais non confirmée (`onExistingUserSignUp` chez
+Better-Auth). À faire si le cas se présente.
+
+## Réinitialisation de mot de passe
+
+Implémentée par `sendResetPassword` : lien à usage unique, et **toutes les
+sessions actives sont révoquées** après le changement — si le compte était
+compromis, l'attaquant perd son accès au moment même du reset.
 
 ## Changement d'email
 

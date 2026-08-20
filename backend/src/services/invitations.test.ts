@@ -1,10 +1,11 @@
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 import { after, before, describe, it } from "node:test";
-import { and, eq } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import { resolveActor } from "../auth/authorization.ts";
 import { AuthorizationError } from "../auth/escalation.ts";
 import { auth } from "../auth.ts";
+import { INVITATION_RATE_LIMIT } from "../config/constants.ts";
 import { closePool, withContext } from "../db/client.ts";
 import {
   invitations,
@@ -244,6 +245,48 @@ describe("invitations", () => {
         return true;
       },
       "inviter, c'est accorder : la règle d'escalade s'applique",
+    );
+  });
+
+  it("plafonne les invitations d'une organization", async () => {
+    // Le compteur porte sur la fenêtre glissante, invitations annulées
+    // comprises : sinon annuler puis réinviter contournerait le plafond.
+    const actor = await resolveActor(owner.id, organizationId);
+    await withContext({ userId: owner.id, organizationId }, (tx) =>
+      tx.execute(
+        sql`insert into invitations
+              (organization_id, email, role_id, token_hash, expires_at)
+            select ${organizationId}::uuid,
+                   'saturation-' || g || '@skafform.test',
+                   ${viewerRoleId}::uuid,
+                   md5(random()::text || g),
+                   now() + interval '7 days'
+            from generate_series(1, ${INVITATION_RATE_LIMIT.count}) g`,
+      ),
+    );
+
+    const target = await makeUser("plafond");
+    await assert.rejects(
+      () =>
+        createInvitation({
+          actor,
+          invitedByName: "Owner",
+          organizationId,
+          organizationName: "Acme",
+          email: target.email,
+          roleId: viewerRoleId,
+        }),
+      (error: unknown) => {
+        assert.ok(error instanceof InvitationError);
+        assert.equal(error.status, 429);
+        assert.equal(error.reason, "rate_limited");
+        return true;
+      },
+      "un domaine signalé ferait tomber la délivrabilité de tous les emails",
+    );
+
+    await withContext({ userId: owner.id, organizationId }, (tx) =>
+      tx.execute(sql`delete from invitations where email like 'saturation-%'`),
     );
   });
 

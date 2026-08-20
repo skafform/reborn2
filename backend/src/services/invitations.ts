@@ -2,10 +2,15 @@ import { createHash, randomBytes } from "node:crypto";
 import { and, eq, isNull, sql } from "drizzle-orm";
 import type { Actor } from "../auth/authorization.ts";
 import { AuthorizationError, requireCanAssignRole } from "../auth/escalation.ts";
-import { INVITATION_EXPIRY_DAYS } from "../config/constants.ts";
+import {
+  DAY_IN_MS,
+  INVITATION_EXPIRY_DAYS,
+  INVITATION_RATE_LIMIT,
+  INVITATION_TOKEN_BYTES,
+} from "../config/constants.ts";
 import { env } from "../config/env.ts";
 import type { Permission } from "../config/permissions.ts";
-import { withContext } from "../db/client.ts";
+import { type Transaction, withContext } from "../db/client.ts";
 import {
   invitations,
   organizationMembers,
@@ -27,10 +32,10 @@ import { invitationEmail } from "../mail/templates/invitation.ts";
  */
 
 export class InvitationError extends Error {
-  readonly status: 404 | 409 | 410;
+  readonly status: 404 | 409 | 410 | 429;
   readonly reason: string;
 
-  constructor(status: 404 | 409 | 410, reason: string, message: string) {
+  constructor(status: 404 | 409 | 410 | 429, reason: string, message: string) {
     super(message);
     this.name = "InvitationError";
     this.status = status;
@@ -39,6 +44,32 @@ export class InvitationError extends Error {
 }
 
 const hashToken = (token: string) => createHash("sha256").update(token).digest("hex");
+
+/**
+ * Le comptage se fait sur la table elle-même : `created_at` et
+ * `organization_id` y sont déjà, donc aucun stockage supplémentaire. Les
+ * invitations annulées comptent — sinon annuler puis réinviter contournerait
+ * le plafond.
+ */
+async function assertUnderRateLimit(tx: Transaction, organizationId: string) {
+  const [row] = await tx
+    .select({ count: sql<number>`count(*)::int` })
+    .from(invitations)
+    .where(
+      and(
+        eq(invitations.organizationId, organizationId),
+        sql`${invitations.createdAt} > now() - make_interval(hours => ${INVITATION_RATE_LIMIT.windowHours})`,
+      ),
+    );
+
+  if ((row?.count ?? 0) >= INVITATION_RATE_LIMIT.count) {
+    throw new InvitationError(
+      429,
+      "rate_limited",
+      `plafond de ${INVITATION_RATE_LIMIT.count} invitations par ${INVITATION_RATE_LIMIT.windowHours} h atteint`,
+    );
+  }
+}
 
 export async function createInvitation(input: {
   actor: Actor;
@@ -52,9 +83,9 @@ export async function createInvitation(input: {
   const { actor, organizationId } = input;
   const email = input.email.trim().toLowerCase();
 
-  const token = randomBytes(32).toString("base64url");
+  const token = randomBytes(INVITATION_TOKEN_BYTES).toString("base64url");
   const tokenHash = hashToken(token);
-  const expiresAt = new Date(Date.now() + INVITATION_EXPIRY_DAYS * 24 * 60 * 60 * 1000);
+  const expiresAt = new Date(Date.now() + INVITATION_EXPIRY_DAYS * DAY_IN_MS);
 
   const id = await withContext({ userId: actor.userId, organizationId }, async (tx) => {
     const [role] = await tx
@@ -77,6 +108,8 @@ export async function createInvitation(input: {
       isSystem: role.isSystem,
       permissions: granted.map((g) => g.key as Permission),
     });
+
+    await assertUnderRateLimit(tx, organizationId);
 
     // Une invitation expirée occupe encore l'index d'unicité : l'annuler
     // libère la place. `now()` ne pouvant figurer dans un prédicat d'index,

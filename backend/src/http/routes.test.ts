@@ -10,6 +10,7 @@ import {
   projectMembers,
   roles,
 } from "../db/schema.ts";
+import { createVerifiedUser } from "../test-support/users.ts";
 
 /**
  * Éprouve la chaîne complète : session, middleware, `can()`, service, RLS.
@@ -21,16 +22,8 @@ import {
 type Session = { cookie: string; userId: string };
 
 async function signUp(prefix: string): Promise<Session> {
-  const email = `${prefix}-${randomUUID()}@skafform.test`;
-  const response = await app.request("/api/auth/sign-up/email", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ email, password: "MotDePasseTest123!", name: prefix }),
-  });
-  const cookie = response.headers.get("set-cookie");
-  assert.ok(cookie, "l'inscription doit poser un cookie de session");
-  const body = (await response.json()) as { user: { id: string } };
-  return { cookie, userId: body.user.id };
+  const user = await createVerifiedUser(prefix);
+  return { cookie: user.cookie, userId: user.id };
 }
 
 const call = (path: string, session: Session, init: RequestInit = {}) =>
