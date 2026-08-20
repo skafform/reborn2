@@ -1,0 +1,23 @@
+# Fins de ligne normalisées en LF dans le dépôt, quelle que soit la plateforme
+# de travail. Sans cela, un checkout Windows réécrit les fichiers en CRLF et
+# produit des diffs entiers dès qu'une autre machine y touche.
+* text=auto eol=lf
+
+# Fichiers binaires : ne jamais toucher au contenu.
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.webp binary
+*.avif binary
+*.ico binary
+*.pdf binary
+*.woff binary
+*.woff2 binary
+
+# Le fichier de verrouillage est généré : le masquer dans les diffs et le
+# traiter comme tel lors des fusions.
+pnpm-lock.yaml -diff linguist-generated
+
+# Les instantanés de drizzle-kit le sont aussi.
+backend/migrations/app/meta/*.json -diff linguist-generated
