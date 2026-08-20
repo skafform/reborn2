@@ -1,8 +1,10 @@
 # 0006 — Garde-fous d'escalade de privilèges
 
-**État** : ouvert
-**Priorité** : 🔴 Étape 4, **avant** toute route de gestion des rôles
-**Ouvert le** : 2026-08-20
+**État** : **fait**
+**Ouvert le** : 2026-08-20 · **Clos le** : 2026-08-20
+
+Livré dans `backend/src/auth/escalation.ts`, couvert par
+`backend/src/auth/authorization.test.ts`.
 
 ## Ce qui est déjà garanti par la base
 

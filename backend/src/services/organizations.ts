@@ -3,8 +3,10 @@ import { and, eq } from "drizzle-orm";
 import { SYSTEM_ROLES } from "../config/permissions.ts";
 import { type Transaction, withContext } from "../db/client.ts";
 import {
+  environments,
   organizationMembers,
   organizations,
+  projects,
   rolePermissions,
   roles,
 } from "../db/schema.ts";
@@ -118,5 +120,38 @@ export function permissionsForMember(userId: string, organizationId: string) {
           eq(organizationMembers.organizationId, organizationId),
         ),
       ),
+  );
+}
+
+/** Crée un projet et son environnement `master`, dans la même transaction. */
+export async function createProject(input: {
+  userId: string;
+  organizationId: string;
+  name: string;
+}): Promise<{ id: string; name: string }> {
+  return withContext(
+    { userId: input.userId, organizationId: input.organizationId },
+    async (tx) => {
+      const [project] = await tx
+        .insert(projects)
+        .values({ organizationId: input.organizationId, name: input.name })
+        .returning();
+      if (!project) throw new Error("project insert returned no row");
+
+      // Un projet sans environnement ne doit jamais exister (ADR 0006).
+      await tx.insert(environments).values({ projectId: project.id, name: "master" });
+
+      return { id: project.id, name: project.name };
+    },
+  );
+}
+
+/** Les projets visibles dans une organization. */
+export function listProjects(userId: string, organizationId: string) {
+  return withContext({ userId, organizationId }, (tx) =>
+    tx
+      .select({ id: projects.id, name: projects.name })
+      .from(projects)
+      .where(eq(projects.organizationId, organizationId)),
   );
 }

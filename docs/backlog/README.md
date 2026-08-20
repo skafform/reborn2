@@ -38,5 +38,6 @@ n'est jamais réattribué.
 | [0003](0003-transaction-et-contexte-rls.md) | Transaction explicite et contexte RLS par requête | 🔴 Avant la première requête applicative | **fait** (étape 3a) |
 | [0004](0004-cors-admin-ui.md) | CORS pour l'admin UI | 🟡 Quand l'admin UI existe | ouvert |
 | [0005](0005-policy-organizations-par-appartenance.md) | Policy `organizations` par appartenance | 🔴 Étape 3b | **fait** (étape 3b) |
-| [0006](0006-garde-fous-escalade-privileges.md) | Garde-fous d'escalade de privilèges | 🔴 Étape 4, avant toute route de gestion des rôles | ouvert |
+| [0006](0006-garde-fous-escalade-privileges.md) | Garde-fous d'escalade de privilèges | 🔴 | **fait** (étape 4) |
 | [0007](0007-amorcage-et-verification-db.md) | Amorçage de la base et vérification des préconditions | 🔴 | **fait** |
+| [0008](0008-resolution-des-projets-d-un-membre.md) | Résolution des projets d'un membre de projet | 🟢 À mesurer d'abord | ouvert |

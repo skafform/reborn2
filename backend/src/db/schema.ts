@@ -50,6 +50,9 @@ export const projects = pgTable(
     // Colonne de cadrage en tête : RLS ajoute un WHERE implicite dessus
     // (ADR 0003).
     index("projects_organization_id_idx").on(table.organizationId),
+    // Cible de la clé étrangère composite de `project_members`, qui garantit
+    // qu'un membre de projet est rattaché à l'organization propriétaire.
+    unique("projects_id_organization_id_key").on(table.id, table.organizationId),
   ],
 );
 
@@ -164,5 +167,46 @@ export const organizationMembers = pgTable(
       name: "organization_members_role_fk",
     }),
     index("organization_members_user_id_idx").on(table.userId),
+  ],
+);
+
+/**
+ * Adhésion à un projet, pour les acteurs **extérieurs à l'organization** —
+ * pigiste, client. Table indépendante de `organization_members` : un rôle
+ * d'organization couvre déjà tous les projets, les deux ne se cumulent pas
+ * (architecture/roles-permissions.md).
+ *
+ * `organization_id` est dénormalisé depuis `projects` pour porter la clé
+ * étrangère composite vers `roles` — un membre de projet ne peut recevoir que
+ * le rôle de l'organization propriétaire de ce projet (ADR 0011).
+ */
+export const projectMembers = pgTable(
+  "project_members",
+  {
+    projectId: uuid("project_id")
+      .notNull()
+      .references(() => projects.id, { onDelete: "cascade" }),
+    organizationId: uuid("organization_id")
+      .notNull()
+      .references(() => organizations.id, { onDelete: "cascade" }),
+    userId: text("user_id").notNull(),
+    roleId: uuid("role_id").notNull(),
+    ...timestamps,
+  },
+  (table) => [
+    primaryKey({ columns: [table.projectId, table.userId] }),
+    foreignKey({
+      columns: [table.organizationId, table.roleId],
+      foreignColumns: [roles.organizationId, roles.id],
+      name: "project_members_role_fk",
+    }),
+    // Le projet doit appartenir à l'organization dénormalisée ici.
+    foreignKey({
+      columns: [table.projectId, table.organizationId],
+      foreignColumns: [projects.id, projects.organizationId],
+      name: "project_members_project_fk",
+    }),
+    index("project_members_user_id_idx").on(table.userId),
+    index("project_members_organization_id_idx").on(table.organizationId),
   ],
 );

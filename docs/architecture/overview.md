@@ -68,5 +68,7 @@ Notes de recherche ayant mené aux décisions ci-dessus :
   Supabase : faisabilité, pièges, et l'argument OWASP
 - [../research/rbac.md](../research/rbac.md) — modèle de rôles : catalogue de
   permissions, et pourquoi pas ReBAC
+- [../research/resolution-des-permissions.md](../research/resolution-des-permissions.md)
+  — où et à quelle fréquence résoudre les permissions
 
 Voir aussi [../roadmap.md](../roadmap.md) pour le phasage du projet.
