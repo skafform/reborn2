@@ -7,7 +7,7 @@ import {
   requirePermission,
 } from "../auth/escalation.ts";
 import { auth } from "../auth.ts";
-import { PERMISSION_KEYS } from "../config/permissions.ts";
+import { PERMISSION_KEYS, PERMISSIONS } from "../config/permissions.ts";
 import {
   createApiKey,
   deleteApiKey,
@@ -42,6 +42,12 @@ import {
   listProjects,
   listRoles,
 } from "../services/organizations.ts";
+import {
+  countHoldersByRole,
+  createRole,
+  deleteRole,
+  updateRole,
+} from "../services/roles.ts";
 import { requireOrganization, requireSession, type Variables } from "./middleware.ts";
 
 /**
@@ -365,14 +371,29 @@ const RoleSchema = z
     scope: z.enum(["organization", "project"]),
     isSystem: z.boolean(),
     /**
-     * L'appelant peut-il assigner ce rôle ? Calculé par `canAssignRole`, le
-     * **même** garde-fou qui refuserait ensuite — pas une seconde règle.
+     * Can the caller assign this role? Computed by `canAssignRole`, the very
+     * guard that would refuse afterwards — not a second rule.
      *
-     * Seul le verdict sort d'ici : les permissions de chaque rôle restent
-     * côté serveur. Les exposer laisserait la porte ouverte à ce qu'un client
-     * réimplémente la règle d'escalade, qui doit vivre à un seul endroit.
+     * ⚠️ The **verdict** is what a client must use. The permissions below are
+     * there to be *shown*, never to re-derive this boolean: the escalation
+     * rule lives in one place, and a client that recomputed it would be a
+     * second copy free to disagree.
      */
     assignable: z.boolean(),
+    /**
+     * What the role grants. Exposed so the console can display a role rather
+     * than name it — including the system roles, read-only, which is what
+     * lets someone compare before composing their own.
+     */
+    permissions: z.array(z.string()),
+    /**
+     * How many people wear it, at either level.
+     *
+     * ⚠️ Editing a role changes what all of them can do from their next
+     * request on — permissions are resolved per request, with no cache
+     * (ADR 0012). The count is what stops someone editing blind.
+     */
+    holders: z.number().int(),
   })
   .openapi("Role");
 
@@ -398,11 +419,15 @@ managementRoutes.openapi(
     const actor = c.get("actor");
     requirePermission(actor, "member.manage");
 
-    const roles = await listRoles(c.get("userId"), organizationId);
+    const [roles, holders] = await Promise.all([
+      listRoles(c.get("userId"), organizationId),
+      countHoldersByRole(c.get("userId"), organizationId),
+    ]);
     return c.json(
-      roles.map(({ permissions, ...role }) => ({
+      roles.map((role) => ({
         ...role,
-        assignable: canAssignRole(actor, { ...role, permissions }),
+        assignable: canAssignRole(actor, role),
+        holders: holders.get(role.id) ?? 0,
       })),
     );
   },
@@ -498,6 +523,136 @@ managementRoutes.openapi(
       roleId: body.roleId,
     });
     return c.json({ id }, 201);
+  },
+);
+
+// ---------------------------------------------------------------------------
+
+/**
+ * The permission catalogue.
+ *
+ * ⚠️ Without this route the console cannot show a role editor at all: the
+ * catalogue lives in code, and it has no other way to learn what exists. Its
+ * descriptions are user-facing labels, which is why they are in English
+ * (config/permissions.ts).
+ *
+ * No organization context — the catalogue is the same everywhere, being the
+ * vocabulary rather than anyone's configuration. A session is still required:
+ * nothing here is secret, and nothing here is public either.
+ */
+managementRoutes.openapi(
+  createRoute({
+    method: "get",
+    path: "/permissions",
+    summary: "Le catalogue de permissions",
+    middleware: [requireSession] as const,
+    responses: {
+      200: json(
+        z.array(
+          z
+            .object({ key: z.string(), description: z.string() })
+            .openapi("PermissionDescriptor"),
+        ),
+        "Catalogue",
+      ),
+    },
+  }),
+  (c) =>
+    c.json(
+      PERMISSION_KEYS.map((key) => ({ key, description: PERMISSIONS[key] as string })),
+    ),
+);
+
+/**
+ * Custom roles — created, edited and deleted by an owner (ADR 0014).
+ *
+ * ⚠️ No guard in the handlers: `requireCanDefineRole` inside the service checks
+ * `role.manage` **and** the escalation rule together. Splitting them across
+ * layers is how one of the two eventually gets forgotten.
+ */
+const roleParams = z.object({ organizationId: z.uuid(), roleId: z.uuid() });
+
+const RoleInput = z
+  .object({
+    name: z.string().min(1).max(200),
+    permissions: z.array(z.enum(PERMISSION_KEYS)),
+  })
+  .openapi("RoleInput");
+
+managementRoutes.openapi(
+  createRoute({
+    method: "post",
+    path: "/organizations/{organizationId}/roles",
+    summary: "Créer un rôle personnalisé",
+    middleware: [requireSession, requireOrganization] as const,
+    request: {
+      params: z.object({ organizationId: z.uuid() }),
+      body: {
+        content: {
+          "application/json": {
+            // The scope is fixed at creation and never changes: it decides
+            // where the role can be assigned, and moving it would silently
+            // widen or narrow everyone who already wears it.
+            schema: RoleInput.extend({ scope: z.enum(["organization", "project"]) }),
+          },
+        },
+      },
+    },
+    responses: { 201: json(z.object({ id: z.uuid() }), "Créé") },
+  }),
+  async (c) => {
+    const { organizationId } = c.req.valid("param");
+    const { name, scope, permissions } = c.req.valid("json");
+    const created = await createRole({
+      actor: c.get("actor"),
+      organizationId,
+      scope,
+      name,
+      permissions,
+    });
+    return c.json(created, 201);
+  },
+);
+
+managementRoutes.openapi(
+  createRoute({
+    method: "put",
+    path: "/organizations/{organizationId}/roles/{roleId}",
+    summary: "Modifier un rôle personnalisé",
+    middleware: [requireSession, requireOrganization] as const,
+    request: {
+      params: roleParams,
+      body: { content: { "application/json": { schema: RoleInput } } },
+    },
+    responses: { 204: { description: "Modifié" } },
+  }),
+  async (c) => {
+    const { organizationId, roleId } = c.req.valid("param");
+    const { name, permissions } = c.req.valid("json");
+    await updateRole({
+      actor: c.get("actor"),
+      organizationId,
+      roleId,
+      name,
+      permissions,
+    });
+    return c.body(null, 204);
+  },
+);
+
+managementRoutes.openapi(
+  createRoute({
+    method: "delete",
+    path: "/organizations/{organizationId}/roles/{roleId}",
+    summary: "Supprimer un rôle personnalisé",
+    middleware: [requireSession, requireOrganization] as const,
+    request: { params: roleParams },
+    responses: { 204: { description: "Supprimé" } },
+  }),
+  async (c) => {
+    const { organizationId, roleId } = c.req.valid("param");
+    await deleteRole({ actor: c.get("actor"), organizationId, roleId });
+    return c.body(null, 204);
   },
 );
 

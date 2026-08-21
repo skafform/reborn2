@@ -182,23 +182,23 @@ describe("routes de gestion", () => {
       isSystem: boolean;
     }[];
 
+    // Filtré sur `isSystem` : d'autres tests de ce fichier créent des rôles
+    // personnalisés dans la même organization, et sans ce filtre cette
+    // assertion ne tiendrait que par l'ordre d'exécution.
+    const system = list.filter((role) => role.isSystem);
     assert.deepEqual(
-      list
+      system
         .filter((role) => role.scope === "organization")
         .map((r) => r.name)
         .sort(),
       ["admin", "owner", "viewer"],
     );
     assert.deepEqual(
-      list
+      system
         .filter((role) => role.scope === "project")
         .map((r) => r.name)
         .sort(),
       ["contributor", "editor", "guest"],
-    );
-    assert.ok(
-      list.every((role) => role.isSystem),
-      "une organization neuve n'a que ses rôles système",
     );
   });
 
@@ -828,6 +828,203 @@ describe("routes de gestion", () => {
       assert.equal(
         (await call(`/api/organizations/${organizationId}/me`, partant)).status,
         404,
+      );
+    });
+  });
+
+  /**
+   * Custom roles. Only an owner writes here (ADR 0014) — an admin assigns what
+   * exists. The rest is what the screen leans on: system roles are readable
+   * but frozen, and a role somebody wears is emptied before it is deleted.
+   */
+  describe("rôles personnalisés", () => {
+    const rolesUrl = () => `/api/organizations/${organizationId}/roles`;
+
+    it("serves the catalogue the console cannot otherwise know", async () => {
+      const response = await call("/api/permissions", viewer);
+      assert.equal(response.status, 200);
+
+      const list = (await response.json()) as { key: string; description: string }[];
+      assert.ok(list.some((p) => p.key === "content.publish"));
+      assert.ok(
+        list.every((p) => p.description.length > 0),
+        "each key carries the label the console shows beside its checkbox",
+      );
+    });
+
+    it("shows what every role grants, system ones included", async () => {
+      const list = (await (await call(rolesUrl(), owner)).json()) as {
+        name: string;
+        isSystem: boolean;
+        permissions: string[];
+        holders: number;
+      }[];
+
+      const admin = list.find((r) => r.name === "admin");
+      assert.ok(admin?.isSystem);
+      assert.ok(
+        admin.permissions.includes("member.manage"),
+        "readable, so one can compare before composing",
+      );
+      assert.ok(
+        !admin.permissions.includes("role.manage"),
+        "an admin no longer defines what a role means (ADR 0014)",
+      );
+
+      assert.ok(
+        (list.find((r) => r.name === "owner")?.holders ?? 0) >= 1,
+        "the count is what stops someone editing a role blind",
+      );
+    });
+
+    it("refuses an admin, and lets the owner through", async () => {
+      const admin = await signUp("role-admin");
+      sessions.push(admin);
+      await withContext({ userId: owner.userId, organizationId }, async (tx) => {
+        const [role] = await tx
+          .select()
+          .from(roles)
+          .where(
+            and(eq(roles.organizationId, organizationId), eq(roles.name, "admin")),
+          );
+        assert.ok(role);
+        await tx
+          .insert(organizationMembers)
+          .values({ organizationId, userId: admin.userId, roleId: role.id });
+      });
+
+      const body = JSON.stringify({
+        name: "Relecture",
+        scope: "organization",
+        permissions: ["content.read"],
+      });
+
+      const refused = await call(rolesUrl(), admin, { method: "POST", body });
+      assert.equal(refused.status, 403);
+      assert.equal(
+        ((await refused.json()) as { reason: string }).reason,
+        "missing_permission",
+      );
+
+      assert.equal(
+        (await call(rolesUrl(), owner, { method: "POST", body })).status,
+        201,
+      );
+    });
+
+    it("refuses to grant beyond what the caller holds", async () => {
+      // The owner holds everything, so the escalation rule needs a delegate to
+      // have a subject — which is exactly how delegation is meant to work.
+      const delegate = await signUp("role-delegate");
+      sessions.push(delegate);
+
+      const created = await call(rolesUrl(), owner, {
+        method: "POST",
+        body: JSON.stringify({
+          name: "Gardien des rôles",
+          scope: "organization",
+          permissions: ["role.manage", "content.read"],
+        }),
+      });
+      const { id: keeperRoleId } = (await created.json()) as { id: string };
+      await withContext({ userId: owner.userId, organizationId }, (tx) =>
+        tx.insert(organizationMembers).values({
+          organizationId,
+          userId: delegate.userId,
+          roleId: keeperRoleId,
+        }),
+      );
+
+      const overreach = await call(rolesUrl(), delegate, {
+        method: "POST",
+        body: JSON.stringify({
+          name: "Trop puissant",
+          scope: "organization",
+          permissions: ["org.delete"],
+        }),
+      });
+      assert.equal(overreach.status, 403);
+      assert.equal(
+        ((await overreach.json()) as { reason: string }).reason,
+        "escalation",
+      );
+    });
+
+    it("keeps system roles frozen", async () => {
+      const list = (await (await call(rolesUrl(), owner)).json()) as {
+        id: string;
+        name: string;
+      }[];
+      const viewerRole = list.find((r) => r.name === "viewer");
+      assert.ok(viewerRole);
+
+      for (const [method, body] of [
+        ["PUT", JSON.stringify({ name: "Renommé", permissions: [] })],
+        ["DELETE", undefined],
+      ] as const) {
+        const response = await call(`${rolesUrl()}/${viewerRole.id}`, owner, {
+          method,
+          ...(body ? { body } : {}),
+        });
+        assert.equal(response.status, 409, method);
+        assert.equal(
+          ((await response.json()) as { reason: string }).reason,
+          "system_role",
+        );
+      }
+    });
+
+    it("empties a role before deleting it", async () => {
+      const created = await call(rolesUrl(), owner, {
+        method: "POST",
+        body: JSON.stringify({
+          name: "Éphémère",
+          scope: "organization",
+          permissions: ["content.read"],
+        }),
+      });
+      const { id } = (await created.json()) as { id: string };
+
+      const wearer = await signUp("porteur");
+      sessions.push(wearer);
+      await withContext({ userId: owner.userId, organizationId }, (tx) =>
+        tx
+          .insert(organizationMembers)
+          .values({ organizationId, userId: wearer.userId, roleId: id }),
+      );
+
+      const held = await call(`${rolesUrl()}/${id}`, owner, { method: "DELETE" });
+      assert.equal(held.status, 409, "nothing is deleted while something points at it");
+      assert.equal(((await held.json()) as { reason: string }).reason, "role_in_use");
+
+      await call(
+        `/api/organizations/${organizationId}/members/${wearer.userId}`,
+        owner,
+        { method: "DELETE" },
+      );
+      assert.equal(
+        (await call(`${rolesUrl()}/${id}`, owner, { method: "DELETE" })).status,
+        204,
+      );
+    });
+
+    it("refuses two roles of one scope sharing a name", async () => {
+      const body = JSON.stringify({
+        name: "Doublon",
+        scope: "organization",
+        permissions: [],
+      });
+      assert.equal(
+        (await call(rolesUrl(), owner, { method: "POST", body })).status,
+        201,
+      );
+
+      const again = await call(rolesUrl(), owner, { method: "POST", body });
+      assert.equal(again.status, 409);
+      assert.equal(
+        ((await again.json()) as { reason: string }).reason,
+        "duplicate_name",
+        "the unique constraint, said in a sentence rather than a 500",
       );
     });
   });

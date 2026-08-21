@@ -195,9 +195,64 @@ export const GetApiOrganizationsOrganizationIdRolesResponseItem =
     scope: /*#__PURE__*/ zod.enum(["organization", "project"]),
     isSystem: /*#__PURE__*/ zod.boolean(),
     assignable: /*#__PURE__*/ zod.boolean(),
+    permissions: /*#__PURE__*/ zod.array(/*#__PURE__*/ zod.string()),
+    holders: /*#__PURE__*/ zod.int(),
   });
 export const GetApiOrganizationsOrganizationIdRolesResponse = /*#__PURE__*/ zod.array(
   GetApiOrganizationsOrganizationIdRolesResponseItem,
+);
+
+/**
+ * @summary Créer un rôle personnalisé
+ */
+export const PostApiOrganizationsOrganizationIdRolesParams = /*#__PURE__*/ zod.object({
+  organizationId: /*#__PURE__*/ zod.uuid(),
+});
+
+export const postApiOrganizationsOrganizationIdRolesBodyOneNameMax = 200;
+
+export const PostApiOrganizationsOrganizationIdRolesBody =
+  /*#__PURE__*/ zod.intersection(
+    /*#__PURE__*/ zod.object({
+      name: /*#__PURE__*/ zod
+        .string()
+        .check(/*#__PURE__*/ zod.minLength(1))
+        .check(
+          /*#__PURE__*/ zod.maxLength(
+            postApiOrganizationsOrganizationIdRolesBodyOneNameMax,
+          ),
+        ),
+      permissions: /*#__PURE__*/ zod.array(
+        /*#__PURE__*/ zod.enum([
+          "content.read",
+          "content.read_draft",
+          "content.write",
+          "content.publish",
+          "schema.read",
+          "schema.write",
+          "member.read",
+          "member.manage",
+          "member.manage_admin",
+          "role.manage",
+          "apikey.manage",
+          "project.create",
+          "project.delete",
+          "org.settings",
+          "org.billing",
+          "org.transfer",
+          "org.delete",
+        ]),
+      ),
+    }),
+    /*#__PURE__*/ zod.object({
+      scope: /*#__PURE__*/ zod.enum(["organization", "project"]),
+    }),
+  );
+
+export const PostApiOrganizationsOrganizationIdRolesResponse = /*#__PURE__*/ zod.object(
+  {
+    id: /*#__PURE__*/ zod.uuid(),
+  },
 );
 
 /**
@@ -236,6 +291,76 @@ export const PostApiOrganizationsOrganizationIdInvitationsResponse =
   /*#__PURE__*/ zod.object({
     id: /*#__PURE__*/ zod.uuid(),
   });
+
+/**
+ * @summary Le catalogue de permissions
+ */
+export const GetApiPermissionsResponseItem = /*#__PURE__*/ zod.object({
+  key: /*#__PURE__*/ zod.string(),
+  description: /*#__PURE__*/ zod.string(),
+});
+export const GetApiPermissionsResponse = /*#__PURE__*/ zod.array(
+  GetApiPermissionsResponseItem,
+);
+
+/**
+ * @summary Modifier un rôle personnalisé
+ */
+export const PutApiOrganizationsOrganizationIdRolesRoleIdParams =
+  /*#__PURE__*/ zod.object({
+    organizationId: /*#__PURE__*/ zod.uuid(),
+    roleId: /*#__PURE__*/ zod.uuid(),
+  });
+
+export const putApiOrganizationsOrganizationIdRolesRoleIdBodyNameMax = 200;
+
+export const PutApiOrganizationsOrganizationIdRolesRoleIdBody =
+  /*#__PURE__*/ zod.object({
+    name: /*#__PURE__*/ zod
+      .string()
+      .check(/*#__PURE__*/ zod.minLength(1))
+      .check(
+        /*#__PURE__*/ zod.maxLength(
+          putApiOrganizationsOrganizationIdRolesRoleIdBodyNameMax,
+        ),
+      ),
+    permissions: /*#__PURE__*/ zod.array(
+      /*#__PURE__*/ zod.enum([
+        "content.read",
+        "content.read_draft",
+        "content.write",
+        "content.publish",
+        "schema.read",
+        "schema.write",
+        "member.read",
+        "member.manage",
+        "member.manage_admin",
+        "role.manage",
+        "apikey.manage",
+        "project.create",
+        "project.delete",
+        "org.settings",
+        "org.billing",
+        "org.transfer",
+        "org.delete",
+      ]),
+    ),
+  });
+
+export const PutApiOrganizationsOrganizationIdRolesRoleIdResponse =
+  /*#__PURE__*/ zod.void();
+
+/**
+ * @summary Supprimer un rôle personnalisé
+ */
+export const DeleteApiOrganizationsOrganizationIdRolesRoleIdParams =
+  /*#__PURE__*/ zod.object({
+    organizationId: /*#__PURE__*/ zod.uuid(),
+    roleId: /*#__PURE__*/ zod.uuid(),
+  });
+
+export const DeleteApiOrganizationsOrganizationIdRolesRoleIdResponse =
+  /*#__PURE__*/ zod.void();
 
 /**
  * @summary Retirer un membre, ou quitter l'organization

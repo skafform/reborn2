@@ -157,9 +157,26 @@
           },
           "assignable": {
             "type": "boolean"
+          },
+          "permissions": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "holders": {
+            "type": "integer"
           }
         },
-        "required": ["id", "name", "scope", "isSystem", "assignable"]
+        "required": [
+          "id",
+          "name",
+          "scope",
+          "isSystem",
+          "assignable",
+          "permissions",
+          "holders"
+        ]
       },
       "PendingInvitation": {
         "type": "object",
@@ -195,6 +212,54 @@
           }
         },
         "required": ["email", "roleId"]
+      },
+      "PermissionDescriptor": {
+        "type": "object",
+        "properties": {
+          "key": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          }
+        },
+        "required": ["key", "description"]
+      },
+      "RoleInput": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "permissions": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": [
+                "content.read",
+                "content.read_draft",
+                "content.write",
+                "content.publish",
+                "schema.read",
+                "schema.write",
+                "member.read",
+                "member.manage",
+                "member.manage_admin",
+                "role.manage",
+                "apikey.manage",
+                "project.create",
+                "project.delete",
+                "org.settings",
+                "org.billing",
+                "org.transfer",
+                "org.delete"
+              ]
+            }
+          }
+        },
+        "required": ["name", "permissions"]
       },
       "Suspension": {
         "type": "object",
@@ -673,6 +738,62 @@
             }
           }
         }
+      },
+      "post": {
+        "summary": "Créer un rôle personnalisé",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "organizationId",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "allOf": [
+                  {
+                    "$ref": "#/components/schemas/RoleInput"
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "scope": {
+                        "type": "string",
+                        "enum": ["organization", "project"]
+                      }
+                    },
+                    "required": ["scope"]
+                  }
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Créé",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string",
+                      "format": "uuid"
+                    }
+                  },
+                  "required": ["id"]
+                }
+              }
+            }
+          }
+        }
       }
     },
     "/api/organizations/{organizationId}/invitations": {
@@ -744,6 +865,93 @@
                 }
               }
             }
+          }
+        }
+      }
+    },
+    "/api/permissions": {
+      "get": {
+        "summary": "Le catalogue de permissions",
+        "responses": {
+          "200": {
+            "description": "Catalogue",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/PermissionDescriptor"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/organizations/{organizationId}/roles/{roleId}": {
+      "put": {
+        "summary": "Modifier un rôle personnalisé",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "organizationId",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "roleId",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RoleInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "204": {
+            "description": "Modifié"
+          }
+        }
+      },
+      "delete": {
+        "summary": "Supprimer un rôle personnalisé",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "organizationId",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "roleId",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Supprimé"
           }
         }
       }
