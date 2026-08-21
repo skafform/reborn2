@@ -290,6 +290,19 @@ laisserait assigner un rôle préexistant plus puissant que soi.
 Les **clés API partagent ce catalogue** : un seul `can()` sert les acteurs
 humains et machines. Ne pas créer de second chemin d'autorisation pour les clés.
 
+⚠️ **La console masque, elle n'autorise pas.** `GET /organizations/{id}/me`
+lui dit ce que la personne peut faire, et elle cache ce qui n'est pas permis —
+entrées de barre latérale, boutons, sections entières. **C'est un confort,
+jamais le garde-fou** : on peut taper l'adresse, ou garder un onglet ouvert
+pendant qu'on nous retire un rôle. Chaque route reste vérifiée par `can()`, et
+chaque écran doit attraper le refus plutôt que planter.
+
+⚠️ **Ne jamais déduire les permissions d'un nom de rôle côté client.** Les
+rôles sont personnalisables par organization ([ADR 0011](docs/adr/0011-roles-personnalises-par-organization.md)) :
+« viewer » ne garantit rien. Un `if (role === 'viewer')` dans la console
+recopierait la matrice RBAC hors de son unique source de vérité — c'est la même
+règle qu'au-dessus, appliquée de l'autre côté du fil.
+
 **Deux modèles d'accès.** Se tromper de modèle produit une route qui
 fonctionne — mais faussement.
 

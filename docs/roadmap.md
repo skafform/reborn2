@@ -1,7 +1,9 @@
 # Roadmap
 
-**Position actuelle : étapes 1 à 6a faites — le socle est complet.**
-Voir [etat.md](etat.md) pour la marche à suivre en reprenant le travail.
+**Position actuelle : étapes 1 à 6a faites — le socle est complet — et
+l'étape 8 (admin UI) devancée, en cours.** L'étape 6b, où le CMS commence,
+n'est pas entamée. Voir [etat.md](etat.md) pour la marche à suivre en
+reprenant le travail.
 
 Le détail des décisions techniques vit dans
 [architecture/overview.md](architecture/overview.md).
@@ -58,10 +60,25 @@ documents.
 Lecture publique façon CDN. **En GET avec paramètres d'URL uniquement**, sous
 peine de perdre toute possibilité de cache ([cache.md](architecture/cache.md)).
 
-### 8 — Admin UI
+### 8 — Admin UI · **commencée avant son tour**
 
-Dépôt séparé ([ADR 0005](adr/0005-depots-separes-contrat-openapi.md)), client
-typé généré depuis la spec OpenAPI.
+`console/` — un serveur distinct, réuni au backend dans un seul git par
+commodité de sauvegarde. Voir [etat.md](etat.md) pour ce qu'elle fait
+aujourd'hui.
+
+**Devancée délibérément**, avant l'étape 6b : rien du socle n'avait jamais
+servi à un humain, et les tests étaient écrits contre l'API telle qu'on l'avait
+faite, pas contre ce dont une interface a besoin. Le pari a payé — construire
+les écrans a révélé des routes manquantes, deux défauts que les tests ne
+voyaient pas ([backlog 0010](backlog/0010-suppression-d-organization-bloquee.md)
+et [0011](backlog/0011-nettoyage-des-tests-avale-ses-erreurs.md)), et un
+découpage de permission trop grossier.
+
+⚠️ **Le client typé généré depuis la spec OpenAPI n'a toujours pas été
+essayé** — c'est pourtant la stratégie de
+l'[ADR 0005](adr/0005-depots-separes-contrat-openapi.md), et la partie la plus
+incertaine de la disposition en deux serveurs. La console appelle encore l'API
+au `fetch`, avec des types déclarés à la main.
 
 ## Plus tard
 

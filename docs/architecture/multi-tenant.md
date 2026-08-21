@@ -17,37 +17,29 @@ organizations → projects → documents
   départ)
 - Un utilisateur peut créer/posséder plusieurs organizations
 
-## Un compte sans organization est un état normal
+## Tout compte reçoit son espace, en silence
 
-⚠️ **Aucune organization n'est créée automatiquement à l'inscription**, ni par
-défaut ni sous un nom générique (« My org »). Un compte sans organization
-n'est ni transitoire ni une anomalie à corriger — c'est exactement l'état de
-quelqu'un qui vient d'un lien d'invitation et n'a pas à en fonder une.
+**Une organization est créée automatiquement à la première connexion d'un
+compte qui n'en a aucune.** Sans écran, sans bouton à presser, sans question :
+se connecter ne doit rien demander.
 
-L'écran d'accueil de la console est donc **l'espace personnel** dont parle la
-section précédente, pas un aiguillage. Il doit se comporter comme n'importe
-quel autre écran vide de ce produit (voir la convention des états vides,
-`console/app/ui/controls.tsx#Empty`) : une phrase qui dit quoi faire ensuite,
-jamais une redirection qui retire le choix.
+Elle porte le nom du compte — `« X's organization »`, jamais un littéral
+générique comme « My org ». Ce nom devient visible par toute personne invitée
+ensuite, et aucun écran ne permet encore de le changer : autant qu'il désigne
+quelqu'un plutôt qu'un emplacement vide.
 
-- **Aucune organization** → l'espace personnel affiche l'état vide : créer
-  une organization, ou attendre une invitation
-- **Une ou plusieurs organizations** → l'espace personnel mène directement à
-  la dernière, ou à un choix s'il y en a plusieurs
+⚠️ **Ce n'est pas une alternative à l'invitation reçue — les deux
+coexistent.** Quelqu'un d'invité qui se connecte **directement**, sans suivre
+le lien du courriel, obtient son espace personnel **et** garde son invitation
+en attente. Confondre les deux a produit un vrai défaut : l'espace était créé
+et l'invitation devenait invisible, alors qu'elle existait toujours en base.
+L'invitation l'attend donc dans son **Inbox** (voir
+[invitations.md](./invitations.md)).
 
-Deux raisons, vérifiées avant de trancher plutôt que supposées :
+Ce que la racine de la console fait, dans l'ordre :
 
-1. **Le parcours d'invitation n'a jamais besoin de ce forçage.** Accepter une
-   invitation d'organization donne déjà une organization avant même que la
-   personne n'atterrisse ici — le forçage ne s'appliquait donc, dans les
-   faits, qu'au parcours organique (inscription directe, sans invitation)
-2. **Un nom d'organization par défaut coûte plus qu'il ne fait gagner.**
-   Provisionner une organization automatiquement (« My org », ou même
-   personnalisée à partir du nom du compte) évite un clic, mais laisse un nom
-   qui fuit vers les personnes invitées ensuite tant que personne ne le
-   change — et aucun écran de renommage n'existe aujourd'hui pour ça. Ne pas
-   créer d'organization du tout évite le problème plutôt que d'en déplacer le
-   coût
+1. Au moins une organization → la première
+2. Aucune → une est créée à son nom, et on y entre
 
 ⚠️ **« Espace personnel » désigne un écran, pas une nouvelle frontière de
 portée.** Aucun contenu, projet ou environnement ne doit exister hors
@@ -57,11 +49,9 @@ imposerait ses propres policies pour un gain qu'aucun besoin réel ne justifie
 aujourd'hui.
 
 **Reste ouvert** — les invitations de *projet* ne créent aucune adhésion
-d'organization (voir plus haut) : la personne qui en accepte une atterrit sur
-cet espace personnel toujours sans organization, alors qu'elle appartient
-déjà à un projet. La console ne sait pas encore présenter « vous êtes membre
-d'un projet, sans organization » ; ce trou reste distinct de la décision
-ci-dessus, et n'est pas réglé par elle.
+d'organization : la personne qui en accepte une appartient à un projet sans
+appartenir à l'organization qui le porte. La console navigue par organization
+et ne sait pas encore présenter ce cas.
 
 ## Suppression
 

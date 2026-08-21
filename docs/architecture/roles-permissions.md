@@ -19,7 +19,7 @@ que personne ne maintient.
 |---|---|
 | Contenu | `content.read` · `content.read_draft` · `content.write` · `content.publish` |
 | Schémas | `schema.read` · `schema.write` |
-| Membres | `member.manage` · `member.manage_admin` |
+| Membres | `member.read` · `member.manage` · `member.manage_admin` |
 | Clés API | `apikey.manage` |
 | Projets | `project.create` · `project.delete` |
 | Organization | `org.settings` · `org.billing` · `org.transfer` · `org.delete` |
@@ -34,6 +34,7 @@ que personne ne maintient.
 | `content.publish` | ✅ | ✅ | — | ✅ | — | — |
 | `schema.read` | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | `schema.write` | ✅ | ✅ | — | — | — | — |
+| `member.read` | ✅ | ✅ | ✅ | — | — | — |
 | `member.manage` | ✅ | ✅ | — | — | — | — |
 | `member.manage_admin` | ✅ | — | — | — | — | — |
 | `apikey.manage` | ✅ | ✅ | — | — | — | — |
@@ -52,11 +53,22 @@ permissions manquantes ou trop grossières. C'est attendu. La seule discipline �
 tenir est la règle de découpage ci-dessus — et le fait que toute modification
 se lise ici, dans une seule table.
 
-Deux permissions encodent à elles seules les règles asymétriques de gestion des
-membres : `member.manage` couvre inviter, retirer et changer le rôle d'un
-membre **non privilégié**, tandis que `member.manage_admin` couvre l'octroi et
-le retrait d'`admin`/`owner`. Un `admin` ne peut donc ni promouvoir vers
-`admin`, ni évincer un autre `admin`.
+Trois permissions encodent à elles seules les règles de gestion des membres :
+
+- **`member.read`** — voir l'annuaire de l'organization. La seule que détienne
+  un `viewer`, qui est « un admin sans écriture » : c'est cette colonne qui la
+  distingue de `member.manage`, sans quoi les deux n'en feraient qu'une
+- **`member.manage`** — inviter, retirer et changer le rôle d'un membre **non
+  privilégié**. Couvre aussi les **invitations en attente**, y compris leur
+  simple consultation : une invitation relève du recrutement, pas de
+  l'annuaire. Un `viewer` voit qui est dans l'équipe, pas qui est en train d'y
+  être admis
+- **`member.manage_admin`** — l'octroi et le retrait d'`admin`/`owner`. Un
+  `admin` ne peut donc ni promouvoir vers `admin`, ni évincer un autre `admin`
+
+Les rôles de projet (`editor`, `contributor`, `guest`) n'ont aucune des trois :
+un pigiste ou un client n'a pas à voir l'annuaire de l'organization qui
+l'accueille.
 
 ## Les clés API partagent le même catalogue
 

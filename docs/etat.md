@@ -1,24 +1,25 @@
 # Où en est le projet
 
-**Dernière mise à jour : 2026-08-20.** Point d'entrée pour reprendre le
+**Dernière mise à jour : 2026-08-21.** Point d'entrée pour reprendre le
 travail : où on en est, ce qui reste, par quoi commencer.
 
 ## Le socle est complet et commité
 
-Étapes 1 à 6a de la [feuille de route](roadmap.md). **89 tests au vert**,
-typecheck et lint propres. Commit `de5e593`, marqué par le tag **`socle-v0`**.
+Étapes 1 à 6a de la [feuille de route](roadmap.md). **112 tests au vert**,
+typecheck et lint propres des deux côtés. Le tag **`socle-v0`** marque la
+frontière du socle réutilisable (commit `de5e593`).
 
 | | |
 |---|---|
 | Serveur | Hono + `@hono/zod-openapi`, validation d'environnement au démarrage |
 | Authentification | Better-Auth sur `pg.Pool`, confirmation d'adresse obligatoire, réinitialisation |
 | Multi-tenant | 10 tables sous RLS **activé et forcé**, point de passage `withContext` |
-| Autorisation | Rôles personnalisables par organization, 16 permissions, `can()`, garde-fous |
-| Invitations | Jeton haché, email verrouillé, usage unique, plafond par organization |
+| Autorisation | Rôles personnalisables par organization, 17 permissions, `can()`, garde-fous |
+| Invitations | Jeton haché, email verrouillé, usage unique, plafond par organization, Inbox |
 | Emails | Gabarits maison sans dépendance, prévisualisation sur `/dev/emails` |
 | Clés API | Publique · preview · secrète, par environnement |
 
-⚠️ **8 commits et le tag attendent `git push --follow-tags`.**
+⚠️ **12 commits et le tag attendent `git push --follow-tags`.**
 
 ## En cours : la console d'administration
 
@@ -52,120 +53,89 @@ la frontière** — ni import, ni workspace, ni chemin de fichier, y compris pou
 la spec OpenAPI. La conclusion de l'[ADR 0005](adr/0005-depots-separes-contrat-openapi.md)
 est donc intacte ; **seule sa description de la disposition reste à corriger.**
 
-### Où en est le scaffold
+### Ce que la console fait aujourd'hui
 
-Installé, et **il sert une page** — vérifié : `GET /` répond 200, et
-`GET /api/auth/get-session` traverse le proxy jusqu'au backend.
+**Écrans d'entrée**, hors coque — `signup`, `login`, `verify-email`,
+`invitations/accept` (où mène le lien du courriel), `new-organization`.
 
-```
-console/package.json             react-router 8, react 19, biome, vite 8
-console/react-router.config.ts   ssr: false, avec sa justification
-console/vite.config.ts           proxy /api -> API_PROXY_TARGET, validée
-console/.env.example             API_PROXY_TARGET (.env n'est pas commité)
-console/tsconfig.json            strict, jsx react-jsx, types RR générés
-console/biome.json               du backend, plus l'exclusion de .react-router
-                                 et l'interdiction d'importer hors de app/
-console/app/root.tsx             Layout, ErrorBoundary, HydrateFallback
-console/app/routes.ts            une seule route
-console/app/routes/home.tsx      écran d'amorce : l'API répond-elle ?
-console/app/console.css          jetons sur .console, et rien de plus
-```
+**La coque**, sous `org/:organizationId` — barre du haut avec le sélecteur
+d'organization, barre latérale (`Inbox`, `Projects`, `Team`), panneau flottant.
+Elle porte le **contrôle de session à un seul endroit** et vérifie que
+l'organization du chemin est bien une des siennes.
 
-Corrections faites en chemin : `biome.json` lintait les types générés par
-React Router ; `pnpm start` appelait `react-router-serve`, absent des
-dépendances **et** inadapté à un build statique — remplacé par `pnpm preview` ;
-`react-router typegen` a ajouté `isbot`, dont le mode SPA a réellement besoin
-pour préfabriquer `index.html` ; et le proxy affirmait en dur où vit le
-backend, ce qui violait à la fois l'agnosticisme et la règle « aucune valeur en
-dur ».
+Le client d'authentification est `better-auth/react` : les routes de
+Better-Auth sont **volontairement hors de notre spec OpenAPI**, donc aucun
+client généré ne les couvrira jamais — les appeler au `fetch` nu reviendrait à
+recopier leur contrat à la main.
 
-**La frontière est tenue mécaniquement, pas par discipline** :
-`noRestrictedImports` sur `../../**` refuse tout import sortant de `app/`.
-Vérifié : la règle rejette `../../../backend/src/app.ts` et laisse passer
-`../console.css`.
+**Langue** : l'interface est **entièrement en anglais**. Le backend, lui,
+répond en français (message développeur) — jamais affiché tel quel : la console
+traduit par le code `reason`, stable, via `apiErrorMessage()`.
 
-`API_PROXY_TARGET` est **exigée sans valeur de repli** — une cible par défaut
+**Design** : repris de `skafform-monday-server/console`. Inter auto-hébergée
+(48 Ko), échelle typographique resserrée à la Linear — un titre de page se
+distingue par le **poids**, pas par la taille. Boutons de texte discrets pour
+les actions de ligne et d'en-tête, jamais l'accent. Modales sur `<dialog>`
+natif, qui apporte piège de focus et fermeture sur Échap sans code.
+
+**Ce que masquer veut dire** : la coque cache les entrées dont la personne n'a
+pas la permission, mais ⚠️ **c'est un confort, jamais le garde-fou** — chaque
+route reste vérifiée côté serveur, et les écrans attrapent les refus au lieu de
+planter.
+
+### Les routes que les écrans ont révélées
+
+| Route | Garde |
+|---|---|
+| `GET /organizations/{id}/me` | session — dit à la console ce que la personne peut faire |
+| `GET /organizations/{id}/members` | `member.read` |
+| `GET /organizations/{id}/roles` | `member.manage` — sert à *attribuer*, pas à définir |
+| `GET /inbox`, `POST /inbox/{id}/accept` | session — par adresse, tous locataires confondus |
+
+`/me` existe parce que **le nom du rôle ne suffit pas** : les rôles sont
+personnalisables par organization, donc « viewer » ne garantit rien — et
+déduire les permissions d'un nom côté client recopierait la matrice RBAC hors
+de son unique source de vérité.
+
+### Deux mécanismes vérifiés plutôt que supposés
+
+**Le contrôle d'origine de Better-Auth** : origine déclarée → 200, origine
+inconnue → **403 `INVALID_ORIGIN`**. D'où `TRUSTED_ORIGINS`. ⚠️ Le proxy Vite
+reporte le CORS du navigateur, **pas** ce contrôle-là — deux mécanismes
+distincts.
+
+**`API_PROXY_TARGET` est exigée sans valeur de repli** — une cible par défaut
 ferait démarrer la console en pointant silencieusement ailleurs. Cinq cas
 vérifiés : `build` et `preview` passent sans elle, `dev` refuse sans elle,
 `dev` refuse une URL malformée en la nommant, et `dev` avec elle joint le
 backend de bout en bout.
 
-`app/routes/home.tsx` est **temporaire par construction** : il ne sert aucun
-parcours, il répond à la seule question qu'on ne peut pas trancher en lisant du
-code — est-ce que la console joint l'API ? Il disparaît dès que le premier
-parcours prend sa place.
-
-### Le premier parcours est fait
-
-**S'inscrire → confirmer l'adresse → créer une organization → inviter.** Choisi
-parce qu'il traverse l'authentification, les rôles et les emails d'un coup.
-
-Écrans : `signup`, `login`, `verify-email`, l'accueil (organizations),
-`org/:organizationId/invite`. Le client d'authentification est
-`better-auth/react` — les routes de Better-Auth sont **volontairement hors de
-notre spec OpenAPI**, donc aucun client généré ne les couvrira jamais ; les
-appeler au `fetch` nu reviendrait à recopier leur contrat à la main.
-
-Vérifié de bout en bout, serveurs en marche : inscription 200 sans session
-(`token: null`), lien de confirmation → 302 vers la console avec cookie
-`HttpOnly; SameSite=Lax`, création d'organization, liste des rôles, invitation
-201, invitation listée puis annulable.
-
-**La route que l'écran a révélée** : `GET /organizations/{id}/roles`, gardée par
-`member.manage` — elle sert à *attribuer* un rôle, pas à en définir un. Trois
-tests l'accompagnent, dont le 404 réservé à l'étranger.
-
-**Le contrôle d'origine de Better-Auth**, lui, a été vérifié plutôt que
-supposé : origine déclarée → 200, origine inconnue → **403 `INVALID_ORIGIN`**.
-D'où `TRUSTED_ORIGINS` côté backend. ⚠️ Le proxy Vite reporte le CORS du
-navigateur, **pas** ce contrôle-là — ce sont deux mécanismes distincts.
-
-### Par quoi continuer
-
-1. **Accepter une invitation.** Le lien envoyé pointe sur
-   `${PLATFORM_URL}/invitations/accept?token=…`, et `PLATFORM_URL` vaut
-   aujourd'hui l'adresse du **backend**, qui n'a pas cette page. C'est la
-   console qui doit l'avoir : `PLATFORM_URL` désigne l'endroit où vont les
-   humains, donc `http://localhost:5173` en développement
-2. Compléter l'API **au fil de l'eau**, quand un écran révèle un manque
-
-### Deux défauts réparés en chemin
-
-Découverts en voulant effacer les données d'un essai — pas par un test.
-
-**[0010](backlog/0010-suppression-d-organization-bloquee.md)** : une
-organization ne pouvait **pas** être supprimée, du tout. La cascade vers
-`roles` heurtait le garde-fou des rôles système, qui ne distinguait pas « on
-supprime un rôle » de « son organization disparaît ». Corrigé par la migration
-`0019`, avec l'idiome que `protect_last_owner` employait déjà : demander si
-l'organization existe encore. Aucun mécanisme nouveau.
-
-**[0011](backlog/0011-nettoyage-des-tests-avale-ses-erreurs.md)** : les
-`after()` des tests terminaient par `.catch(() => {})`. Le nettoyage échouait
-depuis toujours, en silence — **305 organizations, 605 comptes, 230 invitations
-et 98 projets** accumulés. Remplacé par `src/test-support/cleanup.ts`, partagé
-et bruyant. Une suite complète laisse maintenant la base exactement comme elle
-l'a trouvée, vérifié.
-
-Le nettoyage **est** désormais le test de non-régression de 0010 : si la
-suppression se recasse, les cinq suites tombent au lieu de se taire.
-
-### Base de développement
-
-Purgée. Il reste la table `permissions` — vocabulaire commun alimenté par
-migration — dont les **16 clés correspondent exactement** au catalogue de
-`src/config/permissions.ts`, vérifié par comparaison.
-
-`roles` et `role_permissions` sont **par organization** : vides tant qu'il n'y
-en a aucune, c'est leur état normal. Sur une organization neuve, les six rôles
-système sont semés au complet — `owner` 16 permissions, `admin` 11, `viewer` 3,
-`editor` 5, `contributor` 4, `guest` 3 — conformes à `SYSTEM_ROLES`.
+**La frontière entre les deux projets est tenue mécaniquement** :
+`noRestrictedImports` sur `../../**` refuse tout import sortant de `app/`.
+Vérifié — la règle rejette `../../../backend/src/app.ts` et laisse passer
+`../console.css`.
 
 ### Routes API manquantes, déjà identifiées
 
-Le service existe, la route non : lister les membres, changer un rôle, retirer
-un membre, créer et modifier un rôle personnalisé, supprimer un projet,
-renommer une organization, gérer les clés API.
+Le service existe, la route non : changer un rôle, retirer un membre, créer et
+modifier un rôle personnalisé, supprimer un projet, renommer une organization,
+gérer les clés API.
+
+⚠️ **Deux routes renvoient encore `z.any()`** — les deux chemins d'acceptation
+d'invitation. Elles ne promettent donc rien dans la spec OpenAPI, qui est
+justement le contrat dont la console dépendra pour son client typé.
+
+### Par quoi continuer
+
+1. **Le client typé depuis OpenAPI** n'a toujours **jamais été essayé** — c'est
+   la stratégie de l'[ADR 0005](adr/0005-depots-separes-contrat-openapi.md), et
+   la console appelle encore l'API au `fetch` avec des types déclarés à la
+   main. Récupérer la spec **par HTTP**, jamais par un chemin de fichier
+2. **Les clés API** — les services existent tous (`listApiKeys`,
+   `createApiKey`, `revokeApiKey`, `deleteApiKey`), seules les routes HTTP
+   manquent. C'est là que le **bloc `.env`** de la console de référence prend
+   son sens : trois clés à recopier dans le fichier d'un frontend
+3. Compléter l'API **au fil de l'eau**, quand un écran révèle un manque
 
 ## Étape 6b — là où le CMS commence
 

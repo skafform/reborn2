@@ -47,6 +47,51 @@ comme contexte d'affichage (voir
   correspond exactement à l'email de l'invitation
 - Ajouté automatiquement à l'organization/projet avec le rôle assigné
 
+L'écran d'acceptation propose **un seul chemin**, jamais les deux : le serveur
+sait si l'adresse a déjà un compte (`hasAccount`), et affiche donc soit la
+connexion, soit l'inscription. Sans ça, un mauvais choix menait à une erreur
+qui n'apprenait rien — « un compte existe déjà », ou « adresse ou mot de passe
+incorrect ».
+
+Ce n'est **pas** une fuite d'énumération de comptes. La règle d'OWASP vise le
+formulaire de connexion public, où l'attaquant choisit librement l'adresse à
+tester ; ici elle est fixée par l'invitation, et il faut le jeton — un secret —
+pour l'atteindre. Le porteur du jeton connaît de toute façon l'adresse visée.
+Clerk va plus loin en mettant ce statut dans l'URL du courriel elle-même.
+
+## L'Inbox — retrouver une invitation sans son lien
+
+⚠️ **On ne peut pas compter sur le fait que la personne cliquera le lien.**
+Elle peut se connecter directement, avoir perdu le courriel, ou le voir filtré.
+Ce cas s'est produit et l'invitation devenait alors invisible : le compte
+recevait son espace personnel (voir
+[multi-tenant.md](./multi-tenant.md)) et rien ne signalait l'invitation, qui
+existait pourtant toujours en base.
+
+L'**Inbox** est donc une section de la console, en tête de la barre latérale,
+qui liste les invitations en attente adressées à la session — **tous locataires
+confondus**. Espace personnel et invitation coexistent.
+
+Deux différences avec le chemin par lien, qui découlent l'une de l'autre :
+
+- **La recherche se fait par adresse**, pas par jeton — l'Inbox ne l'a jamais
+  eu en main, puisque seul son hachage est stocké. L'adresse vient de la
+  session vérifiée, **jamais** d'une valeur fournie par le client
+- **L'acceptation se fait par identifiant**, pour la même raison
+
+Cela demande une branche RLS supplémentaire — `email = app_current_user_email()`
+— symétrique de celle du jeton. Et, comme pour le jeton, il faut l'étendre à
+`organizations` et `roles` : sans ça les jointures filtrent la ligne pour
+quelqu'un qui n'appartient encore à aucune organization, et l'invitation
+paraît introuvable (migrations 0020 et 0021 ; le même piège avait déjà été
+résolu pour le jeton par la 0011).
+
+**Portée actuelle** : l'Inbox montre les invitations qu'on peut accepter. Elle
+ne notifie pas — rien ne signale une invitation reçue pendant qu'on travaille
+ailleurs. Le nom et l'emplacement sont volontairement génériques pour qu'un
+autre type de notification puisse s'y ajouter sans tout renommer, mais **rien
+d'autre n'y est construit aujourd'hui**.
+
 ## Doublons
 
 - Si une invitation **active** (non expirée, non annulée, non acceptée)
