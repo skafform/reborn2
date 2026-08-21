@@ -1,3 +1,6 @@
+import { en } from "zod/locales";
+import * as z from "zod/mini";
+
 /**
  * L'API de gestion.
  *
@@ -6,10 +9,23 @@
  * naturellement joint. La console ne connaît donc l'adresse du backend nulle
  * part dans son code.
  *
- * Ce n'est pas encore le client typé : il sera **généré depuis la spec
- * OpenAPI**, récupérée par HTTP sur le serveur en marche. En attendant, chaque
- * appelant déclare la forme qu'il attend.
+ * **Chaque réponse est validée** contre le schéma généré depuis le contrat que
+ * le serveur publie (`api-contract.ts`). Un type seul ne serait qu'une
+ * affirmation : `fetch` renvoie `unknown`, et `api<T>()` disait simplement à
+ * TypeScript de faire confiance. Quand la forme réelle changeait, personne ne
+ * le savait — une colonne se vidait à l'écran, sans erreur.
+ *
+ * La validation attrape en plus ce qu'aucune vérification à la compilation ne
+ * peut voir : un backend déployé plus récent que la console, ou un onglet resté
+ * ouvert pendant un redéploiement.
  */
+
+/**
+ * Zod Mini ne charge aucune locale : sans ça, tous les messages se réduisent à
+ * « Invalid input ». Le `path` resterait présent — il nomme déjà le champ —
+ * mais la phrase complète vaut ces trois lignes.
+ */
+z.config(en());
 
 export class ApiError extends Error {
   readonly status: number;
@@ -24,7 +40,21 @@ export class ApiError extends Error {
   }
 }
 
-export async function api<T>(path: string, init?: RequestInit): Promise<T> {
+/**
+ * La réponse ne correspond pas au contrat.
+ *
+ * Distincte d'`ApiError` : celle-ci dit que le serveur a **refusé**, celle-là
+ * qu'il a répondu **autre chose que ce qu'il promet**. La seconde est un défaut
+ * à corriger, pas une situation à gérer — d'où le message qui nomme le champ.
+ */
+export class ContractError extends Error {
+  constructor(path: string, issues: string) {
+    super(`${path} returned unexpected data — ${issues}`);
+    this.name = "ContractError";
+  }
+}
+
+async function request(path: string, init?: RequestInit): Promise<unknown> {
   const response = await fetch(`/api${path}`, {
     ...init,
     headers: {
@@ -49,11 +79,43 @@ export async function api<T>(path: string, init?: RequestInit): Promise<T> {
     throw new ApiError(response.status, message, reason);
   }
 
-  return response.status === 204 ? (undefined as T) : response.json();
+  return response.status === 204 ? undefined : await response.json();
 }
 
-export const postJson = <T>(path: string, body: unknown) =>
-  api<T>(path, { method: "POST", body: JSON.stringify(body) });
+/**
+ * Appelle l'API et valide la réponse contre son schéma.
+ *
+ * Le type de retour vient du schéma, pas d'un paramètre déclaré à l'appel :
+ * il n'y a plus rien à affirmer.
+ */
+export async function api<S extends z.ZodMiniType>(
+  path: string,
+  schema: S,
+  init?: RequestInit,
+): Promise<z.infer<S>> {
+  const body = await request(path, init);
+  const parsed = schema.safeParse(body);
+
+  if (!parsed.success) {
+    throw new ContractError(
+      path,
+      parsed.error.issues
+        .map((issue) => `${issue.path.join(".") || "(racine)"}: ${issue.message}`)
+        .join(" ; "),
+    );
+  }
+  return parsed.data;
+}
+
+/** Pour les routes sans corps de réponse — l'annulation d'invitation (204). */
+export const apiVoid = (path: string, init?: RequestInit) =>
+  request(path, init).then(() => undefined);
+
+export const postJson = <S extends z.ZodMiniType>(
+  path: string,
+  schema: S,
+  body: unknown,
+) => api(path, schema, { method: "POST", body: JSON.stringify(body) });
 
 /**
  * Le message anglais montré à l'écran. Le backend répond en français

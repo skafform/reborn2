@@ -34,6 +34,149 @@ génération de types à partir des schémas d'un projet donné, façon Sanity
 TypeGen. Il vise les frontends des clients, pas l'admin UI. Voir
 [../research/comparaison-typage-cms.md](../research/comparaison-typage-cms.md)
 pour la comparaison qui a mené à ce découpage.
+
+### Comment la console dérive son client — **fait**
+
+La console déclarait ses types **à la main** : exactement l'alternative que
+l'[ADR 0005](../adr/0005-depots-separes-contrat-openapi.md) écarte comme
+« dérive garantie à moyen terme ». Elle avait déjà commencé — `Member` comptait
+cinq champs quand le serveur en envoyait six.
+
+Les schémas sont désormais **générés** depuis le contrat, et les types s'en
+déduisent par `z.infer`. Plus une seule forme de réponse écrite à la main dans
+la console.
+
+**Ce qu'on ne peut pas avoir**, et qui rend le reste inutile de discuter : le
+serveur ne peut **pas** mentir sur ce qu'il envoie. `@hono/zod-openapi`
+contraint le retour de chaque handler à ce que sa route déclare — vérifié en
+cassant volontairement un handler, le typecheck refuse. La spec dit donc la
+vérité, ce que la plupart des équipes ne peuvent pas affirmer.
+
+#### La chaîne
+
+Le serveur ne fabrique pas le fichier de la console : il **publie une
+description**, qu'un outil transforme.
+
+```
+Zod (routes du backend)
+   ↓   @hono/zod-openapi — automatique, à chaque démarrage
+GET /openapi.json
+   ↓   Orval — une commande, lancée par un développeur
+console/app/lib/openapi.json      (la spec, commitée)
+console/app/lib/api-schemas.ts    (schémas Zod, commités)
+```
+
+⚠️ **Par HTTP, jamais par un chemin de fichier** vers `backend/`. C'est ce que
+la console verrait si le backend tournait ailleurs, et c'est ce qui garde la
+séparation vraie.
+
+#### Les cinq étapes
+
+**1. Décrire les trois routes muettes** — ✅ *fait*
+
+`GET /organizations/{id}/invitations`, `POST /invitations/{token}/accept` et
+`POST /inbox/{id}/accept` renvoyaient `z.any()`, donc `zod.unknown()` une fois
+générées : aucune protection, là où la console s'en sert le plus. Elles ont
+désormais leurs schémas (`PendingInvitation`, `AcceptedInvitation`).
+
+⚠️ **Aucune route ne doit renvoyer `z.any()`.** Ce n'est plus seulement une
+imprécision de documentation : c'est un trou dans la validation de la console.
+
+**2. Générer** — ✅ *fait*
+
+Orval en dépendance **de développement**, et une commande `pnpm api:sync` qui
+récupère la spec et écrit les deux fichiers. Configuration : `version: 4`,
+`variant: "mini"`, et ⚠️ **sans `strict`** (voir le piège plus bas).
+
+**3. Supprimer les types écrits à la main** — ✅ *fait*
+
+`type Member = z.infer<typeof MemberSchema>` dans chaque écran. Plus une seule
+forme recopiée : c'est la recopie qui dérive, pas l'emplacement du fichier.
+
+**4. Valider dans `api()`** — ✅ *fait*
+
+Chaque réponse passe par son schéma avant d'être rendue, avec
+`z.config(en())` — Zod Mini ne charge aucune locale, et sans elle tous les
+messages se réduisent à `Invalid input` (le `path` reste néanmoins présent).
+
+**5. Vérifier en CI** — ⏳ *reste à faire : il n'existe aucune CI aujourd'hui*
+
+Régénérer, puis `git diff --exit-code`. La génération étant déterministe, un
+écart signifie que quelqu'un a oublié `api:sync` — la PR échoue, et le `diff`
+montre le champ en cause. La CI compare **deux fichiers commités**, donc ne
+démarre ni backend ni base ; c'est pour ça que la spec est commitée, et pas
+seulement les schémas.
+
+⚠️ La CI **constate, elle ne corrige pas**. Un fichier régénéré à l'insu de
+l'auteur apparaîtrait dans ses commits sans qu'il l'ait relu.
+
+#### Ce que chaque pièce ferme
+
+| Pièce | Ferme | Quand |
+|---|---|---|
+| Génération (2 + 3) | la recopie à la main | à la compilation |
+| Validation (4) | la donnée reçue qui ne correspond pas | à l'exécution de l'écran |
+| CI (5) | l'oubli de régénérer | dans la PR |
+
+Les trois sont nécessaires : la CI ignore tout du backend réel, la validation
+n'a lieu que sur les écrans ouverts, et sans génération il n'y a rien à
+comparer ni à valider.
+
+**Pourquoi valider et pas seulement typer.** Les types disparaissent à la
+compilation. La validation confronte la donnée réelle — elle attrape donc aussi
+le backend déployé plus récent que la console, et l'onglet resté ouvert pendant
+un redéploiement. Aucune vérification à la compilation ne peut rien contre ces
+deux-là.
+
+⚠️ **`strict: { response: true }` est un piège.** Il paraît plus sûr :
+
+| Le serveur… | avec `strict` | sans |
+|---|---|---|
+| **ajoute** un champ | ❌ refusé | ✅ accepté |
+| **renomme** un champ | ✅ refusé | ✅ refusé |
+| **change le type** d'un champ | ✅ refusé | ✅ refusé |
+
+Il ferait casser la console sur un ajout de champ — rétrocompatible, et que la
+console n'utilise même pas. Éprouvé sur la vraie spec ; aucune documentation ne
+le mentionne.
+
+⚠️ **Corollaire à assumer** : ça transforme une dégradation discrète en panne
+visible. `api()` doit traiter l'échec de validation proprement — un message,
+jamais un écran blanc.
+
+#### Ce que ça ne ferme pas
+
+1. **Les chemins** — `api("…/membres")` compilerait toujours
+2. **Les corps de requête** — rien ne vérifie ce qu'on envoie
+3. **Les écrans jamais ouverts** — la validation ne se déclenche que sur ce qui
+   s'exécute
+
+Un client Orval complet fermerait les deux premiers, au prix d'une réécriture
+de tous les appels. Écarté : le chemin mal tapé n'a jamais causé de problème
+ici, alors que la dérive des types, elle, s'est déjà produite.
+
+#### Écarté, et pourquoi
+
+**Importer les types du backend** (`import type { Member } from "../../backend/…"`).
+Supprimerait la dérive d'un coup, sans outillage. Mais la console ne pourrait
+plus se construire sans l'**arbre source** du backend — un couplage de build
+réel, contraire à « deux serveurs distincts ». Et ça ne dispenserait **pas** de
+Zod : le typage ne protège pas de l'onglet resté ouvert pendant un
+redéploiement.
+
+**Stocker la spec en base.** Elle n'est pas une donnée : c'est un dérivé du
+code, recalculé à chaque démarrage. Une table serait une seconde copie,
+susceptible de mentir si quelqu'un déploie sans la réécrire — le problème
+qu'on élimine, réintroduit un cran plus loin. Pour de l'historique, un fichier
+versionné dans git suffit.
+
+**Un numéro de version comparé au démarrage** (le modèle d'une application
+précédente). Il faut penser à l'incrémenter : le même oubli, remonté d'un cran.
+Une empreinte de contenu ne s'oublie pas — mais la validation Zod fait mieux
+encore, en nommant le champ plutôt qu'en signalant que « la copie date ».
+
+Le détail de la recherche, la démonstration de la dérive et les essais :
+[../research/derive-du-contrat-console-api.md](../research/derive-du-contrat-console-api.md).
 - **Auth** :
   - Clés API par projet (header `Authorization`) — voir *Clés API* ci-dessous
   - Auth utilisateur (email/password via Better-Auth) pour l'admin UI — voir

@@ -1,8 +1,7 @@
 import { redirect } from "react-router";
 import { api, postJson } from "../lib/api";
+import { CreatedOrganizationSchema, OrganizationsSchema } from "../lib/api-contract";
 import { authClient } from "../lib/auth";
-
-type Organization = { id: string; name: string; role: string };
 
 /**
  * La racine ne s'affiche jamais : elle oriente.
@@ -22,14 +21,14 @@ export async function clientLoader() {
   const { data: session } = await authClient.getSession();
   if (!session) throw redirect("/login");
 
-  const organizations = await api<Organization[]>("/organizations");
+  const organizations = await api("/organizations", OrganizationsSchema);
   const first = organizations[0];
   // Aucune mémoire de la « dernière visitée » : un état de plus à tenir pour
   // un gain nul tant que le sélecteur suffit à naviguer entre plusieurs
   // organizations une fois dans la coque.
   if (first) throw redirect(`/org/${first.id}`);
 
-  const created = await postJson<{ id: string; name: string }>("/organizations", {
+  const created = await postJson("/organizations", CreatedOrganizationSchema, {
     name: `${session.user.name}'s organization`,
   });
   throw redirect(`/org/${created.id}`);

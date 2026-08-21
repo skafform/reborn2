@@ -1,24 +1,28 @@
 import { useEffect, useState } from "react";
 import { Form, useNavigation } from "react-router";
 import { ApiError, api, apiErrorMessage, postJson } from "../lib/api";
+import { CreatedProjectSchema, ProjectsSchema } from "../lib/api-contract";
 import { Banner, Button, Empty, Field, HeaderAction, Modal } from "../ui/controls";
 import type { Route } from "./+types/projects";
-
-type Project = { id: string; name: string };
 
 export async function clientLoader({ params }: Route.ClientLoaderArgs) {
   // La session est déjà exigée par la coque : cet écran ne la revérifie pas.
   return {
-    projects: await api<Project[]>(`/organizations/${params.organizationId}/projects`),
+    projects: await api(
+      `/organizations/${params.organizationId}/projects`,
+      ProjectsSchema,
+    ),
   };
 }
 
 export async function clientAction({ params, request }: Route.ClientActionArgs) {
   const form = await request.formData();
   try {
-    await postJson(`/organizations/${params.organizationId}/projects`, {
-      name: String(form.get("name")),
-    });
+    await postJson(
+      `/organizations/${params.organizationId}/projects`,
+      CreatedProjectSchema,
+      { name: String(form.get("name")) },
+    );
     return { created: true };
   } catch (error) {
     if (error instanceof ApiError) return { error: apiErrorMessage(error) };

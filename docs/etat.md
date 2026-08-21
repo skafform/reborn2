@@ -5,7 +5,7 @@ travail : où on en est, ce qui reste, par quoi commencer.
 
 ## Le socle est complet et commité
 
-Étapes 1 à 6a de la [feuille de route](roadmap.md). **112 tests au vert**,
+Étapes 1 à 6a de la [feuille de route](roadmap.md). **113 tests au vert**,
 typecheck et lint propres des deux côtés. Le tag **`socle-v0`** marque la
 frontière du socle réutilisable (commit `de5e593`).
 
@@ -19,7 +19,7 @@ frontière du socle réutilisable (commit `de5e593`).
 | Emails | Gabarits maison sans dépendance, prévisualisation sur `/dev/emails` |
 | Clés API | Publique · preview · secrète, par environnement |
 
-⚠️ **12 commits et le tag attendent `git push --follow-tags`.**
+⚠️ **14 commits et le tag attendent `git push --follow-tags`.**
 
 ## En cours : la console d'administration
 
@@ -32,8 +32,9 @@ qu'on l'a faite, pas contre ce dont une interface a besoin. Indice concret —
 seules **quatre routes** existent, alors que le travail des étapes 4 à 6a
 suppose d'en exposer bien davantage.
 
-Ça éprouvera aussi l'[ADR 0005](adr/0005-depots-separes-contrat-openapi.md),
-dont la stratégie OpenAPI → client typé n'a **jamais été essayée**.
+Ça a aussi éprouvé l'[ADR 0005](adr/0005-depots-separes-contrat-openapi.md) :
+sa stratégie OpenAPI → client généré est désormais **en place**, après avoir
+été la partie jamais essayée de la décision.
 
 ### Décisions prises
 
@@ -50,8 +51,9 @@ dont la stratégie OpenAPI → client typé n'a **jamais été essayée**.
 **agnostiques l'un de l'autre** : le backend ignore qu'une console existe, la
 console ne connaît de lui qu'une adresse HTTP et un contrat. **Rien ne traverse
 la frontière** — ni import, ni workspace, ni chemin de fichier, y compris pour
-la spec OpenAPI. La conclusion de l'[ADR 0005](adr/0005-depots-separes-contrat-openapi.md)
-est donc intacte ; **seule sa description de la disposition reste à corriger.**
+la spec OpenAPI, qui se récupère par HTTP. La conclusion de
+l'[ADR 0005](adr/0005-depots-separes-contrat-openapi.md) est intacte, et sa
+description de la disposition a été corrigée.
 
 ### Ce que la console fait aujourd'hui
 
@@ -121,21 +123,43 @@ Le service existe, la route non : changer un rôle, retirer un membre, créer et
 modifier un rôle personnalisé, supprimer un projet, renommer une organization,
 gérer les clés API.
 
-⚠️ **Deux routes renvoient encore `z.any()`** — les deux chemins d'acceptation
-d'invitation. Elles ne promettent donc rien dans la spec OpenAPI, qui est
-justement le contrat dont la console dépendra pour son client typé.
+### Le contrat est généré, plus recopié
+
+La console tirait ses types **à la main** — et la dérive avait commencé sans
+que rien ne la signale : `Member` y comptait cinq champs quand le serveur en
+envoyait six. Reproduit pour de vrai — renommer un champ côté serveur laissait
+les deux typechecks **au vert** et vidait une colonne à l'écran.
+
+Désormais : `pnpm api:sync` récupère `/openapi.json` **par HTTP**, Orval en
+génère des schémas **Zod 4 Mini**, les types viennent de `z.infer`, et `api()`
+**valide chaque réponse**. Plus une seule forme de réponse écrite à la main.
+
+Les deux filets, éprouvés en rejouant le renommage :
+
+| Situation | Ce qui se passe |
+|---|---|
+| Fichier à jour | le typecheck de la console **échoue**, en nommant le champ |
+| Fichier périmé | la validation échoue à l'exécution, en nommant le champ |
+
+⚠️ **Aucune route ne doit renvoyer `z.any()`** — les trois qui le faisaient ont
+été décrites. Ce n'est plus une imprécision de documentation, c'est un trou
+dans la validation de la console.
+
+⏳ **Reste à faire** : la vérification en CI (régénérer + `git diff
+--exit-code`), qui attraperait l'oubli de `api:sync` dans la PR. Il n'existe
+aucune CI aujourd'hui. Détail dans
+[architecture/api.md](architecture/api.md#comment-la-console-dérive-son-client--fait).
 
 ### Par quoi continuer
 
-1. **Le client typé depuis OpenAPI** n'a toujours **jamais été essayé** — c'est
-   la stratégie de l'[ADR 0005](adr/0005-depots-separes-contrat-openapi.md), et
-   la console appelle encore l'API au `fetch` avec des types déclarés à la
-   main. Récupérer la spec **par HTTP**, jamais par un chemin de fichier
-2. **Les clés API** — les services existent tous (`listApiKeys`,
-   `createApiKey`, `revokeApiKey`, `deleteApiKey`), seules les routes HTTP
-   manquent. C'est là que le **bloc `.env`** de la console de référence prend
-   son sens : trois clés à recopier dans le fichier d'un frontend
-3. Compléter l'API **au fil de l'eau**, quand un écran révèle un manque
+**1. Les clés API** — les services existent tous (`listApiKeys`,
+`createApiKey`, `revokeApiKey`, `deleteApiKey`), seules les routes HTTP
+manquent. C'est là que le **bloc `.env`** de la console de référence prend son
+sens : trois clés à recopier dans le fichier d'un frontend.
+
+**2. Compléter l'API au fil de l'eau**, quand un écran révèle un manque.
+
+**3. La vérification en CI** du contrat généré (voir plus haut).
 
 ## Étape 6b — là où le CMS commence
 

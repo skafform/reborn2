@@ -70,5 +70,9 @@ Notes de recherche ayant mené aux décisions ci-dessus :
   permissions, et pourquoi pas ReBAC
 - [../research/resolution-des-permissions.md](../research/resolution-des-permissions.md)
   — où et à quelle fréquence résoudre les permissions
+- [../research/derive-du-contrat-console-api.md](../research/derive-du-contrat-console-api.md)
+  — empêcher la dérive entre la console et l'API : la dérive démontrée sur le
+  code, ce que font Pact et les registres de schémas, et l'essai d'Orval sur
+  notre spec réelle
 
 Voir aussi [../roadmap.md](../roadmap.md) pour le phasage du projet.

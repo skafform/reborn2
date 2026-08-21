@@ -1,6 +1,13 @@
 import { useEffect, useState } from "react";
 import { Form, useNavigation } from "react-router";
-import { ApiError, api, apiErrorMessage, postJson } from "../lib/api";
+import { ApiError, api, apiErrorMessage, apiVoid, postJson } from "../lib/api";
+import {
+  MembershipSchema,
+  MembersSchema,
+  PendingInvitationsSchema,
+  RolesSchema,
+  SentInvitationSchema,
+} from "../lib/api-contract";
 import {
   Banner,
   Button,
@@ -13,44 +20,21 @@ import {
 } from "../ui/controls";
 import type { Route } from "./+types/team";
 
-type Member = {
-  userId: string;
-  roleName: string;
-  name: string;
-  email: string;
-  joinedAt: string;
-};
-
-type Role = {
-  id: string;
-  name: string;
-  scope: "organization" | "project";
-  isSystem: boolean;
-  /** Verdict du serveur, jamais recalculé ici : la règle d'escalade a deux
-   *  volets et vit à un seul endroit. */
-  assignable: boolean;
-};
-
-type PendingInvitation = {
-  id: string;
-  email: string;
-  roleName: string;
-  expiresAt: string;
-};
-
 export async function clientLoader({ params }: Route.ClientLoaderArgs) {
   const base = `/organizations/${params.organizationId}`;
 
   // Les permissions d'abord : les invitations en attente et la liste des rôles
   // relèvent du recrutement, donc de `member.manage`. Les demander sans ce
   // droit ferait échouer tout l'écran pour des données dont on n'a pas l'usage.
-  const { permissions } = await api<{ permissions: string[] }>(`${base}/me`);
+  const { permissions } = await api(`${base}/me`, MembershipSchema);
   const canManage = permissions.includes("member.manage");
 
   const [members, pending, roles] = await Promise.all([
-    api<Member[]>(`${base}/members`),
-    canManage ? api<PendingInvitation[]>(`${base}/invitations`) : Promise.resolve([]),
-    canManage ? api<Role[]>(`${base}/roles`) : Promise.resolve([]),
+    api(`${base}/members`, MembersSchema),
+    canManage
+      ? api(`${base}/invitations`, PendingInvitationsSchema)
+      : Promise.resolve([]),
+    canManage ? api(`${base}/roles`, RolesSchema) : Promise.resolve([]),
   ]);
 
   /*
@@ -96,11 +80,11 @@ export async function clientAction({ params, request }: Route.ClientActionArgs) 
   try {
     const cancelId = form.get("cancel");
     if (typeof cancelId === "string") {
-      await api(`${base}/invitations/${cancelId}`, { method: "DELETE" });
+      await apiVoid(`${base}/invitations/${cancelId}`, { method: "DELETE" });
       return { cancelled: true };
     }
 
-    await postJson(`${base}/invitations`, {
+    await postJson(`${base}/invitations`, SentInvitationSchema, {
       email: String(form.get("email")),
       roleId: String(form.get("roleId")),
     });

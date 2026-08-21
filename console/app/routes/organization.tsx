@@ -1,10 +1,9 @@
 import { NavLink, Outlet, redirect, useNavigate } from "react-router";
 import { api } from "../lib/api";
+import { MembershipSchema, OrganizationsSchema } from "../lib/api-contract";
 import { authClient } from "../lib/auth";
 import { OrgSwitcher } from "../ui/org-switcher";
 import type { Route } from "./+types/organization";
-
-type Organization = { id: string; name: string; role: string };
 
 /**
  * Le cadre dans lequel tout écran d'organization s'inscrit.
@@ -18,7 +17,7 @@ export async function clientLoader({ params }: Route.ClientLoaderArgs) {
   const { data: session } = await authClient.getSession();
   if (!session) throw redirect("/login");
 
-  const organizations = await api<Organization[]>("/organizations");
+  const organizations = await api("/organizations", OrganizationsSchema);
   const current = organizations.find((o) => o.id === params.organizationId);
   // Pas de 403 : une organization dont on n'est pas membre est indiscernable
   // d'une organization inexistante, ici comme dans l'API (ADR 0012).
@@ -28,8 +27,9 @@ export async function clientLoader({ params }: Route.ClientLoaderArgs) {
   // suffirait pas : les rôles sont personnalisables par organization, donc
   // « viewer » ne garantit rien — et déduire les permissions d'un nom
   // recopierait la matrice RBAC hors de son unique source de vérité.
-  const { permissions } = await api<{ permissions: string[] }>(
+  const { permissions } = await api(
     `/organizations/${current.id}/me`,
+    MembershipSchema,
   );
 
   return { user: session.user, organizations, current, permissions };

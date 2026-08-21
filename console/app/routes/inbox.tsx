@@ -1,14 +1,11 @@
 import { Form, redirect, useNavigation } from "react-router";
 import { ApiError, api, apiErrorMessage } from "../lib/api";
+import {
+  AcceptedFromInboxSchema,
+  ReceivedInvitationsSchema,
+} from "../lib/api-contract";
 import { Banner, Empty, RowAction } from "../ui/controls";
 import type { Route } from "./+types/inbox";
-
-type ReceivedInvitation = {
-  id: string;
-  organizationName: string;
-  roleName: string;
-  expiresAt: string;
-};
 
 /**
  * Les invitations reçues par la personne connectée, tous locataires
@@ -19,15 +16,16 @@ type ReceivedInvitation = {
  * de l'adresse de la session vérifiée.
  */
 export async function clientLoader() {
-  return { invitations: await api<ReceivedInvitation[]>("/inbox") };
+  return { invitations: await api("/inbox", ReceivedInvitationsSchema) };
 }
 
 export async function clientAction({ request }: Route.ClientActionArgs) {
   const form = await request.formData();
 
   try {
-    const result = await api<{ organizationId: string }>(
+    const result = await api(
       `/inbox/${String(form.get("accept"))}/accept`,
+      AcceptedFromInboxSchema,
       { method: "POST" },
     );
     // Vers l'organization qu'on vient de rejoindre, pas vers celle d'où on

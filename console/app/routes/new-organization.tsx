@@ -1,10 +1,9 @@
 import { Form, Link, redirect, useNavigation } from "react-router";
 import { ApiError, apiErrorMessage, postJson } from "../lib/api";
+import { CreatedOrganizationSchema } from "../lib/api-contract";
 import { authClient } from "../lib/auth";
 import { Banner, Button, Field } from "../ui/controls";
 import type { Route } from "./+types/new-organization";
-
-type Organization = { id: string; name: string };
 
 export async function clientLoader() {
   const { data: session } = await authClient.getSession();
@@ -15,7 +14,7 @@ export async function clientLoader() {
 export async function clientAction({ request }: Route.ClientActionArgs) {
   const form = await request.formData();
   try {
-    const organization = await postJson<Organization>("/organizations", {
+    const organization = await postJson("/organizations", CreatedOrganizationSchema, {
       name: String(form.get("name")),
     });
     return redirect(`/org/${organization.id}`);

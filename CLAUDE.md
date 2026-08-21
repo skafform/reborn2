@@ -39,6 +39,26 @@ pnpm lint                 # biome check
 pnpm format               # biome check --write
 ```
 
+Depuis `console/`, en plus des mêmes `dev` / `build` / `typecheck` / `lint` :
+
+```bash
+pnpm api:sync             # récupère le contrat de l'API et régénère les schémas
+```
+
+⚠️ **`api:sync` exige un backend en marche** — c'est le seul geste qui en a
+besoin. Il récupère `/openapi.json` **par HTTP**, jamais par un chemin vers
+`backend/`, puis régénère `app/lib/api-schemas.ts` avec Orval.
+
+**Les deux fichiers produits sont commités** (`openapi.json` et
+`api-schemas.ts`) : ni un clone neuf, ni une CI, ni un déploiement n'a de
+backend sous la main. À lancer **chaque fois que l'API change**, sinon la
+console garde l'ancien contrat — la validation Zod le signalera à l'exécution,
+mais autant le voir dans la PR. Voir
+[api.md](docs/architecture/api.md#comment-la-console-dérive-son-client--décidé-pas-encore-fait).
+
+⚠️ **Ne jamais éditer `api-schemas.ts` à la main.** Il est régénéré, et une
+correction manuelle recréerait exactement la dérive qu'il élimine.
+
 Tests : **`node:test` natif**, pas de Vitest — aucune dépendance, et Node
 exécute déjà le TypeScript. Les fichiers sont en `src/**/*.test.ts`, à côté du
 code testé. Les tests d'intégration touchent la vraie base locale et nettoient
@@ -90,7 +110,16 @@ C'est plus fort que « séparés », et c'est la règle qui gouverne les autres.
 - aucun import de `console/` vers `../backend/` ni l'inverse. Une règle Biome
   (`noRestrictedImports` sur `../../**`) le refuse mécaniquement dans
   `console/biome.json` — la discipline seule ne suffisait pas
-- ni workspace, ni `pnpm-workspace.yaml`, ni paquet partagé, ni tsconfig commun
+- **aucun workspace qui couvre les deux** — pas de `pnpm-workspace.yaml` à la
+  racine du dépôt les listant, ni paquet partagé, ni tsconfig commun. Ce serait
+  un seul graphe de dépendances, donc un `node_modules` partagé et des imports
+  croisés possibles
+
+  ⚠️ La cible est le **périmètre**, pas le nom de fichier : `pnpm` 11 utilise
+  `pnpm-workspace.yaml` comme emplacement de configuration générale,
+  indépendamment des workspaces. Un tel fichier **à l'intérieur** d'un projet,
+  qui ne fait qu'autoriser des scripts d'installation, ne relie rien — c'est le
+  cas de `backend/pnpm-workspace.yaml`, commité et légitime
 - **aucun chemin de fichier** — y compris pour la spec OpenAPI, qui se récupère
   **par HTTP** sur le serveur en marche, jamais à `../backend/openapi.json`
 

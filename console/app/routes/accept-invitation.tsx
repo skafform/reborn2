@@ -1,16 +1,12 @@
 import { Form, Link, redirect, useNavigation } from "react-router";
 import { ApiError, api, apiErrorMessage } from "../lib/api";
+import {
+  AcceptedByTokenSchema,
+  InvitationDescriptionSchema,
+} from "../lib/api-contract";
 import { authClient } from "../lib/auth";
 import { Banner, Button } from "../ui/controls";
 import type { Route } from "./+types/accept-invitation";
-
-type InvitationDescription = {
-  email: string;
-  organizationName: string;
-  roleName: string;
-  /** Décide si on propose la connexion ou l'inscription — jamais les deux. */
-  hasAccount: boolean;
-};
 
 /**
  * Où mène le lien envoyé par email. Hors de toute coque, comme les autres
@@ -36,7 +32,7 @@ export async function clientLoader({ request }: Route.ClientLoaderArgs) {
   }
 
   try {
-    const invitation = await api<InvitationDescription>(`/invitations/${token}`);
+    const invitation = await api(`/invitations/${token}`, InvitationDescriptionSchema);
     return { token, session, invitation, error: null };
   } catch (error) {
     if (error instanceof ApiError) {
@@ -51,7 +47,9 @@ export async function clientAction({ request }: Route.ClientActionArgs) {
   const token = String(form.get("token"));
 
   try {
-    await api(`/invitations/${token}/accept`, { method: "POST" });
+    await api(`/invitations/${token}/accept`, AcceptedByTokenSchema, {
+      method: "POST",
+    });
     // La racine choisit où aller ensuite — c'est déjà son rôle pour toute
     // organization. Une invitation de projet n'en crée aucune : la personne y
     // atterrit sans en avoir, ce que la console ne sait pas encore présenter

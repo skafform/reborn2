@@ -247,6 +247,29 @@ const InvitationInput = z
   })
   .openapi("InvitationInput");
 
+const PendingInvitationSchema = z
+  .object({
+    id: z.uuid(),
+    email: z.email(),
+    roleName: z.string(),
+    /** `null` pour une invitation d'organization, renseigné pour un projet. */
+    projectId: z.uuid().nullable(),
+    expiresAt: z.date(),
+  })
+  .openapi("PendingInvitation");
+
+/**
+ * Ce que l'acceptation crée. Une invitation de projet ne produit **aucune**
+ * adhésion à l'organization : `projectId` est alors renseigné, et l'appelant
+ * doit en tenir compte pour savoir où aller ensuite.
+ */
+const AcceptedInvitationSchema = z
+  .object({
+    organizationId: z.uuid(),
+    projectId: z.uuid().nullable(),
+  })
+  .openapi("AcceptedInvitation");
+
 managementRoutes.openapi(
   createRoute({
     method: "get",
@@ -254,7 +277,7 @@ managementRoutes.openapi(
     summary: "Les invitations en attente",
     middleware: [requireSession, requireOrganization] as const,
     request: { params: z.object({ organizationId: z.uuid() }) },
-    responses: { 200: json(z.array(z.any()), "Liste") },
+    responses: { 200: json(z.array(PendingInvitationSchema), "Liste") },
   }),
   async (c) => {
     const { organizationId } = c.req.valid("param");
@@ -361,7 +384,7 @@ managementRoutes.openapi(
     summary: "Accepter une invitation",
     middleware: [requireSession] as const,
     request: { params: z.object({ token: z.string().min(1) }) },
-    responses: { 200: json(z.any(), "Acceptée") },
+    responses: { 200: json(AcceptedInvitationSchema, "Acceptée") },
   }),
   async (c) =>
     c.json(
@@ -410,7 +433,7 @@ managementRoutes.openapi(
     summary: "Accepter une invitation reçue",
     middleware: [requireSession] as const,
     request: { params: z.object({ invitationId: z.uuid() }) },
-    responses: { 200: json(z.any(), "Acceptée") },
+    responses: { 200: json(AcceptedInvitationSchema, "Acceptée") },
   }),
   async (c) =>
     c.json(
