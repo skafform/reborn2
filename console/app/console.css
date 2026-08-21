@@ -29,7 +29,13 @@
 }
 
 .console {
-  --console-background: #f4f4f5;
+  /* ⚠️ Même valeur que `--console-chrome-background`, délibérément. Le fond ne
+     se voit que dans la gouttière de 12px autour du panneau : s'il diffère de
+     la chrome, cette gouttière dessine un cadre plus foncé autour du panneau —
+     de la profondeur en sombre, un contour sale en clair. Deux surfaces, pas
+     trois. C'est le modèle de Linear, dont `--bg-color` vaut
+     `--bg-sidebar-color`. */
+  --console-background: #fafafa;
   --console-panel-background: #ffffff;
   --console-foreground: #111111;
   --console-border: #dddddd;
