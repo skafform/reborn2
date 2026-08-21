@@ -1,7 +1,7 @@
 import { createRoute, OpenAPIHono, z } from "@hono/zod-openapi";
 import { HTTPException } from "hono/http-exception";
 import { heldPermissions } from "../auth/authorization.ts";
-import { requirePermission } from "../auth/escalation.ts";
+import { canAssignRole, requirePermission } from "../auth/escalation.ts";
 import { auth } from "../auth.ts";
 import {
   acceptInvitation,
@@ -191,6 +191,15 @@ const RoleSchema = z
     name: z.string(),
     scope: z.enum(["organization", "project"]),
     isSystem: z.boolean(),
+    /**
+     * L'appelant peut-il assigner ce rôle ? Calculé par `canAssignRole`, le
+     * **même** garde-fou qui refuserait ensuite — pas une seconde règle.
+     *
+     * Seul le verdict sort d'ici : les permissions de chaque rôle restent
+     * côté serveur. Les exposer laisserait la porte ouverte à ce qu'un client
+     * réimplémente la règle d'escalade, qui doit vivre à un seul endroit.
+     */
+    assignable: z.boolean(),
   })
   .openapi("Role");
 
@@ -213,8 +222,16 @@ managementRoutes.openapi(
   }),
   async (c) => {
     const { organizationId } = c.req.valid("param");
-    requirePermission(c.get("actor"), "member.manage");
-    return c.json(await listRoles(c.get("userId"), organizationId));
+    const actor = c.get("actor");
+    requirePermission(actor, "member.manage");
+
+    const roles = await listRoles(c.get("userId"), organizationId);
+    return c.json(
+      roles.map(({ permissions, ...role }) => ({
+        ...role,
+        assignable: canAssignRole(actor, { ...role, permissions }),
+      })),
+    );
   },
 );
 

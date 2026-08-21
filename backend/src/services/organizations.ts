@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { and, eq, sql } from "drizzle-orm";
-import { SYSTEM_ROLES } from "../config/permissions.ts";
+import { type Permission, SYSTEM_ROLES } from "../config/permissions.ts";
 import { type Transaction, withContext } from "../db/client.ts";
 import {
   environments,
@@ -114,19 +114,51 @@ export function listOrganizationsForUser(userId: string) {
  * projet ne s'attribue qu'avec un projet, et l'appelant a besoin de le savoir
  * pour ne pas proposer une combinaison que le service refusera.
  */
-export function listRoles(userId: string, organizationId: string) {
-  return withContext({ userId, organizationId }, (tx) =>
+export async function listRoles(userId: string, organizationId: string) {
+  const rows = await withContext({ userId, organizationId }, (tx) =>
     tx
       .select({
         id: roles.id,
         name: roles.name,
         scope: roles.scope,
         isSystem: roles.isSystem,
+        permissionKey: rolePermissions.permissionKey,
       })
       .from(roles)
+      // `left` et non `inner` : un rôle personnalisé sans aucune permission est
+      // légitime, et une jointure interne le ferait disparaître de la liste.
+      .leftJoin(rolePermissions, eq(rolePermissions.roleId, roles.id))
       .where(eq(roles.organizationId, organizationId)),
   );
+
+  /**
+   * Une ligne par permission en base, un objet par rôle en sortie. Les
+   * permissions servent à décider ce que l'appelant peut assigner
+   * (`canAssignRole`) — elles ne sortent pas de l'API pour autant, la route
+   * n'en expose que le verdict.
+   */
+  const byRole = new Map<string, Role>();
+  for (const row of rows) {
+    const role = byRole.get(row.id) ?? {
+      id: row.id,
+      name: row.name,
+      scope: row.scope,
+      isSystem: row.isSystem,
+      permissions: [] as Permission[],
+    };
+    if (row.permissionKey) role.permissions.push(row.permissionKey as Permission);
+    byRole.set(row.id, role);
+  }
+  return [...byRole.values()];
 }
+
+type Role = {
+  id: string;
+  name: string;
+  scope: "organization" | "project";
+  isSystem: boolean;
+  permissions: Permission[];
+};
 
 /**
  * Les membres d'une organization, avec leur rôle.

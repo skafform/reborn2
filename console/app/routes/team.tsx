@@ -25,6 +25,10 @@ type Role = {
   id: string;
   name: string;
   scope: "organization" | "project";
+  isSystem: boolean;
+  /** Verdict du serveur, jamais recalculé ici : la règle d'escalade a deux
+   *  volets et vit à un seul endroit. */
+  assignable: boolean;
 };
 
 type PendingInvitation = {
@@ -49,13 +53,38 @@ export async function clientLoader({ params }: Route.ClientLoaderArgs) {
     canManage ? api<Role[]>(`${base}/roles`) : Promise.resolve([]),
   ]);
 
+  /*
+   * Deux filtres, deux raisons différentes de ne pas offrir un choix qui
+   * échoue :
+   *
+   * - la **portée** : un rôle de projet ne s'attribue qu'avec un projet, et le
+   *   service refuserait la combinaison
+   * - l'**escalade** : on n'accorde pas un rôle qu'on ne peut pas accorder. Un
+   *   `admin` voyait `owner` et `admin` dans le menu, et son invitation
+   *   échouait en 403 — le cas rencontré
+   */
+  const assignable = roles.filter(
+    (role) => role.scope === "organization" && role.assignable,
+  );
+
   return {
     canManage,
     members,
-    // Un rôle de projet ne s'attribue qu'avec un projet, et le service
-    // refuserait la combinaison. Les proposer sans sélecteur de projet serait
-    // offrir un choix qui échoue.
-    roles: roles.filter((role) => role.scope === "organization"),
+    roles: assignable,
+    /**
+     * `viewer` par défaut, jamais le premier de la liste.
+     *
+     * Sans ça le navigateur retient `owner` — l'ordre de création — soit le
+     * rôle le plus puissant, et celui qu'un `admin` ne peut de toute façon pas
+     * accorder : l'invitation échouait si on ne touchait pas au menu. Le moins
+     * privilégié est aussi le plus sûr à proposer par défaut.
+     *
+     * Le rôle système, pas un rôle personnalisé qui porterait le même nom :
+     * `viewer` système existe dans toute organization et ne peut être ni
+     * supprimé ni renommé.
+     */
+    defaultRoleId: assignable.find((role) => role.isSystem && role.name === "viewer")
+      ?.id,
     pending,
   };
 }
@@ -216,7 +245,12 @@ export default function Team({ loaderData, actionData }: Route.ComponentProps) {
             <input className="console-input" name="email" type="email" required />
           </Field>
           <Field label="Role">
-            <select className="console-input" name="roleId" required>
+            <select
+              className="console-input"
+              name="roleId"
+              required
+              defaultValue={loaderData.defaultRoleId}
+            >
               {loaderData.roles.map((role) => (
                 <option key={role.id} value={role.id}>
                   {role.name}

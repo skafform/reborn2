@@ -200,6 +200,82 @@ describe("routes de gestion", () => {
     );
   });
 
+  /**
+   * Régression du cas rencontré en éprouvant la console : un `admin` voyait
+   * `owner` et `admin` dans le menu d'invitation, et son invitation échouait
+   * en 403. Le serveur dit maintenant, par rôle, s'il est assignable — même
+   * garde-fou que celui qui refuserait ensuite.
+   */
+  it("dit quels rôles l'appelant peut réellement assigner", async () => {
+    type ListedRole = { name: string; scope: string; assignable: boolean };
+    const verdicts = async (session: Session) => {
+      const response = await call(
+        `/api/organizations/${organizationId}/roles`,
+        session,
+      );
+      const list = (await response.json()) as ListedRole[];
+      return Object.fromEntries(list.map((role) => [role.name, role.assignable]));
+    };
+
+    // Le owner détient tout le catalogue : rien ne lui échappe.
+    const forOwner = await verdicts(owner);
+    assert.equal(forOwner.owner, true);
+    assert.equal(forOwner.admin, true);
+    assert.equal(forOwner.viewer, true);
+
+    // Un admin promu pour l'occasion : `member.manage_admin` lui manque, donc
+    // ni `owner` ni `admin` — mais `viewer`, dont il détient toutes les
+    // permissions, reste assignable.
+    const promu = await signUp("assignable-admin");
+    const [adminRole] = await withContext(
+      { userId: owner.userId, organizationId },
+      (tx) =>
+        tx
+          .select()
+          .from(roles)
+          .where(
+            and(eq(roles.organizationId, organizationId), eq(roles.name, "admin")),
+          ),
+    );
+    assert.ok(adminRole);
+    await withContext({ userId: owner.userId, organizationId }, (tx) =>
+      tx.insert(organizationMembers).values({
+        organizationId,
+        userId: promu.userId,
+        roleId: adminRole.id,
+      }),
+    );
+
+    const forAdmin = await verdicts(promu);
+    assert.equal(forAdmin.owner, false, "un admin ne promeut pas vers owner");
+    assert.equal(forAdmin.admin, false, "ni vers son propre niveau");
+    assert.equal(forAdmin.viewer, true);
+
+    // Le verdict et le refus doivent dire la même chose : sinon l'interface
+    // masquerait autre chose que ce que le serveur refuse.
+    const refused = await call(
+      `/api/organizations/${organizationId}/invitations`,
+      promu,
+      {
+        method: "POST",
+        body: JSON.stringify({ email: "x@skafform.test", roleId: adminRole.id }),
+      },
+    );
+    assert.equal(refused.status, 403);
+
+    await withContext({ userId: owner.userId, organizationId }, (tx) =>
+      tx
+        .delete(organizationMembers)
+        .where(
+          and(
+            eq(organizationMembers.organizationId, organizationId),
+            eq(organizationMembers.userId, promu.userId),
+          ),
+        ),
+    );
+    await destroyUsers([promu.userId]);
+  });
+
   it("refuse la liste des rôles à qui ne gère pas les membres", async () => {
     const response = await call(`/api/organizations/${organizationId}/roles`, viewer);
     assert.equal(

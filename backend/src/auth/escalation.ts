@@ -72,15 +72,39 @@ export function requireCanDefineRole(
   requireCanGrant(actor, permissions);
 }
 
+export type AssignableRole = {
+  name: string;
+  isSystem: boolean;
+  permissions: Iterable<Permission>;
+};
+
+/**
+ * L'acteur peut-il assigner ce rôle ? Version **booléenne**, pour que
+ * l'interface n'offre pas ce qui sera refusé — même paire que `can()` et
+ * `requirePermission()`.
+ *
+ * ⚠️ Ne jamais réimplémenter cette règle ailleurs, et surtout pas côté client.
+ * Elle a deux volets, dont le second n'est pas déductible d'un nom de rôle :
+ * `owner` et `admin` exigent `member.manage_admin`, **et** on doit détenir
+ * chacune des permissions du rôle qu'on accorde.
+ */
+export function canAssignRole(actor: Actor, role: AssignableRole): boolean {
+  const privileged = role.isSystem && (role.name === "owner" || role.name === "admin");
+  if (!can(actor, privileged ? "member.manage_admin" : "member.manage")) return false;
+
+  const held = heldPermissions(actor);
+  return [...role.permissions].every((permission) => held.has(permission));
+}
+
 /**
  * Assigner un rôle. Les rôles système `owner` et `admin` exigent en plus
  * `member.manage_admin`, que seul un `owner` détient — un `admin` ne peut donc
  * ni promouvoir vers son propre niveau, ni évincer un pair.
+ *
+ * Reste la seule autorité : `canAssignRole` sert à l'affichage, ce refus-ci
+ * sert de garde-fou, et il énonce **quelle** permission manque.
  */
-export function requireCanAssignRole(
-  actor: Actor,
-  role: { name: string; isSystem: boolean; permissions: Iterable<Permission> },
-): void {
+export function requireCanAssignRole(actor: Actor, role: AssignableRole): void {
   const privileged = role.isSystem && (role.name === "owner" || role.name === "admin");
   requirePermission(actor, privileged ? "member.manage_admin" : "member.manage");
   requireCanGrant(actor, role.permissions);
