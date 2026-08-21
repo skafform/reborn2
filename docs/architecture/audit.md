@@ -1,5 +1,18 @@
 # Journal d'audit
 
+⚠️ **Rien de ce document n'est construit.** Ni la table `audit_log`, ni le point
+d'émission. Ce qui suit est une conception, écrite au présent parce qu'elle
+décrit ce que le système *sera* — le vérifier avant de s'y fier.
+
+C'est le manque le plus structurant du socle : l'[ADR 0011](../adr/0011-roles-personnalises-par-organization.md)
+annonçait ce journal comme la contrepartie des rôles personnalisés, et son
+absence a forcé l'[ADR 0014](../adr/0014-creation-de-roles-reservee-au-owner.md)
+à compenser autrement. Aujourd'hui, retirer quelqu'un, suspendre une adhésion
+ou changer un rôle ne laisse **aucune trace**.
+
+À concevoir **avec l'étape 6b**, pas avant : le concevoir sur les seules
+écritures de gestion reviendrait à dessiner la couture avant la pièce.
+
 Un **journal unique** couvre les actions faites par des humains (admin UI) et
 par des clés API. Sans cela, l'asymétrie serait absurde : un script écrivant
 via l'API serait tracé, mais un `admin` changeant le rôle de quelqu'un ou

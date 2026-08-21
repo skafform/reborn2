@@ -43,9 +43,10 @@ d'abord, pour éprouver ce qui existe.
 
 La raison n'est pas de « voir le résultat » : rien de ce qui a été construit
 n'a jamais servi à un humain, et les tests ont été écrits contre l'API telle
-qu'on l'a faite, pas contre ce dont une interface a besoin. Indice concret —
-seules **quatre routes** existent, alors que le travail des étapes 4 à 6a
-suppose d'en exposer bien davantage.
+qu'on l'a faite, pas contre ce dont une interface a besoin. Indice concret : au
+moment de commencer, **quatre routes** existaient, alors que le travail des
+étapes 4 à 6a en supposait bien davantage. Il y en a **33** aujourd'hui, toutes
+révélées par un écran.
 
 Ça a aussi éprouvé l'[ADR 0005](adr/0005-depots-separes-contrat-openapi.md) :
 sa stratégie OpenAPI → client généré est désormais **en place**, après avoir
