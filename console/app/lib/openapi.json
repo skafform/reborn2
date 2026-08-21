@@ -95,6 +95,14 @@
           "roleName": {
             "type": "string"
           },
+          "suspendedAt": {
+            "type": "string",
+            "nullable": true,
+            "format": "date-time"
+          },
+          "manageable": {
+            "type": "boolean"
+          },
           "name": {
             "type": "string"
           },
@@ -107,7 +115,16 @@
             "format": "date-time"
           }
         },
-        "required": ["userId", "roleId", "roleName", "name", "email", "joinedAt"]
+        "required": [
+          "userId",
+          "roleId",
+          "roleName",
+          "suspendedAt",
+          "manageable",
+          "name",
+          "email",
+          "joinedAt"
+        ]
       },
       "CurrentMembership": {
         "type": "object",
@@ -178,6 +195,25 @@
           }
         },
         "required": ["email", "roleId"]
+      },
+      "Suspension": {
+        "type": "object",
+        "properties": {
+          "suspended": {
+            "type": "boolean"
+          }
+        },
+        "required": ["suspended"]
+      },
+      "RoleChange": {
+        "type": "object",
+        "properties": {
+          "roleId": {
+            "type": "string",
+            "format": "uuid"
+          }
+        },
+        "required": ["roleId"]
       },
       "ApiKey": {
         "type": "object",
@@ -708,6 +744,243 @@
                 }
               }
             }
+          }
+        }
+      }
+    },
+    "/api/organizations/{organizationId}/members/{userId}": {
+      "delete": {
+        "summary": "Retirer un membre, ou quitter l'organization",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "organizationId",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string"
+            },
+            "required": true,
+            "name": "userId",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Retiré"
+          }
+        }
+      }
+    },
+    "/api/organizations/{organizationId}/members/{userId}/suspension": {
+      "put": {
+        "summary": "Suspendre ou réactiver une adhésion",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "organizationId",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string"
+            },
+            "required": true,
+            "name": "userId",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Suspension"
+              }
+            }
+          }
+        },
+        "responses": {
+          "204": {
+            "description": "Appliqué"
+          }
+        }
+      }
+    },
+    "/api/organizations/{organizationId}/members/{userId}/role": {
+      "put": {
+        "summary": "Changer le rôle d'un membre",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "organizationId",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string"
+            },
+            "required": true,
+            "name": "userId",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RoleChange"
+              }
+            }
+          }
+        },
+        "responses": {
+          "204": {
+            "description": "Changé"
+          }
+        }
+      }
+    },
+    "/api/organizations/{organizationId}/projects/{projectId}/members/{userId}": {
+      "delete": {
+        "summary": "Retirer un membre d'un projet, ou le quitter",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "organizationId",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "projectId",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string"
+            },
+            "required": true,
+            "name": "userId",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Retiré"
+          }
+        }
+      }
+    },
+    "/api/organizations/{organizationId}/projects/{projectId}/members/{userId}/suspension": {
+      "put": {
+        "summary": "Suspendre ou réactiver une adhésion à un projet",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "organizationId",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "projectId",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string"
+            },
+            "required": true,
+            "name": "userId",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Suspension"
+              }
+            }
+          }
+        },
+        "responses": {
+          "204": {
+            "description": "Appliqué"
+          }
+        }
+      }
+    },
+    "/api/organizations/{organizationId}/projects/{projectId}/members/{userId}/role": {
+      "put": {
+        "summary": "Changer le rôle d'un membre de projet",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "organizationId",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "projectId",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string"
+            },
+            "required": true,
+            "name": "userId",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RoleChange"
+              }
+            }
+          }
+        },
+        "responses": {
+          "204": {
+            "description": "Changé"
           }
         }
       }

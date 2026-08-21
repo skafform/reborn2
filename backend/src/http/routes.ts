@@ -1,7 +1,11 @@
 import { createRoute, OpenAPIHono, z } from "@hono/zod-openapi";
 import { HTTPException } from "hono/http-exception";
-import { can } from "../auth/authorization.ts";
-import { canAssignRole, requirePermission } from "../auth/escalation.ts";
+import { type Actor, can } from "../auth/authorization.ts";
+import {
+  canAssignRole,
+  canManageMember,
+  requirePermission,
+} from "../auth/escalation.ts";
 import { auth } from "../auth.ts";
 import { PERMISSION_KEYS } from "../config/permissions.ts";
 import {
@@ -20,6 +24,14 @@ import {
   listPendingInvitations,
   listReceivedInvitations,
 } from "../services/invitations.ts";
+import {
+  changeOrganizationMemberRole,
+  changeProjectMemberRole,
+  removeOrganizationMember,
+  removeProjectMember,
+  setOrganizationMemberSuspended,
+  setProjectMemberSuspended,
+} from "../services/memberships.ts";
 import {
   createOrganization,
   createProject,
@@ -53,11 +65,41 @@ const MemberSchema = z
     userId: z.string(),
     roleId: z.uuid(),
     roleName: z.string(),
+    /** Renseigné : l'adhésion existe, mais ne donne plus aucun accès. */
+    suspendedAt: z.date().nullable(),
+    /**
+     * L'appelant peut-il agir sur ce membre — le retirer, le suspendre, changer
+     * son rôle ?
+     *
+     * ⚠️ Calculé par le garde-fou qui refuserait ensuite. Sans ce booléen, la
+     * console devrait comparer les rôles elle-même, c'est-à-dire recopier la
+     * matrice RBAC hors de sa source de vérité — et « admin » ne dit rien, les
+     * rôles étant personnalisables (ADR 0011).
+     */
+    manageable: z.boolean(),
     name: z.string(),
     email: z.email(),
     joinedAt: z.date(),
   })
   .openapi("Member");
+
+/**
+ * Ce que la liste des membres ajoute à ce que le service renvoie : le verdict
+ * du garde-fou, et non `roleIsSystem` qui ne servait qu'à le calculer.
+ */
+const withManageable =
+  (actor: Actor, projectId?: string) =>
+  <T extends { roleIsSystem: boolean; roleName: string }>({
+    roleIsSystem,
+    ...member
+  }: T) => ({
+    ...member,
+    manageable: canManageMember(
+      actor,
+      { name: member.roleName, isSystem: roleIsSystem },
+      projectId,
+    ),
+  });
 
 const json = <T extends z.ZodType>(schema: T, description: string) => ({
   description,
@@ -239,7 +281,12 @@ managementRoutes.openapi(
     if (!project) throw new HTTPException(404, { message: "introuvable" });
 
     requirePermission(actor, "member.read", projectId);
-    return c.json(await listProjectMembers(c.get("userId"), organizationId, projectId));
+    const members = await listProjectMembers(
+      c.get("userId"),
+      organizationId,
+      projectId,
+    );
+    return c.json(members.map(withManageable(actor, projectId)));
   },
 );
 
@@ -304,8 +351,10 @@ managementRoutes.openapi(
   }),
   async (c) => {
     const { organizationId } = c.req.valid("param");
-    requirePermission(c.get("actor"), "member.read");
-    return c.json(await listMembers(c.get("userId"), organizationId));
+    const actor = c.get("actor");
+    requirePermission(actor, "member.read");
+    const members = await listMembers(c.get("userId"), organizationId);
+    return c.json(members.map(withManageable(actor)));
   },
 );
 
@@ -449,6 +498,167 @@ managementRoutes.openapi(
       roleId: body.roleId,
     });
     return c.json({ id }, 201);
+  },
+);
+
+// ---------------------------------------------------------------------------
+
+/**
+ * Ce qui met fin à une adhésion, ou la change.
+ *
+ * ⚠️ **Une adhésion, jamais un compte.** Aucune de ces routes ne touche à la
+ * table `user` : supprimer le compte de quelqu'un effacerait son accès à sa
+ * propre organization et à toutes les autres où il travaille.
+ *
+ * Les garde-fous vivent dans le service — qui peut agir sur qui, la règle
+ * d'escalade, le dernier `owner`. Les routes ne font que résoudre la cible.
+ */
+const memberParams = z.object({ organizationId: z.uuid(), userId: z.string() });
+const projectMemberParams = projectParams.extend({ userId: z.string() });
+const RoleChangeInput = z.object({ roleId: z.uuid() }).openapi("RoleChange");
+const SuspensionInput = z.object({ suspended: z.boolean() }).openapi("Suspension");
+
+managementRoutes.openapi(
+  createRoute({
+    method: "delete",
+    path: "/organizations/{organizationId}/members/{userId}",
+    summary: "Retirer un membre, ou quitter l'organization",
+    middleware: [requireSession, requireOrganization] as const,
+    request: { params: memberParams },
+    responses: { 204: { description: "Retiré" } },
+  }),
+  async (c) => {
+    const { organizationId, userId } = c.req.valid("param");
+    // Partir ne demande aucune permission — le service distingue soi-même des
+    // autres. La règle du dernier `owner` s'applique dans les deux cas.
+    await removeOrganizationMember({ actor: c.get("actor"), organizationId, userId });
+    return c.body(null, 204);
+  },
+);
+
+managementRoutes.openapi(
+  createRoute({
+    method: "put",
+    path: "/organizations/{organizationId}/members/{userId}/suspension",
+    summary: "Suspendre ou réactiver une adhésion",
+    middleware: [requireSession, requireOrganization] as const,
+    request: {
+      params: memberParams,
+      body: { content: { "application/json": { schema: SuspensionInput } } },
+    },
+    responses: { 204: { description: "Appliqué" } },
+  }),
+  async (c) => {
+    const { organizationId, userId } = c.req.valid("param");
+    await setOrganizationMemberSuspended({
+      actor: c.get("actor"),
+      organizationId,
+      userId,
+      suspended: c.req.valid("json").suspended,
+    });
+    return c.body(null, 204);
+  },
+);
+
+managementRoutes.openapi(
+  createRoute({
+    method: "put",
+    path: "/organizations/{organizationId}/members/{userId}/role",
+    summary: "Changer le rôle d'un membre",
+    middleware: [requireSession, requireOrganization] as const,
+    request: {
+      params: memberParams,
+      body: { content: { "application/json": { schema: RoleChangeInput } } },
+    },
+    responses: { 204: { description: "Changé" } },
+  }),
+  async (c) => {
+    const { organizationId, userId } = c.req.valid("param");
+    await changeOrganizationMemberRole({
+      actor: c.get("actor"),
+      organizationId,
+      userId,
+      roleId: c.req.valid("json").roleId,
+    });
+    return c.body(null, 204);
+  },
+);
+
+managementRoutes.openapi(
+  createRoute({
+    method: "delete",
+    path: "/organizations/{organizationId}/projects/{projectId}/members/{userId}",
+    summary: "Retirer un membre d'un projet, ou le quitter",
+    middleware: [requireSession, requireOrganization] as const,
+    request: { params: projectMemberParams },
+    responses: { 204: { description: "Retiré" } },
+  }),
+  async (c) => {
+    const { organizationId, projectId, userId } = c.req.valid("param");
+    const actor = c.get("actor");
+    const project = await findProject(actor, organizationId, projectId);
+    if (!project) throw new HTTPException(404, { message: "introuvable" });
+
+    await removeProjectMember({ actor, organizationId, projectId, userId });
+    return c.body(null, 204);
+  },
+);
+
+managementRoutes.openapi(
+  createRoute({
+    method: "put",
+    path: "/organizations/{organizationId}/projects/{projectId}/members/{userId}/suspension",
+    summary: "Suspendre ou réactiver une adhésion à un projet",
+    middleware: [requireSession, requireOrganization] as const,
+    request: {
+      params: projectMemberParams,
+      body: { content: { "application/json": { schema: SuspensionInput } } },
+    },
+    responses: { 204: { description: "Appliqué" } },
+  }),
+  async (c) => {
+    const { organizationId, projectId, userId } = c.req.valid("param");
+    const actor = c.get("actor");
+    const project = await findProject(actor, organizationId, projectId);
+    if (!project) throw new HTTPException(404, { message: "introuvable" });
+
+    await setProjectMemberSuspended({
+      actor,
+      organizationId,
+      projectId,
+      userId,
+      suspended: c.req.valid("json").suspended,
+    });
+    return c.body(null, 204);
+  },
+);
+
+managementRoutes.openapi(
+  createRoute({
+    method: "put",
+    path: "/organizations/{organizationId}/projects/{projectId}/members/{userId}/role",
+    summary: "Changer le rôle d'un membre de projet",
+    middleware: [requireSession, requireOrganization] as const,
+    request: {
+      params: projectMemberParams,
+      body: { content: { "application/json": { schema: RoleChangeInput } } },
+    },
+    responses: { 204: { description: "Changé" } },
+  }),
+  async (c) => {
+    const { organizationId, projectId, userId } = c.req.valid("param");
+    const actor = c.get("actor");
+    const project = await findProject(actor, organizationId, projectId);
+    if (!project) throw new HTTPException(404, { message: "introuvable" });
+
+    await changeProjectMemberRole({
+      actor,
+      organizationId,
+      projectId,
+      userId,
+      roleId: c.req.valid("json").roleId,
+    });
+    return c.body(null, 204);
   },
 );
 

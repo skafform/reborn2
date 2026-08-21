@@ -23,6 +23,7 @@ import {
 import { mailer } from "../mail/mailer.ts";
 import { render } from "../mail/template.ts";
 import { invitationEmail } from "../mail/templates/invitation.ts";
+import { ServiceError } from "./service-error.ts";
 
 /**
  * Invitations à rejoindre une organization ou un projet.
@@ -38,16 +39,8 @@ import { invitationEmail } from "../mail/templates/invitation.ts";
  * confondre empêcherait un client de distinguer un corps mal formé d'un refus
  * de fond.
  */
-export class InvitationError extends Error {
-  readonly status: 404 | 409 | 410 | 422 | 429;
-  readonly reason: string;
-
-  constructor(status: 404 | 409 | 410 | 422 | 429, reason: string, message: string) {
-    super(message);
-    this.name = "InvitationError";
-    this.status = status;
-    this.reason = reason;
-  }
+export class InvitationError extends ServiceError {
+  declare readonly status: 404 | 409 | 410 | 422 | 429;
 }
 
 const hashToken = (token: string) => createHash("sha256").update(token).digest("hex");

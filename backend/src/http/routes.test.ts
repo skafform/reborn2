@@ -536,6 +536,302 @@ describe("routes de gestion", () => {
    * révoquer-puis-supprimer, et le fait qu'une `ApiKeyError` ressorte avec son
    * statut plutôt qu'en 500.
    */
+  /**
+   * Retirer, suspendre, changer de rôle. Les trois obéissent à la même règle —
+   * `owner` et `admin` exigent `member.manage_admin` — et deux d'entre elles
+   * rencontrent le garde-fou du dernier propriétaire, qui se déclenche **au
+   * commit** et non à l'instruction.
+   */
+  describe("adhésions", () => {
+    let membre: Session;
+    let membreOrg = "";
+    let viewerRoleId = "";
+    let adminRoleId = "";
+
+    const roleIdFor = async (name: string) => {
+      const [role] = await withContext({ userId: owner.userId, organizationId }, (tx) =>
+        tx
+          .select()
+          .from(roles)
+          .where(and(eq(roles.organizationId, organizationId), eq(roles.name, name))),
+      );
+      assert.ok(role);
+      return role.id;
+    };
+
+    before(async () => {
+      viewerRoleId = await roleIdFor("viewer");
+      adminRoleId = await roleIdFor("admin");
+
+      // Une organization à part : y toucher au dernier `owner` ne perturbe pas
+      // le reste de la suite.
+      membre = await signUp("membre");
+      sessions.push(membre);
+      const created = await call("/api/organizations", membre, {
+        method: "POST",
+        body: JSON.stringify({ name: "Chez le membre" }),
+      });
+      membreOrg = ((await created.json()) as { id: string }).id;
+    });
+
+    after(async () => {
+      await destroyOrganization(membre.userId, membreOrg);
+    });
+
+    it("dit par membre ce que l'appelant peut en faire", async () => {
+      const asOwner = (await (
+        await call(`/api/organizations/${organizationId}/members`, owner)
+      ).json()) as { userId: string; manageable: boolean }[];
+      assert.ok(
+        asOwner.every((m) => m.manageable),
+        "un owner peut agir sur tout le monde",
+      );
+
+      const asViewer = (await (
+        await call(`/api/organizations/${organizationId}/members`, viewer)
+      ).json()) as { manageable: boolean }[];
+      assert.ok(
+        asViewer.every((m) => !m.manageable),
+        "un viewer ne gère personne — et la console n'a pas à le déduire",
+      );
+    });
+
+    it("refuse de retirer le dernier owner, sans passer par un 500", async () => {
+      const response = await call(
+        `/api/organizations/${membreOrg}/members/${membre.userId}`,
+        membre,
+        { method: "DELETE" },
+      );
+      assert.equal(
+        response.status,
+        409,
+        "le trigger est différé : sans traduction au bon endroit, ce serait un 500",
+      );
+      assert.equal(
+        ((await response.json()) as { reason: string }).reason,
+        "last_owner",
+      );
+    });
+
+    it("refuse aussi de le suspendre — l'organization deviendrait orpheline", async () => {
+      // Par un tiers, puisqu'on ne peut pas se suspendre soi-même : le owner de
+      // `Chez le membre` promeut d'abord un admin, qui tente ensuite.
+      const complice = await signUp("complice");
+      sessions.push(complice);
+      const [adminAilleurs] = await withContext(
+        { userId: membre.userId, organizationId: membreOrg },
+        (tx) =>
+          tx
+            .select()
+            .from(roles)
+            .where(and(eq(roles.organizationId, membreOrg), eq(roles.name, "owner"))),
+      );
+      assert.ok(adminAilleurs);
+      await withContext({ userId: membre.userId, organizationId: membreOrg }, (tx) =>
+        tx.insert(organizationMembers).values({
+          organizationId: membreOrg,
+          userId: complice.userId,
+          roleId: adminAilleurs.id,
+        }),
+      );
+
+      // Deux owners : suspendre l'un passe.
+      const premier = await call(
+        `/api/organizations/${membreOrg}/members/${membre.userId}/suspension`,
+        complice,
+        { method: "PUT", body: JSON.stringify({ suspended: true }) },
+      );
+      assert.equal(premier.status, 204);
+
+      // Le second est désormais seul actif : se suspendre est refusé d'emblée,
+      // et le retirer heurte le garde-fou.
+      const seul = await call(
+        `/api/organizations/${membreOrg}/members/${complice.userId}`,
+        complice,
+        { method: "DELETE" },
+      );
+      assert.equal(seul.status, 409);
+      assert.equal(((await seul.json()) as { reason: string }).reason, "last_owner");
+
+      // Remis en état pour le nettoyage de fin.
+      await call(
+        `/api/organizations/${membreOrg}/members/${membre.userId}/suspension`,
+        complice,
+        { method: "PUT", body: JSON.stringify({ suspended: false }) },
+      );
+    });
+
+    it("coupe l'accès d'un membre suspendu, sans le retirer", async () => {
+      const suspendu = await signUp("suspendu");
+      sessions.push(suspendu);
+      await withContext({ userId: owner.userId, organizationId }, (tx) =>
+        tx.insert(organizationMembers).values({
+          organizationId,
+          userId: suspendu.userId,
+          roleId: viewerRoleId,
+        }),
+      );
+
+      assert.equal(
+        (await call(`/api/organizations/${organizationId}/me`, suspendu)).status,
+        200,
+      );
+
+      const applied = await call(
+        `/api/organizations/${organizationId}/members/${suspendu.userId}/suspension`,
+        owner,
+        { method: "PUT", body: JSON.stringify({ suspended: true }) },
+      );
+      assert.equal(applied.status, 204);
+
+      assert.equal(
+        (await call(`/api/organizations/${organizationId}/me`, suspendu)).status,
+        404,
+        "aucun grant n'est rendu — donc l'organization est indiscernable d'inexistante",
+      );
+
+      const visibles = (await (await call("/api/organizations", suspendu)).json()) as {
+        id: string;
+      }[];
+      assert.ok(
+        !visibles.some((o) => o.id === organizationId),
+        "elle disparaît aussi du sélecteur, sinon tout répondrait 404 derrière",
+      );
+
+      // Toujours listée du côté de ceux qui gèrent : l'adhésion existe.
+      const listed = (await (
+        await call(`/api/organizations/${organizationId}/members`, owner)
+      ).json()) as { userId: string; suspendedAt: string | null }[];
+      assert.ok(listed.find((m) => m.userId === suspendu.userId)?.suspendedAt);
+
+      // Réactivée, elle revaut.
+      await call(
+        `/api/organizations/${organizationId}/members/${suspendu.userId}/suspension`,
+        owner,
+        { method: "PUT", body: JSON.stringify({ suspended: false }) },
+      );
+      assert.equal(
+        (await call(`/api/organizations/${organizationId}/me`, suspendu)).status,
+        200,
+      );
+
+      await call(
+        `/api/organizations/${organizationId}/members/${suspendu.userId}`,
+        owner,
+        { method: "DELETE" },
+      );
+    });
+
+    it("refuse qu'on se suspende soi-même", async () => {
+      const response = await call(
+        `/api/organizations/${organizationId}/members/${owner.userId}/suspension`,
+        owner,
+        { method: "PUT", body: JSON.stringify({ suspended: true }) },
+      );
+      assert.equal(response.status, 409);
+      assert.equal(
+        ((await response.json()) as { reason: string }).reason,
+        "self_suspend",
+        "on se couperait l'accès sans pouvoir revenir",
+      );
+    });
+
+    /**
+     * Le cas qui distingue les deux garde-fous : un `admin` détient
+     * `member.manage`, donc il pourrait toucher un `viewer` — mais pas un
+     * `owner`, ce qui exige `member.manage_admin`.
+     */
+    it("empêche un admin de rétrograder un owner", async () => {
+      const admin = await signUp("admin-degrade");
+      sessions.push(admin);
+      await withContext({ userId: owner.userId, organizationId }, (tx) =>
+        tx.insert(organizationMembers).values({
+          organizationId,
+          userId: admin.userId,
+          roleId: adminRoleId,
+        }),
+      );
+
+      const response = await call(
+        `/api/organizations/${organizationId}/members/${owner.userId}/role`,
+        admin,
+        { method: "PUT", body: JSON.stringify({ roleId: viewerRoleId }) },
+      );
+      assert.equal(response.status, 403);
+      assert.equal(
+        ((await response.json()) as { reason: string }).reason,
+        "missing_permission",
+      );
+
+      await call(
+        `/api/organizations/${organizationId}/members/${admin.userId}`,
+        owner,
+        {
+          method: "DELETE",
+        },
+      );
+    });
+
+    it("refuse un rôle de projet sur une adhésion d'organization", async () => {
+      const cible = await signUp("mauvaise-portee");
+      sessions.push(cible);
+      await withContext({ userId: owner.userId, organizationId }, (tx) =>
+        tx.insert(organizationMembers).values({
+          organizationId,
+          userId: cible.userId,
+          roleId: viewerRoleId,
+        }),
+      );
+
+      const response = await call(
+        `/api/organizations/${organizationId}/members/${cible.userId}/role`,
+        owner,
+        { method: "PUT", body: JSON.stringify({ roleId: await roleIdFor("editor") }) },
+      );
+      assert.equal(
+        response.status,
+        409,
+        "sinon ses permissions vaudraient sur tous les projets",
+      );
+      assert.equal(
+        ((await response.json()) as { reason: string }).reason,
+        "scope_mismatch",
+      );
+
+      await call(
+        `/api/organizations/${organizationId}/members/${cible.userId}`,
+        owner,
+        {
+          method: "DELETE",
+        },
+      );
+    });
+
+    it("laisse quelqu'un partir de lui-même, sans permission", async () => {
+      const partant = await signUp("partant");
+      sessions.push(partant);
+      await withContext({ userId: owner.userId, organizationId }, (tx) =>
+        tx.insert(organizationMembers).values({
+          organizationId,
+          userId: partant.userId,
+          roleId: viewerRoleId,
+        }),
+      );
+
+      const response = await call(
+        `/api/organizations/${organizationId}/members/${partant.userId}`,
+        partant,
+        { method: "DELETE" },
+      );
+      assert.equal(response.status, 204, "un viewer n'a pas `member.manage`");
+
+      assert.equal(
+        (await call(`/api/organizations/${organizationId}/me`, partant)).status,
+        404,
+      );
+    });
+  });
+
   describe("clés API", () => {
     let projectId = "";
     const base = () =>

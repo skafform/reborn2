@@ -169,6 +169,13 @@ export const organizationMembers = pgTable(
       .references(() => organizations.id, { onDelete: "cascade" }),
     userId: text("user_id").notNull(),
     roleId: uuid("role_id").notNull(),
+    /**
+     * Renseigné : l'adhésion existe toujours, avec son rôle, mais ne donne plus
+     * aucun accès. Lu à la **résolution du grant**, jamais dans `can()` — une
+     * suspension n'est pas une permission en moins, c'est une adhésion qui ne
+     * compte plus (architecture/roles-permissions.md).
+     */
+    suspendedAt: timestamp("suspended_at", { withTimezone: true }),
     ...timestamps,
   },
   (table) => [
@@ -205,6 +212,8 @@ export const projectMembers = pgTable(
       .references(() => organizations.id, { onDelete: "cascade" }),
     userId: text("user_id").notNull(),
     roleId: uuid("role_id").notNull(),
+    /** Même sens que sur `organization_members`. */
+    suspendedAt: timestamp("suspended_at", { withTimezone: true }),
     ...timestamps,
   },
   (table) => [

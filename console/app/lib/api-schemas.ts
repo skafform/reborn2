@@ -133,6 +133,10 @@ export const GetApiOrganizationsOrganizationIdProjectsProjectIdMembersResponseIt
     userId: /*#__PURE__*/ zod.string(),
     roleId: /*#__PURE__*/ zod.uuid(),
     roleName: /*#__PURE__*/ zod.string(),
+    suspendedAt: /*#__PURE__*/ zod.nullable(
+      /*#__PURE__*/ zod.iso.datetime({ offset: true }),
+    ),
+    manageable: /*#__PURE__*/ zod.boolean(),
     name: /*#__PURE__*/ zod.string(),
     email: /*#__PURE__*/ zod.email(),
     joinedAt: /*#__PURE__*/ zod.iso.datetime({ offset: true }),
@@ -165,6 +169,10 @@ export const GetApiOrganizationsOrganizationIdMembersResponseItem =
     userId: /*#__PURE__*/ zod.string(),
     roleId: /*#__PURE__*/ zod.uuid(),
     roleName: /*#__PURE__*/ zod.string(),
+    suspendedAt: /*#__PURE__*/ zod.nullable(
+      /*#__PURE__*/ zod.iso.datetime({ offset: true }),
+    ),
+    manageable: /*#__PURE__*/ zod.boolean(),
     name: /*#__PURE__*/ zod.string(),
     email: /*#__PURE__*/ zod.email(),
     joinedAt: /*#__PURE__*/ zod.iso.datetime({ offset: true }),
@@ -228,6 +236,101 @@ export const PostApiOrganizationsOrganizationIdInvitationsResponse =
   /*#__PURE__*/ zod.object({
     id: /*#__PURE__*/ zod.uuid(),
   });
+
+/**
+ * @summary Retirer un membre, ou quitter l'organization
+ */
+export const DeleteApiOrganizationsOrganizationIdMembersUserIdParams =
+  /*#__PURE__*/ zod.object({
+    organizationId: /*#__PURE__*/ zod.uuid(),
+    userId: /*#__PURE__*/ zod.string(),
+  });
+
+export const DeleteApiOrganizationsOrganizationIdMembersUserIdResponse =
+  /*#__PURE__*/ zod.void();
+
+/**
+ * @summary Suspendre ou réactiver une adhésion
+ */
+export const PutApiOrganizationsOrganizationIdMembersUserIdSuspensionParams =
+  /*#__PURE__*/ zod.object({
+    organizationId: /*#__PURE__*/ zod.uuid(),
+    userId: /*#__PURE__*/ zod.string(),
+  });
+
+export const PutApiOrganizationsOrganizationIdMembersUserIdSuspensionBody =
+  /*#__PURE__*/ zod.object({
+    suspended: /*#__PURE__*/ zod.boolean(),
+  });
+
+export const PutApiOrganizationsOrganizationIdMembersUserIdSuspensionResponse =
+  /*#__PURE__*/ zod.void();
+
+/**
+ * @summary Changer le rôle d'un membre
+ */
+export const PutApiOrganizationsOrganizationIdMembersUserIdRoleParams =
+  /*#__PURE__*/ zod.object({
+    organizationId: /*#__PURE__*/ zod.uuid(),
+    userId: /*#__PURE__*/ zod.string(),
+  });
+
+export const PutApiOrganizationsOrganizationIdMembersUserIdRoleBody =
+  /*#__PURE__*/ zod.object({
+    roleId: /*#__PURE__*/ zod.uuid(),
+  });
+
+export const PutApiOrganizationsOrganizationIdMembersUserIdRoleResponse =
+  /*#__PURE__*/ zod.void();
+
+/**
+ * @summary Retirer un membre d'un projet, ou le quitter
+ */
+export const DeleteApiOrganizationsOrganizationIdProjectsProjectIdMembersUserIdParams =
+  /*#__PURE__*/ zod.object({
+    organizationId: /*#__PURE__*/ zod.uuid(),
+    projectId: /*#__PURE__*/ zod.uuid(),
+    userId: /*#__PURE__*/ zod.string(),
+  });
+
+export const DeleteApiOrganizationsOrganizationIdProjectsProjectIdMembersUserIdResponse =
+  /*#__PURE__*/ zod.void();
+
+/**
+ * @summary Suspendre ou réactiver une adhésion à un projet
+ */
+export const PutApiOrganizationsOrganizationIdProjectsProjectIdMembersUserIdSuspensionParams =
+  /*#__PURE__*/ zod.object({
+    organizationId: /*#__PURE__*/ zod.uuid(),
+    projectId: /*#__PURE__*/ zod.uuid(),
+    userId: /*#__PURE__*/ zod.string(),
+  });
+
+export const PutApiOrganizationsOrganizationIdProjectsProjectIdMembersUserIdSuspensionBody =
+  /*#__PURE__*/ zod.object({
+    suspended: /*#__PURE__*/ zod.boolean(),
+  });
+
+export const PutApiOrganizationsOrganizationIdProjectsProjectIdMembersUserIdSuspensionResponse =
+  /*#__PURE__*/ zod.void();
+
+/**
+ * @summary Changer le rôle d'un membre de projet
+ */
+export const PutApiOrganizationsOrganizationIdProjectsProjectIdMembersUserIdRoleParams =
+  /*#__PURE__*/ zod.object({
+    organizationId: /*#__PURE__*/ zod.uuid(),
+    projectId: /*#__PURE__*/ zod.uuid(),
+    userId: /*#__PURE__*/ zod.string(),
+  });
+
+export const PutApiOrganizationsOrganizationIdProjectsProjectIdMembersUserIdRoleBody =
+  /*#__PURE__*/ zod.object({
+    roleId: /*#__PURE__*/ zod.uuid(),
+  });
+
+export const PutApiOrganizationsOrganizationIdProjectsProjectIdMembersUserIdRoleResponse =
+  /*#__PURE__*/ zod.void();
 
 /**
  * @summary Les clés API d'un projet

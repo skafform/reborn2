@@ -1,4 +1,4 @@
-import { and, eq } from "drizzle-orm";
+import { and, eq, isNull } from "drizzle-orm";
 import type { Permission } from "../config/permissions.ts";
 import { type Transaction, withContext } from "../db/client.ts";
 import {
@@ -73,6 +73,10 @@ async function organizationGrant(
       and(
         eq(organizationMembers.userId, userId),
         eq(organizationMembers.organizationId, organizationId),
+        // Une adhésion suspendue ne compte pas. Couper ici plutôt que dans
+        // `can()` garde le point de vérification unique intact : ce n'est pas
+        // une permission en moins, c'est une adhésion qui ne vaut plus.
+        isNull(organizationMembers.suspendedAt),
       ),
     );
 
@@ -108,6 +112,7 @@ async function projectGrant(
       and(
         eq(projectMembers.userId, userId),
         eq(projectMembers.organizationId, organizationId),
+        isNull(projectMembers.suspendedAt),
       ),
     );
 

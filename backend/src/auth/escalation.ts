@@ -1,4 +1,5 @@
 import type { Permission } from "../config/permissions.ts";
+import { ServiceError } from "../services/service-error.ts";
 import { type Actor, can, heldPermissions } from "./authorization.ts";
 
 /**
@@ -17,15 +18,13 @@ import { type Actor, can, heldPermissions } from "./authorization.ts";
  * Voir ADR 0011 et docs/backlog #0006.
  */
 
-export class AuthorizationError extends Error {
+export class AuthorizationError extends ServiceError {
   /** 403 : l'acteur voit la ressource mais n'a pas ce droit (ADR 0012). */
-  readonly status = 403 as const;
-  readonly reason: "missing_permission" | "escalation";
+  declare readonly status: 403;
+  declare readonly reason: "missing_permission" | "escalation";
 
   constructor(message: string, reason: "missing_permission" | "escalation") {
-    super(message);
-    this.name = "AuthorizationError";
-    this.reason = reason;
+    super(403, reason, message);
   }
 }
 
@@ -89,11 +88,52 @@ export type AssignableRole = {
  * chacune des permissions du rôle qu'on accorde.
  */
 export function canAssignRole(actor: Actor, role: AssignableRole): boolean {
-  const privileged = role.isSystem && (role.name === "owner" || role.name === "admin");
-  if (!can(actor, privileged ? "member.manage_admin" : "member.manage")) return false;
+  if (!can(actor, requiredToTouch(role))) return false;
 
   const held = heldPermissions(actor);
   return [...role.permissions].every((permission) => held.has(permission));
+}
+
+/**
+ * Quelle permission il faut détenir pour toucher à quelqu'un qui porte ce
+ * rôle — l'assigner, le retirer, le suspendre.
+ *
+ * `owner` et `admin` exigent `member.manage_admin`, que seul un `owner`
+ * détient. C'est ce qui empêche un `admin` de promouvoir vers son propre
+ * niveau **comme** d'évincer un pair.
+ */
+function requiredToTouch(role: { name: string; isSystem: boolean }): Permission {
+  const privileged = role.isSystem && (role.name === "owner" || role.name === "admin");
+  return privileged ? "member.manage_admin" : "member.manage";
+}
+
+/**
+ * L'acteur peut-il agir sur un membre portant ce rôle ? Retrait, suspension,
+ * changement de rôle — la même règle gouverne les trois.
+ *
+ * **Miroir exact de l'assignation, moins la règle d'escalade** : retirer
+ * quelqu'un n'accorde aucune permission, donc rien à comparer. Ne subsiste que
+ * la question du niveau.
+ *
+ * ⚠️ Version booléenne, pour que l'API dise à l'interface ce qu'elle peut
+ * offrir. Sans elle, la console devrait comparer les rôles elle-même —
+ * c'est-à-dire recopier la matrice RBAC hors de sa source de vérité.
+ */
+export function canManageMember(
+  actor: Actor,
+  role: { name: string; isSystem: boolean },
+  projectId?: string,
+): boolean {
+  return can(actor, requiredToTouch(role), projectId);
+}
+
+/** Le refus correspondant. Seule autorité ; `canManageMember` sert l'affichage. */
+export function requireCanManageMember(
+  actor: Actor,
+  role: { name: string; isSystem: boolean },
+  projectId?: string,
+): void {
+  requirePermission(actor, requiredToTouch(role), projectId);
 }
 
 /**
@@ -105,7 +145,6 @@ export function canAssignRole(actor: Actor, role: AssignableRole): boolean {
  * sert de garde-fou, et il énonce **quelle** permission manque.
  */
 export function requireCanAssignRole(actor: Actor, role: AssignableRole): void {
-  const privileged = role.isSystem && (role.name === "owner" || role.name === "admin");
-  requirePermission(actor, privileged ? "member.manage_admin" : "member.manage");
+  requirePermission(actor, requiredToTouch(role));
   requireCanGrant(actor, role.permissions);
 }

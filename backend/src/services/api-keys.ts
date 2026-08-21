@@ -6,6 +6,7 @@ import { API_KEY_TOKEN_BYTES } from "../config/constants.ts";
 import type { Permission } from "../config/permissions.ts";
 import { withContext } from "../db/client.ts";
 import { apiKeys, environments, projects } from "../db/schema.ts";
+import { ServiceError } from "./service-error.ts";
 
 /**
  * Clés d'accès machine. Rattachées à un environnement (ADR 0013).
@@ -39,16 +40,8 @@ const PREFIX: Record<ApiKeyKind, string> = {
   secret: "sk_",
 };
 
-export class ApiKeyError extends Error {
-  readonly status: 404 | 409;
-  readonly reason: string;
-
-  constructor(status: 404 | 409, reason: string, message: string) {
-    super(message);
-    this.name = "ApiKeyError";
-    this.status = status;
-    this.reason = reason;
-  }
+export class ApiKeyError extends ServiceError {
+  declare readonly status: 404 | 409;
 }
 
 const hashToken = (token: string) => createHash("sha256").update(token).digest("hex");

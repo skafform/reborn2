@@ -1,12 +1,10 @@
 import { createRoute, OpenAPIHono, z } from "@hono/zod-openapi";
 import { HTTPException } from "hono/http-exception";
-import { AuthorizationError } from "./auth/escalation.ts";
 import { auth } from "./auth.ts";
 import { env } from "./config/env.ts";
 import { managementRoutes } from "./http/routes.ts";
 import { previewRoutes } from "./mail/preview.ts";
-import { ApiKeyError } from "./services/api-keys.ts";
-import { InvitationError } from "./services/invitations.ts";
+import { ServiceError } from "./services/service-error.ts";
 
 export const app = new OpenAPIHono();
 
@@ -17,11 +15,10 @@ export const app = new OpenAPIHono();
  * (CWE-280, ADR 0012).
  */
 app.onError((error, c) => {
-  if (
-    error instanceof AuthorizationError ||
-    error instanceof InvitationError ||
-    error instanceof ApiKeyError
-  ) {
+  // Un seul `instanceof` pour tous les refus métier. La version précédente
+  // énumérait les classes et en avait déjà oublié une, ce qui transformait
+  // chaque refus des clés API en 500 (services/service-error.ts).
+  if (error instanceof ServiceError) {
     return c.json({ error: error.message, reason: error.reason }, error.status);
   }
   // Définir `onError` retire à Hono le traitement par défaut : les

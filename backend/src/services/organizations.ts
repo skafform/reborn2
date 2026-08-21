@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { and, eq, sql } from "drizzle-orm";
+import { and, eq, isNull, sql } from "drizzle-orm";
 import { union } from "drizzle-orm/pg-core";
 import { type Actor, can } from "../auth/authorization.ts";
 import { type Permission, SYSTEM_ROLES } from "../config/permissions.ts";
@@ -107,7 +107,15 @@ export function listOrganizationsForUser(userId: string) {
           organizations,
           eq(organizations.id, organizationMembers.organizationId),
         )
-        .where(eq(organizationMembers.userId, userId)),
+        // Une adhésion suspendue ne compte pas : l'organization disparaît du
+        // sélecteur, comme elle a disparu de la résolution du grant. La laisser
+        // afficherait un nom derrière lequel tout répond 404.
+        .where(
+          and(
+            eq(organizationMembers.userId, userId),
+            isNull(organizationMembers.suspendedAt),
+          ),
+        ),
       // Un membre de projet n'a aucune ligne dans `organization_members` — il
       // reste extérieur à l'organization. Elle doit pourtant apparaître dans
       // son sélecteur, sans quoi son projet est inatteignable
@@ -116,7 +124,9 @@ export function listOrganizationsForUser(userId: string) {
         .select({ id: organizations.id, name: organizations.name })
         .from(projectMembers)
         .innerJoin(organizations, eq(organizations.id, projectMembers.organizationId))
-        .where(eq(projectMembers.userId, userId)),
+        .where(
+          and(eq(projectMembers.userId, userId), isNull(projectMembers.suspendedAt)),
+        ),
     )
       // `union` dédoublonne : trois projets dans la même organization n'y
       // font qu'une entrée.
@@ -200,6 +210,11 @@ export function listMembers(userId: string, organizationId: string) {
         userId: organizationMembers.userId,
         roleId: organizationMembers.roleId,
         roleName: roles.name,
+        // La console ne peut pas décider qui elle a le droit de retirer : ça
+        // demanderait de comparer les rôles, donc de recopier la matrice RBAC.
+        // L'appelant reçoit de quoi appliquer le garde-fou, jamais le nom seul.
+        roleIsSystem: roles.isSystem,
+        suspendedAt: organizationMembers.suspendedAt,
         name: sql<string>`u.name`,
         email: sql<string>`u.email`,
         joinedAt: organizationMembers.createdAt,
@@ -297,6 +312,8 @@ export function listProjectMembers(
         userId: projectMembers.userId,
         roleId: projectMembers.roleId,
         roleName: roles.name,
+        roleIsSystem: roles.isSystem,
+        suspendedAt: projectMembers.suspendedAt,
         name: sql<string>`u.name`,
         email: sql<string>`u.email`,
         joinedAt: projectMembers.createdAt,
