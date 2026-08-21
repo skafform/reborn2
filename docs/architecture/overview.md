@@ -2,9 +2,16 @@
 
 ## Contexte
 
-Backend Hono agissant comme un CMS headless auto-hébergé (façon Contentful/Sanity) :
-multi-tenant, schémas de contenu dynamiques, admin UI destinée à des éditeurs
-non-techniques.
+Backend Hono agissant comme un CMS headless **hébergé** (façon
+Contentful/Sanity) : multi-tenant, schémas de contenu dynamiques, admin UI
+destinée à des éditeurs non-techniques.
+
+⚠️ Ce document a longtemps dit « auto-hébergé ». C'était faux, et la formule
+masquait une question qu'on ne s'était jamais posée : un service hébergé a un
+**exploitant**, dont le modèle ne portait aucune trace. Voir
+l'[ADR 0015](../adr/0015-exploitation-hors-ligne-jamais-dans-l-application.md) —
+l'exploitation vit **hors de l'application, en local**, et n'ajoute aucun
+chemin transverse à ce que l'on expose.
 
 ## Stack technique
 

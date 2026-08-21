@@ -341,6 +341,25 @@ suspension n'est pas une permission en moins, c'est une adhésion qui ne compte
 plus. Le point de vérification unique reste intact, et aucune policy RLS ne
 change.
 
+### Décidé pendant l'inventaire d'avant-6b
+
+**Skafform est un service hébergé**, pas un CMS auto-hébergé — la
+documentation disait l'inverse depuis le début, et cette phrase masquait une
+question jamais posée : un service hébergé a un **exploitant**.
+
+⚠️ **Le modèle n'en portait aucune trace**, et ce n'était pas réparable par une
+route : le rôle applicatif est sans `BYPASSRLS`, donc la garantie contre les
+fuites entre locataires vaut aussi contre l'exploitant.
+
+**Décision** : l'exploitation est un développement **séparé, en local, jamais
+exposé** ([ADR 0015](adr/0015-exploitation-hors-ligne-jamais-dans-l-application.md)).
+Rien à construire dans le socle — la décision consiste surtout à *ne pas*
+ajouter de chemin transverse à l'application publique. Le raccourci interdit est
+celui qu'on prend sans réfléchir : un drapeau `isPlatformAdmin` sur un compte.
+
+Conséquence sur le comptage de l'usage : il doit être **justifiable**, pas
+seulement suffisant. Un service hébergé facture.
+
 ### Ensuite
 
 **Gestion des rôles personnalisés** — `role.manage` est dans le catalogue et

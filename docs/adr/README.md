@@ -52,3 +52,4 @@ Court : si un ADR dépasse une page, c'est souvent qu'il en contient deux.
 | [0012](0012-resolution-des-permissions-par-requete.md) | Résolution des permissions par requête, et codes de refus | 2026-08-20 |
 | [0013](0013-cles-api-rattachees-a-un-environnement.md) | Une clé API appartient à un environnement | 2026-08-20 |
 | [0014](0014-creation-de-roles-reservee-au-owner.md) | La création de rôles est réservée au `owner` | 2026-08-21 |
+| [0015](0015-exploitation-hors-ligne-jamais-dans-l-application.md) | L'exploitation vit hors de l'application, en local | 2026-08-21 |

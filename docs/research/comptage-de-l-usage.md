@@ -80,6 +80,12 @@ La première est celle qui correspond à ce projet — **hors de la transaction 
 lecture, et après la réponse** : un échec de comptage ne doit jamais faire
 échouer une lecture.
 
+⚠️ **Cet arbitrage a été tranché depuis, et pas par la technique.** Skafform
+est un service **hébergé** ([ADR 0015](../adr/0015-exploitation-hors-ligne-jamais-dans-l-application.md)),
+donc le comptage sert à **facturer** — un chiffre qu'on ne peut pas justifier
+devant un client est inutilisable. Le tampon en mémoire suffirait à plafonner
+un abus ; il ne suffit pas à établir une facture.
+
 Contentful et Sanity opèrent à une échelle qui justifie des pipelines dédiés.
 Rien n'indique qu'il faille commencer là.
 
