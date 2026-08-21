@@ -176,6 +176,13 @@
       "when": 1787243718534,
       "tag": "0024_suspendable_memberships",
       "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "7",
+      "when": 1787243719534,
+      "tag": "0025_role_manage_owner_only",
+      "breakpoints": true
     }
   ]
 }

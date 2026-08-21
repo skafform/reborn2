@@ -14,29 +14,36 @@
  * seraient identiques partout n'en font qu'une.
  */
 
+/**
+ * ⚠️ These descriptions are **user-facing labels**, not developer messages.
+ * They are what the console shows next to each checkbox when someone composes
+ * a role, which is why they read as sentences and why they are in English —
+ * translating them console-side would copy the catalogue out of its source of
+ * truth.
+ */
 export const PERMISSIONS = {
-  "content.read": "Lire le contenu publié",
-  "content.read_draft": "Lire les brouillons",
-  "content.write": "Créer et modifier du contenu",
-  "content.publish": "Publier du contenu",
+  "content.read": "Read published content",
+  "content.read_draft": "Read drafts",
+  "content.write": "Create and edit content",
+  "content.publish": "Publish content",
 
-  "schema.read": "Lire les définitions de types de contenu",
-  "schema.write": "Créer et modifier les types de contenu",
+  "schema.read": "Read content type definitions",
+  "schema.write": "Create and edit content types",
 
-  "member.read": "Voir les membres de l'organization",
-  "member.manage": "Inviter, retirer et changer le rôle d'un membre non privilégié",
-  "member.manage_admin": "Accorder ou retirer les rôles owner et admin",
+  "member.read": "See who is in the organization",
+  "member.manage": "Invite, remove and change the role of a non-privileged member",
+  "member.manage_admin": "Grant or revoke the owner and admin roles",
 
-  "role.manage": "Créer et modifier les rôles personnalisés",
-  "apikey.manage": "Créer, révoquer et supprimer les clés API",
+  "role.manage": "Create and edit custom roles",
+  "apikey.manage": "Create, revoke and delete API keys",
 
-  "project.create": "Créer un projet",
-  "project.delete": "Supprimer un projet",
+  "project.create": "Create a project",
+  "project.delete": "Delete a project",
 
-  "org.settings": "Modifier les paramètres de l'organization",
-  "org.billing": "Gérer la facturation",
-  "org.transfer": "Transférer la propriété de l'organization",
-  "org.delete": "Supprimer l'organization",
+  "org.settings": "Change organization settings",
+  "org.billing": "Manage billing",
+  "org.transfer": "Transfer ownership of the organization",
+  "org.delete": "Delete the organization",
 } as const;
 
 export type Permission = keyof typeof PERMISSIONS;
@@ -74,6 +81,15 @@ export const SYSTEM_ROLES: readonly SystemRole[] = [
   {
     name: "admin",
     scope: "organization",
+    /**
+     * ⚠️ **No `role.manage`** (ADR 0014). An admin assigns the roles that
+     * exist; they do not decide what a role *means*. Without an audit log the
+     * role list is the only trace of a change to the permission model, and it
+     * only works as a trace if one person writes to it.
+     *
+     * Delegation stays possible and becomes explicit: an owner creates a
+     * custom role that carries it.
+     */
     permissions: [
       ...CONTENT_READ,
       "content.write",
@@ -81,7 +97,6 @@ export const SYSTEM_ROLES: readonly SystemRole[] = [
       "schema.write",
       "member.read",
       "member.manage",
-      "role.manage",
       "apikey.manage",
       "project.create",
       "org.settings",

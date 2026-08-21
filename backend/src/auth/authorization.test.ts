@@ -5,7 +5,12 @@ import { and, eq } from "drizzle-orm";
 import { auth } from "../auth.ts";
 import { PERMISSION_KEYS } from "../config/permissions.ts";
 import { closePool, withContext } from "../db/client.ts";
-import { organizationMembers, projectMembers, roles } from "../db/schema.ts";
+import {
+  organizationMembers,
+  projectMembers,
+  rolePermissions,
+  roles,
+} from "../db/schema.ts";
 import { createOrganization, createProject } from "../services/organizations.ts";
 import { destroyOrganization, destroyUsers } from "../test-support/cleanup.ts";
 import { can, resolveActor } from "./authorization.ts";
@@ -48,6 +53,41 @@ async function addMember(
       .insert(organizationMembers)
       .values({ organizationId, userId, roleId: role.id });
   });
+}
+
+/**
+ * Creates a custom role — what an owner does to delegate. Written directly
+ * rather than through a service, since none exists yet.
+ */
+async function customRole(
+  organizationId: string,
+  ownerId: string,
+  name: string,
+  permissions: readonly string[],
+): Promise<string> {
+  return withContext({ userId: ownerId, organizationId }, async (tx) => {
+    const [role] = await tx
+      .insert(roles)
+      .values({ organizationId, scope: "organization", name, isSystem: false })
+      .returning({ id: roles.id });
+    assert.ok(role);
+    await tx
+      .insert(rolePermissions)
+      .values(permissions.map((permissionKey) => ({ roleId: role.id, permissionKey })));
+    return role.id;
+  });
+}
+
+/** Assigns an existing role by id, system or not. */
+async function addMemberWithRole(
+  organizationId: string,
+  ownerId: string,
+  userId: string,
+  roleId: string,
+) {
+  await withContext({ userId: ownerId, organizationId }, (tx) =>
+    tx.insert(organizationMembers).values({ organizationId, userId, roleId }),
+  );
 }
 
 async function addProjectMember(
@@ -208,16 +248,45 @@ describe("autorisation", () => {
       );
     });
 
-    it("empêche un admin de se fabriquer un rôle plus puissant que lui", async () => {
+    /**
+     * An admin can no longer define roles at all (ADR 0014), so the attack the
+     * escalation rule was written against is now stopped one step earlier.
+     * Both refusals matter, and they are not the same one — this pins which is
+     * which.
+     */
+    it("stops an admin before the escalation rule even applies", async () => {
       const admin = await makeUser("admin");
       await addMember(organizationId, owner, admin, "admin");
       const actor = await resolveActor(admin, organizationId);
 
-      assert.equal(can(actor, "role.manage"), true, "il gère bien les rôles");
+      assert.equal(can(actor, "role.manage"), false, "role creation is owner-only");
+      assert.throws(
+        () => requireCanDefineRole(actor, ["content.write"]),
+        /role\.manage/,
+        "refused for lacking role.manage, not for over-granting",
+      );
+    });
+
+    /**
+     * The escalation rule still has a subject: whoever the owner delegates to.
+     * A custom role carrying role.manage lets its holder define roles, never
+     * beyond what they hold themselves — which is what keeps the ceiling at
+     * every level of delegation.
+     */
+    it("keeps a delegate inside what they hold", async () => {
+      const delegate = await makeUser("delegate");
+      const roleId = await customRole(organizationId, owner, "role-keeper", [
+        "role.manage",
+        "content.write",
+      ]);
+      await addMemberWithRole(organizationId, owner, delegate, roleId);
+      const actor = await resolveActor(delegate, organizationId);
+
+      assert.doesNotThrow(() => requireCanDefineRole(actor, ["content.write"]));
       assert.throws(
         () => requireCanDefineRole(actor, ["content.write", "org.delete"]),
         /org\.delete/,
-        "org.delete n'est détenu que par owner",
+        "a delegate cannot grant beyond the delegation",
       );
     });
 
