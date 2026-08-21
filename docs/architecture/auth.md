@@ -111,8 +111,19 @@ passe et OAuth cohabitent nativement.
 
 ### Politique de liaison de comptes : `disableImplicitLinking`
 
-Décision de sécurité prise dès maintenant, car elle est pénible à changer une
-fois que des comptes sont liés.
+**Posée dans `src/auth.ts`, avant qu'un seul fournisseur existe.** C'est le
+seul réglage de ce fichier qui devient coûteux avec le temps : une fois des
+comptes liés, en changer impose de défaire des liaisons.
+
+⚠️ **Elle avait été décidée ici sans être écrite là-bas**, et le décalage
+n'était pas visible : sans fournisseur OAuth, rien ne lie quoi que ce soit. Le
+défaut se serait appliqué le jour de l'ajout de Google, silencieusement.
+
+⚠️ **Et le garde-fou intégré de Better-Auth ne nous protégeait pas.** La
+liaison implicite exige que l'adresse locale soit confirmée
+(`requireLocalEmailVerified`, vrai par défaut) — or `requireEmailVerification`
+l'impose déjà à tout le monde. La condition qui aurait pu freiner est donc
+**toujours** satisfaite chez nous.
 
 Scénario : Alice a un compte `alice@acme.com` avec mot de passe, puis clique
 « Se connecter avec Google » depuis le même email.
@@ -142,7 +153,20 @@ est sans commune mesure avec le risque.
 2. **Tous les comptes n'auront pas de mot de passe** — un utilisateur arrivé
    uniquement par OAuth n'en a aucun. La réinitialisation de mot de passe et
    la révocation de sessions qui la suit ne le concernent pas ; l'UI doit lui
-   proposer « définir un mot de passe », pas « le changer »
+   proposer « définir un mot de passe », pas « le changer ». ⚠️ L'écran de
+   compte de la console propose aujourd'hui « changer » sans condition
+
+### Ce qu'il restera à construire
+
+- **Une section « comptes liés »** dans l'écran de compte. ⚠️ Sans elle, la
+  liaison manuelle qu'impose `disableImplicitLinking` est **impossible** :
+  la politique retenue deviendrait un cul-de-sac plutôt qu'une friction
+- **Les identifiants en environnement** — facultatifs, mais **appariés** :
+  un `CLIENT_ID` sans son `SECRET` doit faire échouer le démarrage. Le motif
+  existe déjà dans `config/env.ts` pour `RESEND_API_KEY`
+- **Une application OAuth par fournisseur *et par environnement***, les URI
+  de redirection différant. Google demande en plus un écran de consentement
+  renseigné, GitHub non — d'où l'ordre suggéré : GitHub d'abord
 
 ## SSO d'entreprise — prévu, pas construit
 

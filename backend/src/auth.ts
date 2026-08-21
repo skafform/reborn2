@@ -53,6 +53,28 @@ export const auth = betterAuth({
     },
   },
 
+  /**
+   * ⚠️ **Set before any OAuth provider exists**, because it is the one setting
+   * in this file that grows expensive with time: once accounts are linked,
+   * changing it means unlinking them.
+   *
+   * Without it, Better-Auth implicitly links an OAuth account to a local one
+   * with the same address. The condition that might have held that back is
+   * **always** met here: linking requires the local address to be verified
+   * (`requireLocalEmailVerified`, true by default), and we already impose that
+   * on everyone. A misconfigured or compromised provider that accepts a claim
+   * to an address would therefore open the matching account.
+   *
+   * A compromised account here does not expose personal data but **other
+   * customers' content**. So linking is explicit: sign in first, link after.
+   * See docs/architecture/auth.md.
+   */
+  account: {
+    accountLinking: {
+      disableImplicitLinking: true,
+    },
+  },
+
   emailVerification: {
     sendOnSignUp: true,
     /** Évite de redemander le mot de passe juste après avoir cliqué. */

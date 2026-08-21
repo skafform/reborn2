@@ -419,6 +419,7 @@ Rappels structurants :
 | [0008](backlog/0008-resolution-des-projets-d-un-membre.md) | Résolution des projets d'un membre | À mesurer avant d'agir |
 | [0012](backlog/0012-la-console-n-a-aucun-test.md) | La console n'a aucun test | Avec la CI — les deux se décident ensemble |
 | [0014](backlog/0014-frontiere-du-socle.md) | Frontière du socle : `src/cms/` + règle d'import | 🔴 Au premier fichier de 6b |
+| [0015](backlog/0015-avatar-choisi-par-la-personne.md) | L'avatar n'est pas choisi par la personne | 🟢 L'étape 7 ne le livrera **pas** au passage |
 
 Dix items clos.
 
