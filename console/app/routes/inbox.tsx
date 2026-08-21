@@ -60,6 +60,10 @@ export default function Inbox({ loaderData, actionData }: Route.ComponentProps) 
           <thead>
             <tr>
               <th>Organization</th>
+              {/* Une invitation de projet dit *sur quoi* — « Ideatrove —
+                  editor » ne suffirait pas. La colonne reste même quand
+                  aucune n'en vise un : son absence déplacerait les autres. */}
+              <th>Project</th>
               <th>Role</th>
               <th>Expires</th>
               <th />
@@ -69,6 +73,9 @@ export default function Inbox({ loaderData, actionData }: Route.ComponentProps) 
             {loaderData.invitations.map((invitation) => (
               <tr key={invitation.id}>
                 <td>{invitation.organizationName}</td>
+                <td className="console-muted">
+                  {invitation.projectName ?? "Whole organization"}
+                </td>
                 <td>
                   <span className="console-badge">{invitation.roleName}</span>
                 </td>

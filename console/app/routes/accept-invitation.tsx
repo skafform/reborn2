@@ -50,9 +50,9 @@ export async function clientAction({ request }: Route.ClientActionArgs) {
       method: "POST",
     });
     // La racine choisit où aller ensuite — c'est déjà son rôle pour toute
-    // organization. Une invitation de projet n'en crée aucune : la personne y
-    // atterrit sans en avoir, ce que la console ne sait pas encore présenter
-    // (docs/backlog #0008 touche à ce même angle mort).
+    // organization. Une invitation de projet ne crée aucune adhésion à
+    // l'organization, mais celle-ci apparaît quand même : la personne a la
+    // sienne, et l'hôte s'y ajoute (architecture/multi-tenant.md).
     return redirect("/");
   } catch (error) {
     const message = displayableError(error);
@@ -79,9 +79,14 @@ export default function AcceptInvitation({
 
         {invitation && (
           <>
+            {/* Une invitation de projet ne donne accès qu'à ce projet : le
+                dire ici évite d'arriver dans une organization en s'attendant à
+                tout y voir. */}
             <p>
-              You've been invited to join <strong>{invitation.organizationName}</strong>{" "}
-              as <strong>{invitation.roleName}</strong>.
+              You've been invited to join{" "}
+              <strong>{invitation.projectName ?? invitation.organizationName}</strong>{" "}
+              as <strong>{invitation.roleName}</strong>
+              {invitation.projectName && <> in {invitation.organizationName}</>}.
             </p>
 
             {!session ? (

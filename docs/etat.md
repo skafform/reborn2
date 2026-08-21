@@ -97,6 +97,7 @@ planter.
 | `GET …/projects/{pid}` | visibilité du projet — 404 sinon |
 | `GET …/projects/{pid}/me` | jumeau de `/me`, mais **dans ce projet** |
 | `GET …/projects/{pid}/members` | `member.read` — donc pas les membres du projet eux-mêmes |
+| `GET`/`POST …/projects/{pid}/invitations` | `member.manage` — le `projectId` vient de l'URL |
 
 `/me` existe parce que **le nom du rôle ne suffit pas** : les rôles sont
 personnalisables par organization, donc « viewer » ne garantit rien — et
@@ -237,8 +238,24 @@ tous produits, et sont fermés :
   sans projet cible. Il n'y a plus de garde en tête : **la liste est le
   filtre**, `can(actor, "content.read", projet)` appliqué par projet
 
-Reste `GET /organizations/{id}/projects/{pid}/invitations` et son `POST` — le
-recrutement depuis la Team du projet, à faire avec l'écran.
+✅ **La console est faite** aussi. La barre latérale est **contextuelle** :
+entrer dans un projet la remplace par `Overview` / `Team`, avec un retour
+explicite en tête — on peut arriver par une adresse collée, sans historique.
+
+Techniquement, deux mises en page sœurs sous une même coque plutôt qu'une barre
+qui saurait tout faire : `organization.tsx` ne porte que la barre du haut, et
+chaque coque en dessous charge ce dont la sienne a besoin. L'alternative
+obligeait le parent à lire l'état de son enfant pour savoir quoi afficher.
+
+⚠️ **Le recrutement d'un projet se fait dans le projet** :
+`POST …/projects/{pid}/invitations`, dont le corps n'a **pas** de `projectId` —
+il vient de l'URL. Et `InvitationInput` au niveau de l'organization l'a perdu :
+la combinaison incohérente n'est plus seulement refusée, elle n'est plus
+exprimable.
+
+Les deux listes d'invitations en attente sont **séparées** — celles d'un projet
+n'apparaissent plus dans l'équipe de l'organization, où personne ne les a
+envoyées.
 
 ### Ensuite
 

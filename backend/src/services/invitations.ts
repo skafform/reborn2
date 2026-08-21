@@ -565,14 +565,23 @@ export async function cancelInvitation(input: {
 }
 
 /** Les invitations en attente d'une organization. */
-export function listPendingInvitations(userId: string, organizationId: string) {
+export function listPendingInvitations(
+  userId: string,
+  organizationId: string,
+  /**
+   * `null` pour les invitations de l'organization, un identifiant pour celles
+   * d'un projet. Pas d'option « toutes » : chaque écran recrute pour son
+   * propre périmètre, et les mélanger ferait apparaître dans l'équipe de
+   * l'organization des invitations qu'on n'y a pas envoyées.
+   */
+  projectId: string | null,
+) {
   return withContext({ userId, organizationId }, (tx) =>
     tx
       .select({
         id: invitations.id,
         email: invitations.email,
         roleName: roles.name,
-        projectId: invitations.projectId,
         expiresAt: invitations.expiresAt,
       })
       .from(invitations)
@@ -580,6 +589,9 @@ export function listPendingInvitations(userId: string, organizationId: string) {
       .where(
         and(
           eq(invitations.organizationId, organizationId),
+          projectId === null
+            ? isNull(invitations.projectId)
+            : eq(invitations.projectId, projectId),
           isNull(invitations.acceptedAt),
           isNull(invitations.cancelledAt),
         ),

@@ -356,12 +356,14 @@ managementRoutes.openapi(
 // Invitations
 // ---------------------------------------------------------------------------
 
+/**
+ * ⚠️ **Sans `projectId`.** Inviter sur un projet se fait depuis ce projet, où
+ * il vient de l'URL (architecture/invitations.md). Le retirer d'ici supprime
+ * la possibilité même de composer une combinaison incohérente — le service la
+ * refuserait, mais autant qu'elle ne s'exprime pas.
+ */
 const InvitationInput = z
-  .object({
-    email: z.email(),
-    roleId: z.uuid(),
-    projectId: z.uuid().optional(),
-  })
+  .object({ email: z.email(), roleId: z.uuid() })
   .openapi("InvitationInput");
 
 const PendingInvitationSchema = z
@@ -369,8 +371,6 @@ const PendingInvitationSchema = z
     id: z.uuid(),
     email: z.email(),
     roleName: z.string(),
-    /** `null` pour une invitation d'organization, renseigné pour un projet. */
-    projectId: z.uuid().nullable(),
     expiresAt: z.date(),
   })
   .openapi("PendingInvitation");
@@ -402,7 +402,9 @@ managementRoutes.openapi(
     // recrutement, pas de l'annuaire. Un `viewer` voit qui est dans l'équipe,
     // pas qui est en train d'y être admis.
     requirePermission(c.get("actor"), "member.manage");
-    return c.json(await listPendingInvitations(c.get("userId"), organizationId));
+    // `null` : seulement celles de l'organization. Celles d'un projet
+    // appartiennent à l'équipe de ce projet.
+    return c.json(await listPendingInvitations(c.get("userId"), organizationId, null));
   },
 );
 
@@ -438,7 +440,76 @@ managementRoutes.openapi(
       organizationName: organization.name,
       email: body.email,
       roleId: body.roleId,
-      ...(body.projectId ? { projectId: body.projectId } : {}),
+    });
+    return c.json({ id }, 201);
+  },
+);
+
+/**
+ * Le recrutement d'un projet — lister et inviter, depuis le projet lui-même.
+ *
+ * Le `projectId` vient de l'URL, jamais du corps : c'est ce qui fait qu'aucun
+ * écran n'a de sélecteur de projet dans sa modale, et qu'aucune combinaison
+ * incohérente n'est composable (architecture/invitations.md).
+ */
+managementRoutes.openapi(
+  createRoute({
+    method: "get",
+    path: "/organizations/{organizationId}/projects/{projectId}/invitations",
+    summary: "Les invitations en attente sur un projet",
+    middleware: [requireSession, requireOrganization] as const,
+    request: { params: projectParams },
+    responses: { 200: json(z.array(PendingInvitationSchema), "Liste") },
+  }),
+  async (c) => {
+    const { organizationId, projectId } = c.req.valid("param");
+    const actor = c.get("actor");
+    const project = await findProject(actor, organizationId, projectId);
+    if (!project) throw new HTTPException(404, { message: "introuvable" });
+
+    requirePermission(actor, "member.manage", projectId);
+    return c.json(
+      await listPendingInvitations(c.get("userId"), organizationId, projectId),
+    );
+  },
+);
+
+managementRoutes.openapi(
+  createRoute({
+    method: "post",
+    path: "/organizations/{organizationId}/projects/{projectId}/invitations",
+    summary: "Inviter quelqu'un sur un projet",
+    middleware: [requireSession, requireOrganization] as const,
+    request: {
+      params: projectParams,
+      body: { content: { "application/json": { schema: InvitationInput } } },
+    },
+    responses: { 201: json(z.object({ id: z.uuid() }), "Envoyée") },
+  }),
+  async (c) => {
+    const { organizationId, projectId } = c.req.valid("param");
+    const body = c.req.valid("json");
+    const actor = c.get("actor");
+
+    const project = await findProject(actor, organizationId, projectId);
+    if (!project) throw new HTTPException(404, { message: "introuvable" });
+
+    const [organization] = await listOrganizationsForUser(c.get("userId")).then(
+      (list) => list.filter((o) => o.id === organizationId),
+    );
+    if (!organization) throw new HTTPException(404, { message: "introuvable" });
+
+    const session = await auth.api.getSession({ headers: c.req.raw.headers });
+    // Le droit d'inviter dépend du rôle accordé, vérifié dans le service —
+    // qui refuse aussi un rôle dont la portée ne correspond pas.
+    const { id } = await createInvitation({
+      actor,
+      invitedByName: session?.user.name ?? "Un membre",
+      organizationId,
+      organizationName: organization.name,
+      email: body.email,
+      roleId: body.roleId,
+      projectId,
     });
     return c.json({ id }, 201);
   },

@@ -158,17 +158,12 @@
           "roleName": {
             "type": "string"
           },
-          "projectId": {
-            "type": "string",
-            "nullable": true,
-            "format": "uuid"
-          },
           "expiresAt": {
             "type": "string",
             "format": "date-time"
           }
         },
-        "required": ["id", "email", "roleName", "projectId", "expiresAt"]
+        "required": ["id", "email", "roleName", "expiresAt"]
       },
       "InvitationInput": {
         "type": "object",
@@ -178,10 +173,6 @@
             "format": "email"
           },
           "roleId": {
-            "type": "string",
-            "format": "uuid"
-          },
-          "projectId": {
             "type": "string",
             "format": "uuid"
           }
@@ -631,6 +622,97 @@
             },
             "required": true,
             "name": "organizationId",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/InvitationInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Envoyée",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string",
+                      "format": "uuid"
+                    }
+                  },
+                  "required": ["id"]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/organizations/{organizationId}/projects/{projectId}/invitations": {
+      "get": {
+        "summary": "Les invitations en attente sur un projet",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "organizationId",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "projectId",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Liste",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/PendingInvitation"
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "summary": "Inviter quelqu'un sur un projet",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "organizationId",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "projectId",
             "in": "path"
           }
         ],

@@ -378,7 +378,7 @@ describe("invitations", () => {
 
     await cancelInvitation({ actor, organizationId, invitationId: id });
 
-    const pending = await listPendingInvitations(owner.id, organizationId);
+    const pending = await listPendingInvitations(owner.id, organizationId, null);
     assert.ok(!pending.some((p) => p.id === id));
   });
 

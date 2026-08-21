@@ -1,4 +1,4 @@
-import { index, type RouteConfig, route } from "@react-router/dev/routes";
+import { index, layout, type RouteConfig, route } from "@react-router/dev/routes";
 
 /**
  * Les écrans d'entrée vivent hors de toute coque : on n'a pas encore de
@@ -24,14 +24,28 @@ export default [
   index("routes/home.tsx"),
   route("new-organization", "routes/new-organization.tsx"),
 
+  /**
+   * `organization.tsx` ne porte que la barre du haut. La barre latérale est
+   * **contextuelle** : entrer dans un projet la remplace entièrement. D'où deux
+   * mises en page sœurs sous la même coque, chacune chargeant ce dont la sienne
+   * a besoin — plutôt qu'un parent qui devrait lire l'état de son enfant pour
+   * savoir quoi afficher.
+   */
   route("org/:organizationId", "routes/organization.tsx", [
-    index("routes/projects.tsx"),
-    // ⚠️ L'Inbox vit sous une organization pour tenir dans la coque, mais son
-    // contenu ne lui appartient pas : ce sont les invitations reçues par la
-    // personne, souvent d'organizations tierces. Basculer d'organization
-    // affiche donc la même liste — le backend n'attend aucun `organizationId`
-    // pour cette route.
-    route("inbox", "routes/inbox.tsx"),
-    route("team", "routes/team.tsx"),
+    layout("routes/organization-sections.tsx", [
+      index("routes/projects.tsx"),
+      // ⚠️ L'Inbox vit sous une organization pour tenir dans la coque, mais son
+      // contenu ne lui appartient pas : ce sont les invitations reçues par la
+      // personne, souvent d'organizations tierces. Basculer d'organization
+      // affiche donc la même liste — le backend n'attend aucun `organizationId`
+      // pour cette route.
+      route("inbox", "routes/inbox.tsx"),
+      route("team", "routes/team.tsx"),
+    ]),
+
+    route("projects/:projectId", "routes/project.tsx", [
+      index("routes/project-overview.tsx"),
+      route("team", "routes/project-team.tsx"),
+    ]),
   ]),
 ] satisfies RouteConfig;

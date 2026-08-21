@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Form, useNavigation } from "react-router";
+import { Form, Link, useNavigation } from "react-router";
 import { api, displayableError, postJson } from "../lib/api";
 import {
   CreatedProjectSchema,
@@ -12,6 +12,7 @@ import type { Route } from "./+types/projects";
 export async function clientLoader({ params }: Route.ClientLoaderArgs) {
   // La session est déjà exigée par la coque : cet écran ne la revérifie pas.
   return {
+    organizationId: params.organizationId,
     projects: await api(
       `/organizations/${params.organizationId}/projects`,
       ProjectsSchema,
@@ -69,7 +70,16 @@ export default function Projects({ loaderData, actionData }: Route.ComponentProp
           <tbody>
             {loaderData.projects.map((project) => (
               <tr key={project.id}>
-                <td>{project.name}</td>
+                <td>
+                  {/* Un lien, pas une ligne cliquable : il s'ouvre dans un
+                      onglet, se copie, et se navigue au clavier. */}
+                  <Link
+                    className="console-table-link"
+                    to={`/org/${loaderData.organizationId}/projects/${project.id}`}
+                  >
+                    {project.name}
+                  </Link>
+                </td>
               </tr>
             ))}
           </tbody>

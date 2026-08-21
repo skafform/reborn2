@@ -8,6 +8,10 @@ import {
   GetApiOrganizationsOrganizationIdMembersResponse,
   type GetApiOrganizationsOrganizationIdMembersResponseItem,
   GetApiOrganizationsOrganizationIdMeResponse,
+  GetApiOrganizationsOrganizationIdProjectsProjectIdInvitationsResponse,
+  GetApiOrganizationsOrganizationIdProjectsProjectIdMembersResponse,
+  GetApiOrganizationsOrganizationIdProjectsProjectIdMeResponse,
+  GetApiOrganizationsOrganizationIdProjectsProjectIdResponse,
   GetApiOrganizationsOrganizationIdProjectsResponse,
   type GetApiOrganizationsOrganizationIdProjectsResponseItem,
   GetApiOrganizationsOrganizationIdRolesResponse,
@@ -20,6 +24,8 @@ import {
   PostApiOrganizationsOrganizationIdInvitationsBody,
   PostApiOrganizationsOrganizationIdInvitationsResponse,
   PostApiOrganizationsOrganizationIdProjectsBody,
+  PostApiOrganizationsOrganizationIdProjectsProjectIdInvitationsBody,
+  PostApiOrganizationsOrganizationIdProjectsProjectIdInvitationsResponse,
   PostApiOrganizationsOrganizationIdProjectsResponse,
   PostApiOrganizationsResponse,
 } from "./api-schemas";
@@ -57,6 +63,28 @@ export type Project = z.infer<
 
 export const NewProjectSchema = PostApiOrganizationsOrganizationIdProjectsBody;
 export const CreatedProjectSchema = PostApiOrganizationsOrganizationIdProjectsResponse;
+
+export const ProjectSchema = GetApiOrganizationsOrganizationIdProjectsProjectIdResponse;
+
+/**
+ * Ce qu'on peut faire **dans ce projet**. Jumeau de `MembershipSchema` : pour
+ * une portée projet, `can()` exige la cible, donc la réponse dépend du projet
+ * regardé.
+ */
+export const ProjectMembershipSchema =
+  GetApiOrganizationsOrganizationIdProjectsProjectIdMeResponse;
+
+export const ProjectMembersSchema =
+  GetApiOrganizationsOrganizationIdProjectsProjectIdMembersResponse;
+
+export const ProjectInvitationsSchema =
+  GetApiOrganizationsOrganizationIdProjectsProjectIdInvitationsResponse;
+
+export const NewProjectInvitationSchema =
+  PostApiOrganizationsOrganizationIdProjectsProjectIdInvitationsBody;
+
+export const SentProjectInvitationSchema =
+  PostApiOrganizationsOrganizationIdProjectsProjectIdInvitationsResponse;
 
 export const MembershipSchema = GetApiOrganizationsOrganizationIdMeResponse;
 export type Membership = z.infer<typeof GetApiOrganizationsOrganizationIdMeResponse>;

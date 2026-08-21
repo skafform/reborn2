@@ -205,7 +205,6 @@ export const GetApiOrganizationsOrganizationIdInvitationsResponseItem =
     id: /*#__PURE__*/ zod.uuid(),
     email: /*#__PURE__*/ zod.email(),
     roleName: /*#__PURE__*/ zod.string(),
-    projectId: /*#__PURE__*/ zod.nullable(/*#__PURE__*/ zod.uuid()),
     expiresAt: /*#__PURE__*/ zod.iso.datetime({ offset: true }),
   });
 export const GetApiOrganizationsOrganizationIdInvitationsResponse =
@@ -223,10 +222,50 @@ export const PostApiOrganizationsOrganizationIdInvitationsBody =
   /*#__PURE__*/ zod.object({
     email: /*#__PURE__*/ zod.email(),
     roleId: /*#__PURE__*/ zod.uuid(),
-    projectId: /*#__PURE__*/ zod.optional(/*#__PURE__*/ zod.uuid()),
   });
 
 export const PostApiOrganizationsOrganizationIdInvitationsResponse =
+  /*#__PURE__*/ zod.object({
+    id: /*#__PURE__*/ zod.uuid(),
+  });
+
+/**
+ * @summary Les invitations en attente sur un projet
+ */
+export const GetApiOrganizationsOrganizationIdProjectsProjectIdInvitationsParams =
+  /*#__PURE__*/ zod.object({
+    organizationId: /*#__PURE__*/ zod.uuid(),
+    projectId: /*#__PURE__*/ zod.uuid(),
+  });
+
+export const GetApiOrganizationsOrganizationIdProjectsProjectIdInvitationsResponseItem =
+  /*#__PURE__*/ zod.object({
+    id: /*#__PURE__*/ zod.uuid(),
+    email: /*#__PURE__*/ zod.email(),
+    roleName: /*#__PURE__*/ zod.string(),
+    expiresAt: /*#__PURE__*/ zod.iso.datetime({ offset: true }),
+  });
+export const GetApiOrganizationsOrganizationIdProjectsProjectIdInvitationsResponse =
+  /*#__PURE__*/ zod.array(
+    GetApiOrganizationsOrganizationIdProjectsProjectIdInvitationsResponseItem,
+  );
+
+/**
+ * @summary Inviter quelqu'un sur un projet
+ */
+export const PostApiOrganizationsOrganizationIdProjectsProjectIdInvitationsParams =
+  /*#__PURE__*/ zod.object({
+    organizationId: /*#__PURE__*/ zod.uuid(),
+    projectId: /*#__PURE__*/ zod.uuid(),
+  });
+
+export const PostApiOrganizationsOrganizationIdProjectsProjectIdInvitationsBody =
+  /*#__PURE__*/ zod.object({
+    email: /*#__PURE__*/ zod.email(),
+    roleId: /*#__PURE__*/ zod.uuid(),
+  });
+
+export const PostApiOrganizationsOrganizationIdProjectsProjectIdInvitationsResponse =
   /*#__PURE__*/ zod.object({
     id: /*#__PURE__*/ zod.uuid(),
   });

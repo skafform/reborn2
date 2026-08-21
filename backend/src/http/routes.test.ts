@@ -464,6 +464,57 @@ describe("routes de gestion", () => {
       );
     });
 
+    /**
+     * Le recrutement d'un projet vit dans ce projet. Les deux listes doivent
+     * donc rester séparées — sinon l'équipe de l'organization afficherait des
+     * invitations qu'on n'y a pas envoyées.
+     */
+    it("garde les invitations d'un projet hors de celles de l'organization", async () => {
+      const [editorRole] = await withContext(
+        { userId: owner.userId, organizationId },
+        (tx) =>
+          tx
+            .select()
+            .from(roles)
+            .where(
+              and(eq(roles.organizationId, organizationId), eq(roles.name, "editor")),
+            ),
+      );
+      assert.ok(editorRole);
+
+      const sent = await call(
+        `/api/organizations/${organizationId}/projects/${sien}/invitations`,
+        owner,
+        {
+          method: "POST",
+          // Aucun `projectId` dans le corps : il vient de l'URL.
+          body: JSON.stringify({
+            email: `recrue-${randomUUID()}@skafform.test`,
+            roleId: editorRole.id,
+          }),
+        },
+      );
+      assert.equal(sent.status, 201);
+      const { id } = (await sent.json()) as { id: string };
+
+      const onProject = await call(
+        `/api/organizations/${organizationId}/projects/${sien}/invitations`,
+        owner,
+      );
+      const projectList = (await onProject.json()) as { id: string }[];
+      assert.ok(projectList.some((i) => i.id === id));
+
+      const onOrganization = await call(
+        `/api/organizations/${organizationId}/invitations`,
+        owner,
+      );
+      const organizationList = (await onOrganization.json()) as { id: string }[];
+      assert.ok(
+        !organizationList.some((i) => i.id === id),
+        "elle appartient au projet, pas à l'organization",
+      );
+    });
+
     it("le owner, lui, voit l'équipe du projet", async () => {
       const response = await call(
         `/api/organizations/${organizationId}/projects/${sien}/members`,

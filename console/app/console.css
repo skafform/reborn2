@@ -165,6 +165,39 @@ body {
   margin: 0;
 }
 
+/* En-tête de la barre latérale d'un projet : d'où l'on vient, et où l'on est.
+   Le retour est explicite parce qu'on peut arriver ici par une adresse collée,
+   sans historique à remonter. */
+.console-sidebar-header {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 4px 12px 12px;
+  margin-bottom: 8px;
+  border-bottom: 1px solid var(--console-border-subtle);
+}
+
+/* Aligné sur le retrait des entrées de menu (12px + 3px de trait), pour que la
+   colonne de texte reste unique du haut en bas de la barre. */
+.console-sidebar .console-sidebar-back {
+  font-size: var(--console-font-size-xs);
+  color: var(--console-foreground-muted);
+  text-decoration: none;
+  transition: color 0.15s;
+}
+
+.console-sidebar .console-sidebar-back:hover {
+  color: var(--console-foreground);
+  text-decoration: none;
+}
+
+.console-sidebar-title {
+  font-size: var(--console-font-size-base);
+  font-weight: 600;
+  color: var(--console-foreground);
+  overflow-wrap: anywhere;
+}
+
 /* Mêmes jetons que « + New Project » (`.console-link-button--plain`), pas une
    paire équivalente : `--console-foreground-muted` au repos,
    `--console-foreground` au survol. Un trait à gauche marque l'état actif —
@@ -672,4 +705,36 @@ body {
   margin: 2rem 0;
   border: none;
   border-top: 1px solid var(--console-border);
+}
+
+/* Un nom dans un tableau qui mène quelque part. Ni ambre ni souligné au repos :
+   la rangée entière réagit déjà au survol, et une colonne d'accents ferait un
+   mur de couleur. Le soulignement au survol confirme que c'est bien un lien.
+   Qualifié par `.console-table` pour passer devant `.console a`. */
+.console-table .console-table-link {
+  color: var(--console-foreground);
+  font-weight: 500;
+  text-decoration: none;
+}
+
+.console-table .console-table-link:hover {
+  text-decoration: underline;
+}
+
+/* Quelques faits sur une page, en deux colonnes. Pas un tableau : il n'y a
+   qu'une seule chose décrite, et ses lignes n'ont pas d'en-tête commune. */
+.console-facts {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 6px 24px;
+  margin: 0 0 24px;
+  font-size: var(--console-font-size-base);
+}
+
+.console-facts dt {
+  color: var(--console-foreground-muted);
+}
+
+.console-facts dd {
+  margin: 0;
 }
