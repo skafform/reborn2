@@ -232,7 +232,7 @@ function apiErrorMessage(error: ApiError): string {
 
   switch (error.status) {
     case 401:
-      return "Sign in required.";
+      return "Log in required.";
     case 403:
       return "You don't have permission to do that.";
     case 404:

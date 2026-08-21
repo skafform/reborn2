@@ -50,7 +50,7 @@ export default function VerifyEmail({ actionData }: Route.ComponentProps) {
         </Form>
 
         <p className="console-form-footer">
-          <Link to="/login">Back to sign in</Link>
+          <Link to="/login">Back to log in</Link>
         </p>
       </div>
     </div>

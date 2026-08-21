@@ -46,7 +46,7 @@ export function authErrorMessage(error: { message?: string; code?: string }): st
   // Their wording says the session isn't fresh, which names a concept nobody
   // outside this file has met.
   if (error.code === "SESSION_NOT_FRESH") {
-    return "For this, sign out and back in first — it needs a recent sign-in.";
+    return "For this, log out and back in first — it needs a recent login.";
   }
   // Better-Auth refuses to remove the last way into an account. The console
   // hides the action in that case; this covers the tab left open while the
@@ -69,7 +69,7 @@ export function oauthErrorMessage(code: string): string {
   // way out is a specific act. Left unsaid, one retries the same button
   // forever.
   if (code === "account_not_linked") {
-    return "An account already exists for that address. Sign in with your password, then link the provider from your account settings.";
+    return "An account already exists for that address. Log in with your password, then link the provider from your account settings.";
   }
   if (code === "email_not_verified") {
     return "That address isn't verified with the provider. Verify it there, or check your inbox — we've sent a confirmation link.";
@@ -80,5 +80,5 @@ export function oauthErrorMessage(code: string): string {
   // The remaining codes describe protocol failures — lost state, invalid code,
   // unreachable provider. Translating them one by one would produce sentences
   // nobody can act on.
-  return "Sign-in with that provider failed. Try again.";
+  return "Logging in with that provider failed. Try again.";
 }

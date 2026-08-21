@@ -33,19 +33,25 @@ const call = (path: string, session: Session, init: RequestInit = {}) =>
   });
 
 describe("fournisseurs OAuth", () => {
-  it("répond sans session", async () => {
-    // C'est tout l'objet de la route : un client doit la lire **avant** d'avoir
-    // une session, pour savoir quels boutons de connexion afficher.
+  /**
+   * ⚠️ **Le contenu de la liste n'est pas affirmé, et ne peut pas l'être.**
+   * Une première version exigeait `{ providers: [] }` ; elle passait parce que
+   * l'environnement n'avait pas encore d'application OAuth, et a cassé le jour
+   * où on en a configuré une. Elle affirmait une propriété du **déploiement**,
+   * ce qui est précisément la raison d'être de cette route.
+   *
+   * Ce qui se teste ici est ce qui ne dépend pas de la configuration : la
+   * route répond sans session, et sa forme tient le contrat.
+   */
+  it("répond sans session, et rend une liste de fournisseurs", async () => {
+    // Sans session, parce qu'un client doit savoir quels boutons de connexion
+    // afficher **avant** d'en avoir une.
     const response = await app.request("/api/auth-providers");
     assert.equal(response.status, 200);
-  });
 
-  it("n'annonce rien sans identifiants configurés", async () => {
-    const response = await app.request("/api/auth-providers");
-    // L'environnement de test n'a pas d'application OAuth, et la liste est
-    // relue depuis la configuration de Better-Auth — elle ne peut donc pas
-    // annoncer un fournisseur qui n'existe pas.
-    assert.deepEqual(await response.json(), { providers: [] });
+    const body = (await response.json()) as { providers: unknown };
+    assert.ok(Array.isArray(body.providers));
+    assert.ok(body.providers.every((id) => typeof id === "string" && id.length > 0));
   });
 });
 
@@ -57,11 +63,36 @@ describe("routes de gestion", () => {
   /** Tous les comptes créés par la suite, y compris par ses sous-suites. */
   const sessions: Session[] = [];
 
+  /**
+   * Un compte neuf, attaché à l'organization de la suite avec un rôle système.
+   *
+   * Neuf à chaque fois plutôt que partagé : renommer ou promouvoir un compte
+   * commun a déjà cassé un autre test de ce fichier.
+   */
+  async function memberWithRole(prefix: string, roleName: string): Promise<Session> {
+    const session = await signUp(prefix);
+    sessions.push(session);
+
+    await withContext({ userId: owner.userId, organizationId }, async (tx) => {
+      const [role] = await tx
+        .select()
+        .from(roles)
+        .where(and(eq(roles.organizationId, organizationId), eq(roles.name, roleName)));
+      assert.ok(role, `le rôle système ${roleName} existe dans toute organization`);
+      await tx.insert(organizationMembers).values({
+        organizationId,
+        userId: session.userId,
+        roleId: role.id,
+      });
+    });
+
+    return session;
+  }
+
   before(async () => {
     owner = await signUp("owner");
-    viewer = await signUp("viewer");
     outsider = await signUp("outsider");
-    sessions.push(owner, viewer, outsider);
+    sessions.push(owner, outsider);
 
     const response = await call("/api/organizations", owner, {
       method: "POST",
@@ -70,18 +101,7 @@ describe("routes de gestion", () => {
     assert.equal(response.status, 201);
     organizationId = ((await response.json()) as { id: string }).id;
 
-    await withContext({ userId: owner.userId, organizationId }, async (tx) => {
-      const [role] = await tx
-        .select()
-        .from(roles)
-        .where(and(eq(roles.organizationId, organizationId), eq(roles.name, "viewer")));
-      assert.ok(role);
-      await tx.insert(organizationMembers).values({
-        organizationId,
-        userId: viewer.userId,
-        roleId: role.id,
-      });
-    });
+    viewer = await memberWithRole("viewer", "viewer");
   });
 
   after(async () => {
@@ -864,7 +884,7 @@ describe("routes de gestion", () => {
      * broke the Inbox test, which reads that name. The same order-dependency
      * trap as the role list.
      */
-    it("renames an organization and a project", async () => {
+    it("saves the name and description of an organization and a project", async () => {
       const mover = await signUp("renommeur");
       sessions.push(mover);
       const created = await call("/api/organizations", mover, {
@@ -875,10 +895,13 @@ describe("routes de gestion", () => {
 
       const renamed = await call(`/api/organizations/${orgId}`, mover, {
         method: "PUT",
-        body: JSON.stringify({ name: "Après" }),
+        body: JSON.stringify({ name: "Après", description: "Ce qu'elle fait" }),
       });
       assert.equal(renamed.status, 200);
-      assert.equal(((await renamed.json()) as { name: string }).name, "Après");
+      assert.deepEqual(
+        (await renamed.json()) as { name: string; description: string },
+        { id: orgId, name: "Après", description: "Ce qu'elle fait" },
+      );
 
       const project = await call(`/api/organizations/${orgId}/projects`, mover, {
         method: "POST",
@@ -889,9 +912,16 @@ describe("routes de gestion", () => {
       const moved = await call(
         `/api/organizations/${orgId}/projects/${projectId}`,
         mover,
-        { method: "PUT", body: JSON.stringify({ name: "Projet après" }) },
+        {
+          method: "PUT",
+          body: JSON.stringify({ name: "Projet après", description: "Le site" }),
+        },
       );
-      assert.equal(((await moved.json()) as { name: string }).name, "Projet après");
+      assert.deepEqual((await moved.json()) as { name: string; description: string }, {
+        id: projectId,
+        name: "Projet après",
+        description: "Le site",
+      });
 
       await call(`/api/organizations/${orgId}/projects/${projectId}`, mover, {
         method: "DELETE",
@@ -902,10 +932,106 @@ describe("routes de gestion", () => {
       );
     });
 
+    /**
+     * ⚠️ Le point de la migration 0027. `org.settings` couvrait les deux ;
+     * l'avoir réservé au owner sans scinder aurait retiré aux admins le droit
+     * de nommer les projets qu'ils créent.
+     */
+    it("separates organization settings from project settings", async () => {
+      const admin = await memberWithRole("reglages", "admin");
+
+      const project = await call(
+        `/api/organizations/${organizationId}/projects`,
+        owner,
+        { method: "POST", body: JSON.stringify({ name: "Confié" }) },
+      );
+      const { id: projectId } = (await project.json()) as { id: string };
+
+      const onProject = await call(
+        `/api/organizations/${organizationId}/projects/${projectId}`,
+        admin,
+        {
+          method: "PUT",
+          body: JSON.stringify({ name: "Renommé", description: "Par l'admin" }),
+        },
+      );
+      assert.equal(onProject.status, 200, "`project.settings` reste à l'admin");
+
+      const onOrganization = await call(`/api/organizations/${organizationId}`, admin, {
+        method: "PUT",
+        body: JSON.stringify({ name: "Détournée", description: "" }),
+      });
+      assert.equal(onOrganization.status, 403, "`org.settings` est au owner seul");
+
+      await call(`/api/organizations/${organizationId}/projects/${projectId}`, owner, {
+        method: "DELETE",
+      });
+    });
+
+    /**
+     * ⚠️ L'adresse voyage avec les réglages, mais **facultative** : c'est ce
+     * qui garde `org.billing` distincte de `org.settings` dans une seule
+     * requête. Absente, elle n'est pas touchée ; présente, elle exige la clé.
+     */
+    it("keeps org.billing meaningful inside a single update", async () => {
+      const admin = await memberWithRole("facturier", "admin");
+
+      assert.equal(
+        (await call(`/api/organizations/${organizationId}/billing`, admin)).status,
+        403,
+        "lire est gardé comme écrire : la clé dit la même chose des deux côtés",
+      );
+
+      const settings = { name: "Acme", description: "" };
+
+      const saved = await call(`/api/organizations/${organizationId}`, owner, {
+        method: "PUT",
+        body: JSON.stringify({ ...settings, billingAddress: "  12 rue des Lilas  " }),
+      });
+      assert.equal(saved.status, 200);
+      assert.deepEqual(
+        await (
+          await call(`/api/organizations/${organizationId}/billing`, owner)
+        ).json(),
+        { billingAddress: "12 rue des Lilas" },
+        "l'adresse est rognée avant d'être écrite",
+      );
+
+      await call(`/api/organizations/${organizationId}`, owner, {
+        method: "PUT",
+        body: JSON.stringify({ ...settings, billingAddress: "   " }),
+      });
+      assert.deepEqual(
+        await (
+          await call(`/api/organizations/${organizationId}/billing`, owner)
+        ).json(),
+        { billingAddress: null },
+        "une adresse blanche est absente, pas une chaîne d'espaces",
+      );
+
+      // Le champ omis ne touche à rien — sans quoi enregistrer un nom
+      // effacerait l'adresse de celui qui n'a pas la clé pour la voir.
+      await call(`/api/organizations/${organizationId}`, owner, {
+        method: "PUT",
+        body: JSON.stringify({ ...settings, billingAddress: "9 rue Neuve" }),
+      });
+      await call(`/api/organizations/${organizationId}`, owner, {
+        method: "PUT",
+        body: JSON.stringify(settings),
+      });
+      assert.deepEqual(
+        await (
+          await call(`/api/organizations/${organizationId}/billing`, owner)
+        ).json(),
+        { billingAddress: "9 rue Neuve" },
+        "absente veut dire inchangée",
+      );
+    });
+
     it("refuses a viewer, who holds neither org.settings nor project.delete", async () => {
       const response = await call(`/api/organizations/${organizationId}`, viewer, {
         method: "PUT",
-        body: JSON.stringify({ name: "Détournée" }),
+        body: JSON.stringify({ name: "Détournée", description: "" }),
       });
       assert.equal(response.status, 403);
     });

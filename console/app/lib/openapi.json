@@ -37,9 +37,12 @@
           },
           "name": {
             "type": "string"
+          },
+          "description": {
+            "type": "string"
           }
         },
-        "required": ["id", "name"]
+        "required": ["id", "name", "description"]
       },
       "NameInput": {
         "type": "object",
@@ -61,9 +64,54 @@
           },
           "name": {
             "type": "string"
+          },
+          "description": {
+            "type": "string"
           }
         },
-        "required": ["id", "name"]
+        "required": ["id", "name", "description"]
+      },
+      "OrganizationSettingsInput": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/SettingsInput"
+          },
+          {
+            "type": "object",
+            "properties": {
+              "billingAddress": {
+                "type": "string",
+                "nullable": true,
+                "maxLength": 500
+              }
+            }
+          }
+        ]
+      },
+      "SettingsInput": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "description": {
+            "type": "string",
+            "maxLength": 1000
+          }
+        },
+        "required": ["name", "description"]
+      },
+      "Billing": {
+        "type": "object",
+        "properties": {
+          "billingAddress": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "required": ["billingAddress"]
       },
       "ProjectDetail": {
         "allOf": [
@@ -263,6 +311,7 @@
                 "apikey.manage",
                 "project.create",
                 "project.delete",
+                "project.settings",
                 "org.settings",
                 "org.billing",
                 "org.transfer",
@@ -567,7 +616,7 @@
     },
     "/api/organizations/{organizationId}": {
       "put": {
-        "summary": "Renommer une organization",
+        "summary": "Réglages d'une organization",
         "parameters": [
           {
             "schema": {
@@ -583,14 +632,14 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/NameInput"
+                "$ref": "#/components/schemas/OrganizationSettingsInput"
               }
             }
           }
         },
         "responses": {
           "200": {
-            "description": "Renommée",
+            "description": "Enregistrés",
             "content": {
               "application/json": {
                 "schema": {
@@ -621,9 +670,37 @@
         }
       }
     },
+    "/api/organizations/{organizationId}/billing": {
+      "get": {
+        "summary": "L'adresse de facturation",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "organizationId",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Adresse, éventuellement absente",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Billing"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/organizations/{organizationId}/projects/{projectId}": {
       "put": {
-        "summary": "Renommer un projet",
+        "summary": "Réglages d'un projet",
         "parameters": [
           {
             "schema": {
@@ -648,14 +725,14 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/NameInput"
+                "$ref": "#/components/schemas/SettingsInput"
               }
             }
           }
         },
         "responses": {
           "200": {
-            "description": "Renommé",
+            "description": "Enregistrés",
             "content": {
               "application/json": {
                 "schema": {

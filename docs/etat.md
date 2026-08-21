@@ -7,14 +7,14 @@ travail : où on en est, ce qui reste, par quoi commencer.
 
 Étapes 1 à 6a de la [feuille de route](roadmap.md), et beaucoup de socle
 depuis : rôles personnalisés, adhésions, routes de clés, chaîne du contrat,
-CI. **146 tests au vert**, typecheck et lint propres des deux côtés.
+CI. **157 tests au vert**, typecheck et lint propres des deux côtés.
 
 | | |
 |---|---|
 | Serveur | Hono + `@hono/zod-openapi`, validation d'environnement au démarrage |
 | Authentification | Better-Auth sur `pg.Pool`, confirmation d'adresse obligatoire, réinitialisation |
 | Multi-tenant | 10 tables sous RLS **activé et forcé**, point de passage `withContext` |
-| Autorisation | Rôles personnalisables par organization, 17 permissions, `can()`, garde-fous |
+| Autorisation | Rôles personnalisables par organization, 18 permissions, `can()`, garde-fous |
 | Invitations | Jeton haché, email verrouillé, usage unique, plafond par organization, Inbox |
 | Emails | Gabarits maison sans dépendance, prévisualisation sur `/dev/emails` |
 | Clés API | Publique · preview · secrète, par environnement |
@@ -45,7 +45,7 @@ La raison n'est pas de « voir le résultat » : rien de ce qui a été construi
 n'a jamais servi à un humain, et les tests ont été écrits contre l'API telle
 qu'on l'a faite, pas contre ce dont une interface a besoin. Indice concret : au
 moment de commencer, **quatre routes** existaient, alors que le travail des
-étapes 4 à 6a en supposait bien davantage. Il y en a **33** aujourd'hui, toutes
+étapes 4 à 6a en supposait bien davantage. Il y en a **41** aujourd'hui, toutes
 révélées par un écran.
 
 Ça a aussi éprouvé l'[ADR 0005](adr/0005-depots-separes-contrat-openapi.md) :
@@ -84,9 +84,9 @@ quels boutons afficher plutôt que de le supposer. Détail et pièges dans
 
 **La coque**, sous `org/:organizationId` — barre du haut avec le sélecteur
 d'organization à gauche et le menu de compte à droite, barre latérale
-(`Inbox`, `Projects`, `Team`, `Roles`), panneau flottant. Elle porte le
-**contrôle de session à un seul endroit** et vérifie que l'organization du
-chemin est bien une des siennes.
+(`Inbox`, `Projects`, `Team`, `Roles`, `Settings`), panneau flottant. Elle
+porte le **contrôle de session à un seul endroit** et vérifie que
+l'organization du chemin est bien une des siennes.
 
 **L'écran de compte**, `org/:organizationId/account` — nom modifiable, adresse
 en lecture seule, mot de passe, et **comptes liés**. ⚠️ **Une seule route du
@@ -110,6 +110,18 @@ appariée sur l'adresse exacte, et les deux divergeraient
 n'est pas un écran manquant mais une décision non prise : que devient la
 dernière `owner` d'une organization, que le trigger `protect_last_owner`
 refusera de laisser partir ?
+
+**Les écrans de réglages** — une organization et un projet ont chacun le leur.
+Nom, description, et une zone dangereuse qui **liste ce qui bloque avant le
+clic** plutôt que d'échouer après.
+
+L'organization porte en plus l'adresse de facturation, avec **un seul bouton
+*Save*** : le champ est facultatif dans le corps — absent il n'est pas touché
+et `org.settings` suffit, présent il exige `org.billing` en plus. C'est ce qui
+permet un enregistrement unique sans confondre deux clés.
+
+⚠️ **Rien de tout ça n'était atteignable jusqu'ici** : renommer et supprimer
+existaient côté serveur, gardés et testés, sans aucun écran pour les appeler.
 
 **Les avatars** sont des identicons à la GitHub — grille 5×5 miroir, teinte
 tirée de la même graine, calculés côté client. Rien n'est demandé au réseau :
@@ -142,6 +154,9 @@ planter.
 | Route | Garde |
 |---|---|
 | `GET /auth-providers` | **aucune** — se lit avant d'avoir une session, c'est son objet |
+| `PUT /organizations/{id}` | `org.settings` — nom et description |
+| `GET …/billing` | `org.billing` — l'écriture voyage avec les réglages, la lecture non |
+| `PUT …/projects/{pid}` | `project.settings`, pas `org.settings` (migration 0027) |
 | `GET /organizations/{id}/me` | session — dit à la console ce que la personne peut faire |
 | `GET /organizations/{id}/members` | `member.read` |
 | `GET /organizations/{id}/roles` | `member.manage` — sert à *attribuer*, pas à définir |

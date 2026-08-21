@@ -39,6 +39,13 @@ export const PERMISSIONS = {
 
   "project.create": "Create a project",
   "project.delete": "Delete a project",
+  /**
+   * ⚠️ Split out of `org.settings`, which used to cover both. The moment
+   * organization settings became owner-only, keeping one key would have taken
+   * project renaming away from admins — who can create projects and run their
+   * teams and keys, but would no longer be able to name what they created.
+   */
+  "project.settings": "Rename a project and edit its description",
 
   "org.settings": "Change organization settings",
   "org.billing": "Manage billing",
@@ -89,6 +96,12 @@ export const SYSTEM_ROLES: readonly SystemRole[] = [
      *
      * Delegation stays possible and becomes explicit: an owner creates a
      * custom role that carries it.
+     *
+     * ⚠️ **No `org.settings` either**, for the same reason and by the same
+     * route: what belongs to the organization — its name, its billing, its
+     * existence — belongs to the owner, who delegates by making a role that
+     * says so. `project.settings` stays, so an admin still names the projects
+     * they create.
      */
     permissions: [
       ...CONTENT_READ,
@@ -99,7 +112,7 @@ export const SYSTEM_ROLES: readonly SystemRole[] = [
       "member.manage",
       "apikey.manage",
       "project.create",
-      "org.settings",
+      "project.settings",
     ],
   },
   {

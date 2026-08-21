@@ -1,4 +1,4 @@
-import { Box, Inbox, ShieldCheck, Users } from "lucide-react";
+import { Box, Inbox, Settings, ShieldCheck, Users } from "lucide-react";
 import { Outlet, useOutletContext } from "react-router";
 import { api } from "../lib/api";
 import { MembershipSchema } from "../lib/api-contract";
@@ -74,6 +74,16 @@ export default function OrganizationSections({ loaderData }: Route.ComponentProp
       end: false,
       needs: "role.manage",
       icon: ShieldCheck,
+    },
+    // ⚠️ `org.settings`, réservé au owner depuis la migration 0027. Un admin
+    // ne voit donc rien ici — ni le nom, ni la facturation, ni la suppression
+    // — mais garde `project.settings` sur chaque projet.
+    {
+      to: `/org/${organizationId}/settings`,
+      label: "Settings",
+      end: false,
+      needs: "org.settings",
+      icon: Settings,
     },
   ].filter((section) => section.needs === null || permissions.includes(section.needs));
 

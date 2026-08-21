@@ -13,7 +13,7 @@ import {
 import { ServiceError } from "./service-error.ts";
 
 /**
- * Renaming and deleting an organization or a project.
+ * Settings and deletion of an organization or a project.
  *
  * ⚠️ **Nothing is deleted while it still holds something.** Same rule as an
  * API key, a role, or a membership: emptying is an explicit act, and never a
@@ -21,29 +21,66 @@ import { ServiceError } from "./service-error.ts";
  *
  * The refusals count what remains, so the answer says what to do next rather
  * than only that it failed.
+ *
+ * ⚠️ **Four different permissions across this file**, and the split is the
+ * point: `org.settings` is the owner's alone, `project.settings` reaches an
+ * admin who runs projects, `org.delete` and `project.delete` gate the last
+ * act, and `org.billing` stays separate — which is why the billing address is
+ * an **optional** field rather than a mandatory one.
  */
 
 export class LifecycleError extends ServiceError {
   declare readonly status: 404 | 409;
 }
 
-export async function renameOrganization(input: {
+type Settings = { name: string; description: string };
+
+export async function updateOrganization(input: {
   actor: Actor;
   organizationId: string;
-  name: string;
-}): Promise<{ id: string; name: string }> {
-  const { actor, organizationId, name } = input;
+  settings: Settings & {
+    /**
+     * ⚠️ **Absent means untouched**, and that is what keeps `org.billing`
+     * meaningful inside a single request. The console sends the field only
+     * when it showed it, which is only when the actor holds the key.
+     *
+     * The alternative — demanding both permissions for the whole request —
+     * would stop a custom role holding `org.settings` alone from saving even
+     * a name.
+     */
+    billingAddress?: string | null | undefined;
+  };
+}): Promise<{ id: string } & Settings> {
+  const { actor, organizationId, settings } = input;
+  // ⚠️ Owner only. What belongs to the organization — its name, its billing,
+  // its existence — belongs to whoever owns it; delegation goes through a
+  // custom role that says so, the same shape as ADR 0014 for `role.manage`.
   requirePermission(actor, "org.settings");
 
-  return withContext({ userId: actor.userId, organizationId }, async (tx) => {
-    const [renamed] = await tx
-      .update(organizations)
-      .set({ name })
-      .where(eq(organizations.id, organizationId))
-      .returning({ id: organizations.id, name: organizations.name });
+  const { billingAddress, ...rest } = settings;
+  const touchesBilling = billingAddress !== undefined;
+  if (touchesBilling) requirePermission(actor, "org.billing");
 
-    if (!renamed) throw new LifecycleError(404, "unknown_organization", "introuvable");
-    return renamed;
+  return withContext({ userId: actor.userId, organizationId }, async (tx) => {
+    const [updated] = await tx
+      .update(organizations)
+      .set({
+        ...rest,
+        // Trimmed to `null` rather than kept as an empty string: here the two
+        // do differ — "not filled in yet" is not "cleared".
+        ...(touchesBilling
+          ? { billingAddress: billingAddress?.trim() || null }
+          : undefined),
+      })
+      .where(eq(organizations.id, organizationId))
+      .returning({
+        id: organizations.id,
+        name: organizations.name,
+        description: organizations.description,
+      });
+
+    if (!updated) throw new LifecycleError(404, "unknown_organization", "introuvable");
+    return updated;
   });
 }
 
@@ -95,28 +132,60 @@ export async function deleteOrganization(input: {
   });
 }
 
-export async function renameProject(input: {
+/**
+ * The billing address is **written** with the rest of the settings, in one
+ * request — but **read** here, on its own guarded route.
+ *
+ * ⚠️ It cannot ride along with `GET /organizations`: that list is readable by
+ * every member, and `org.billing` would stop meaning anything. Reading stays
+ * guarded like writing, so the key says the same thing in both directions.
+ */
+export async function readBillingAddress(input: {
+  actor: Actor;
+  organizationId: string;
+}): Promise<{ billingAddress: string | null }> {
+  const { actor, organizationId } = input;
+  requirePermission(actor, "org.billing");
+
+  return withContext({ userId: actor.userId, organizationId }, async (tx) => {
+    const [found] = await tx
+      .select({ billingAddress: organizations.billingAddress })
+      .from(organizations)
+      .where(eq(organizations.id, organizationId));
+
+    if (!found) throw new LifecycleError(404, "unknown_organization", "introuvable");
+    return found;
+  });
+}
+
+export async function updateProject(input: {
   actor: Actor;
   organizationId: string;
   projectId: string;
-  name: string;
-}): Promise<{ id: string; name: string }> {
-  const { actor, organizationId, projectId, name } = input;
-  // `org.settings` covers project settings too — an admin holds it, and there
-  // is no separate project-settings permission (architecture/roles-permissions.md).
-  requirePermission(actor, "org.settings");
+  settings: Settings;
+}): Promise<{ id: string } & Settings> {
+  const { actor, organizationId, projectId, settings } = input;
+  // ⚠️ `project.settings`, not `org.settings`. One key used to cover both;
+  // when organization settings became owner-only, keeping it would have taken
+  // renaming away from the admins who create projects and run them
+  // (migration 0027, architecture/roles-permissions.md).
+  requirePermission(actor, "project.settings");
 
   return withContext({ userId: actor.userId, organizationId }, async (tx) => {
-    const [renamed] = await tx
+    const [updated] = await tx
       .update(projects)
-      .set({ name })
+      .set(settings)
       .where(
         and(eq(projects.organizationId, organizationId), eq(projects.id, projectId)),
       )
-      .returning({ id: projects.id, name: projects.name });
+      .returning({
+        id: projects.id,
+        name: projects.name,
+        description: projects.description,
+      });
 
-    if (!renamed) throw new LifecycleError(404, "unknown_project", "introuvable");
-    return renamed;
+    if (!updated) throw new LifecycleError(404, "unknown_project", "introuvable");
+    return updated;
   });
 }
 

@@ -47,7 +47,7 @@ export function AccountMenu({
               onSignOut();
             }}
           >
-            Sign out
+            Log out
           </MenuItem>
         </>
       )}

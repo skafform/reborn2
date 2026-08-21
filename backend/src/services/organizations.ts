@@ -28,7 +28,9 @@ import {
 export async function createOrganization(input: {
   userId: string;
   name: string;
-}): Promise<{ id: string; name: string }> {
+  // La description arrive vide : rien ne la demande à la création, et le
+  // défaut de la colonne évite d'inventer une valeur ici.
+}): Promise<{ id: string; name: string; description: string }> {
   const id = randomUUID();
 
   return withContext({ userId: input.userId, organizationId: id }, async (tx) => {
@@ -46,7 +48,11 @@ export async function createOrganization(input: {
       roleId: ownerRoleId,
     });
 
-    return { id: organization.id, name: organization.name };
+    return {
+      id: organization.id,
+      name: organization.name,
+      description: organization.description,
+    };
   });
 }
 
@@ -101,7 +107,11 @@ export function listOrganizationsForUser(userId: string) {
   return withContext({ userId }, (tx) =>
     union(
       tx
-        .select({ id: organizations.id, name: organizations.name })
+        .select({
+          id: organizations.id,
+          name: organizations.name,
+          description: organizations.description,
+        })
         .from(organizationMembers)
         .innerJoin(
           organizations,
@@ -121,7 +131,11 @@ export function listOrganizationsForUser(userId: string) {
       // son sélecteur, sans quoi son projet est inatteignable
       // (architecture/multi-tenant.md).
       tx
-        .select({ id: organizations.id, name: organizations.name })
+        .select({
+          id: organizations.id,
+          name: organizations.name,
+          description: organizations.description,
+        })
         .from(projectMembers)
         .innerJoin(organizations, eq(organizations.id, projectMembers.organizationId))
         .where(
@@ -231,7 +245,7 @@ export async function createProject(input: {
   userId: string;
   organizationId: string;
   name: string;
-}): Promise<{ id: string; name: string }> {
+}): Promise<{ id: string; name: string; description: string }> {
   return withContext(
     { userId: input.userId, organizationId: input.organizationId },
     async (tx) => {
@@ -248,7 +262,11 @@ export async function createProject(input: {
         name: "master",
       });
 
-      return { id: project.id, name: project.name };
+      return {
+        id: project.id,
+        name: project.name,
+        description: project.description,
+      };
     },
   );
 }
@@ -268,7 +286,11 @@ export async function createProject(input: {
 export async function listProjects(actor: Actor, organizationId: string) {
   const rows = await withContext({ userId: actor.userId, organizationId }, (tx) =>
     tx
-      .select({ id: projects.id, name: projects.name })
+      .select({
+        id: projects.id,
+        name: projects.name,
+        description: projects.description,
+      })
       .from(projects)
       .where(eq(projects.organizationId, organizationId)),
   );
@@ -287,7 +309,12 @@ export async function findProject(
 ) {
   const [project] = await withContext({ userId: actor.userId, organizationId }, (tx) =>
     tx
-      .select({ id: projects.id, name: projects.name, createdAt: projects.createdAt })
+      .select({
+        id: projects.id,
+        name: projects.name,
+        description: projects.description,
+        createdAt: projects.createdAt,
+      })
       .from(projects)
       .where(
         and(eq(projects.organizationId, organizationId), eq(projects.id, projectId)),

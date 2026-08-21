@@ -30,6 +30,22 @@ const timestamps = {
 export const organizations = pgTable("organizations", {
   id: uuid("id").primaryKey().defaultRandom(),
   name: text("name").notNull(),
+  /**
+   * ⚠️ `not null default ''`, pas nullable. « Pas de description » et
+   * « description vide » diraient la même chose, et chaque lecture devrait
+   * trancher entre `null` et `''` — jusque dans le contrat, où le champ
+   * deviendrait `string | null` pour rien.
+   */
+  description: text("description").notNull().default(""),
+  /**
+   * Nullable, à l'inverse : « pas encore renseignée » n'est pas « effacée ».
+   *
+   * ⚠️ **Un seul champ libre, jamais une adresse structurée.** Le jour où un
+   * prestataire de paiement arrive, c'est lui qui détient l'adresse faisant
+   * foi, avec ses propres champs. Deviner cette structure maintenant garantit
+   * de la refaire ; une colonne se supprime, six se migrent.
+   */
+  billingAddress: text("billing_address"),
   ...timestamps,
 });
 
@@ -44,6 +60,8 @@ export const projects = pgTable(
       .notNull()
       .references(() => organizations.id, { onDelete: "restrict" }),
     name: text("name").notNull(),
+    /** Même choix que sur `organizations` : jamais `null`, voir plus haut. */
+    description: text("description").notNull().default(""),
     ...timestamps,
   },
   (table) => [

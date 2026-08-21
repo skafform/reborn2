@@ -22,7 +22,7 @@ que personne ne maintient.
 | Membres | `member.read` · `member.manage` · `member.manage_admin` |
 | Rôles | `role.manage` |
 | Clés API | `apikey.manage` |
-| Projets | `project.create` · `project.delete` |
+| Projets | `project.create` · `project.delete` · `project.settings` |
 | Organization | `org.settings` · `org.billing` · `org.transfer` · `org.delete` |
 
 ## Matrice

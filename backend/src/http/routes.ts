@@ -7,6 +7,11 @@ import {
   requirePermission,
 } from "../auth/escalation.ts";
 import { auth } from "../auth.ts";
+import {
+  BILLING_ADDRESS_MAX_LENGTH,
+  DESCRIPTION_MAX_LENGTH,
+  NAME_MAX_LENGTH,
+} from "../config/constants.ts";
 import { PERMISSION_KEYS, PERMISSIONS } from "../config/permissions.ts";
 import {
   createApiKey,
@@ -27,8 +32,9 @@ import {
 import {
   deleteOrganization,
   deleteProject,
-  renameOrganization,
-  renameProject,
+  readBillingAddress,
+  updateOrganization,
+  updateProject,
 } from "../services/lifecycle.ts";
 import {
   changeOrganizationMemberRole,
@@ -64,12 +70,47 @@ import { requireOrganization, requireSession, type Variables } from "./middlewar
 export const managementRoutes = new OpenAPIHono<{ Variables: Variables }>();
 
 const OrganizationSchema = z
-  .object({ id: z.uuid(), name: z.string() })
+  .object({ id: z.uuid(), name: z.string(), description: z.string() })
   .openapi("Organization");
 
-const ProjectSchema = z.object({ id: z.uuid(), name: z.string() }).openapi("Project");
+const ProjectSchema = z
+  .object({ id: z.uuid(), name: z.string(), description: z.string() })
+  .openapi("Project");
 
-const NameInput = z.object({ name: z.string().min(1).max(200) }).openapi("NameInput");
+/**
+ * Ce qu'un écran de réglages envoie : les deux champs ensemble, jamais l'un
+ * sans l'autre.
+ *
+ * ⚠️ Une mise à jour partielle — « champ absent = inchangé » — obligerait à
+ * décider ce que veut dire une description absente *et* vide, à refuser un
+ * corps vide, et laisserait une fenêtre de mise à jour perdue si deux
+ * formulaires étaient soumis coup sur coup. Un seul corps complet n'a aucune
+ * de ces questions.
+ */
+const SettingsInput = z
+  .object({
+    name: z.string().min(1).max(NAME_MAX_LENGTH),
+    description: z.string().max(DESCRIPTION_MAX_LENGTH),
+  })
+  .openapi("SettingsInput");
+
+/**
+ * Les mêmes, plus l'adresse de facturation — **facultative**.
+ *
+ * ⚠️ C'est ce qui permet un seul enregistrement sans vider `org.billing` de
+ * son sens : absente, l'adresse n'est pas touchée ; présente, le service exige
+ * la clé en plus. La console ne l'envoie que lorsqu'elle l'a affichée.
+ *
+ * Exiger les deux permissions pour toute la requête empêcherait un rôle
+ * personnalisé ne portant que `org.settings` d'enregistrer même un nom.
+ */
+const OrganizationSettingsInput = SettingsInput.extend({
+  billingAddress: z.string().max(BILLING_ADDRESS_MAX_LENGTH).nullable().optional(),
+}).openapi("OrganizationSettingsInput");
+
+const NameInput = z
+  .object({ name: z.string().min(1).max(NAME_MAX_LENGTH) })
+  .openapi("NameInput");
 
 /** Même forme pour les membres d'une organization et ceux d'un projet. */
 const MemberSchema = z
@@ -239,23 +280,52 @@ managementRoutes.openapi(
   createRoute({
     method: "put",
     path: "/organizations/{organizationId}",
-    summary: "Renommer une organization",
+    summary: "Réglages d'une organization",
     middleware: [requireSession, requireOrganization] as const,
     request: {
       params: z.object({ organizationId: z.uuid() }),
-      body: { content: { "application/json": { schema: NameInput } } },
+      body: {
+        content: { "application/json": { schema: OrganizationSettingsInput } },
+      },
     },
-    responses: { 200: json(OrganizationSchema, "Renommée") },
+    responses: { 200: json(OrganizationSchema, "Enregistrés") },
   }),
   async (c) => {
     const { organizationId } = c.req.valid("param");
     return c.json(
-      await renameOrganization({
+      await updateOrganization({
         actor: c.get("actor"),
         organizationId,
-        name: c.req.valid("json").name,
+        settings: c.req.valid("json"),
       }),
     );
+  },
+);
+
+const BillingSchema = z
+  .object({ billingAddress: z.string().nullable() })
+  .openapi("Billing");
+
+/**
+ * L'adresse de facturation se **lit** ici, et s'**écrit** avec le reste des
+ * réglages, en une seule requête.
+ *
+ * ⚠️ Elle ne peut pas accompagner `GET /organizations` : cette liste est
+ * lisible par tout membre, et `org.billing` cesserait de vouloir dire quoi que
+ * ce soit. La lecture reste donc gardée comme l'écriture.
+ */
+managementRoutes.openapi(
+  createRoute({
+    method: "get",
+    path: "/organizations/{organizationId}/billing",
+    summary: "L'adresse de facturation",
+    middleware: [requireSession, requireOrganization] as const,
+    request: { params: z.object({ organizationId: z.uuid() }) },
+    responses: { 200: json(BillingSchema, "Adresse, éventuellement absente") },
+  }),
+  async (c) => {
+    const { organizationId } = c.req.valid("param");
+    return c.json(await readBillingAddress({ actor: c.get("actor"), organizationId }));
   },
 );
 
@@ -281,22 +351,22 @@ managementRoutes.openapi(
   createRoute({
     method: "put",
     path: "/organizations/{organizationId}/projects/{projectId}",
-    summary: "Renommer un projet",
+    summary: "Réglages d'un projet",
     middleware: [requireSession, requireOrganization] as const,
     request: {
       params: projectParams,
-      body: { content: { "application/json": { schema: NameInput } } },
+      body: { content: { "application/json": { schema: SettingsInput } } },
     },
-    responses: { 200: json(ProjectSchema, "Renommé") },
+    responses: { 200: json(ProjectSchema, "Enregistrés") },
   }),
   async (c) => {
     const { organizationId, projectId } = c.req.valid("param");
     return c.json(
-      await renameProject({
+      await updateProject({
         actor: c.get("actor"),
         organizationId,
         projectId,
-        name: c.req.valid("json").name,
+        settings: c.req.valid("json"),
       }),
     );
   },

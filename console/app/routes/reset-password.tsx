@@ -28,7 +28,7 @@ export async function clientAction({ request }: Route.ClientActionArgs) {
       token,
     });
     if (error) return { error: authErrorMessage(error) };
-    return { done: "Password set. You can sign in with it now." };
+    return { done: "Password set. You can log in with it now." };
   }
 
   const { error } = await authClient.requestPasswordReset({
@@ -104,7 +104,7 @@ export default function ResetPassword({ actionData }: Route.ComponentProps) {
         )}
 
         <p className="console-form-footer">
-          <Link to="/login">Back to sign in</Link>
+          <Link to="/login">Back to log in</Link>
         </p>
       </div>
     </div>

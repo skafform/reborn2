@@ -26,6 +26,7 @@ export const GetApiAuthProvidersResponse = /*#__PURE__*/ zod.object({
 export const GetApiOrganizationsResponseItem = /*#__PURE__*/ zod.object({
   id: /*#__PURE__*/ zod.uuid(),
   name: /*#__PURE__*/ zod.string(),
+  description: /*#__PURE__*/ zod.string(),
 });
 export const GetApiOrganizationsResponse = /*#__PURE__*/ zod.array(
   GetApiOrganizationsResponseItem,
@@ -46,6 +47,7 @@ export const PostApiOrganizationsBody = /*#__PURE__*/ zod.object({
 export const PostApiOrganizationsResponse = /*#__PURE__*/ zod.object({
   id: /*#__PURE__*/ zod.uuid(),
   name: /*#__PURE__*/ zod.string(),
+  description: /*#__PURE__*/ zod.string(),
 });
 
 /**
@@ -61,6 +63,7 @@ export const GetApiOrganizationsOrganizationIdProjectsResponseItem =
   /*#__PURE__*/ zod.object({
     id: /*#__PURE__*/ zod.uuid(),
     name: /*#__PURE__*/ zod.string(),
+    description: /*#__PURE__*/ zod.string(),
   });
 export const GetApiOrganizationsOrganizationIdProjectsResponse =
   /*#__PURE__*/ zod.array(GetApiOrganizationsOrganizationIdProjectsResponseItem);
@@ -90,27 +93,55 @@ export const PostApiOrganizationsOrganizationIdProjectsResponse =
   /*#__PURE__*/ zod.object({
     id: /*#__PURE__*/ zod.uuid(),
     name: /*#__PURE__*/ zod.string(),
+    description: /*#__PURE__*/ zod.string(),
   });
 
 /**
- * @summary Renommer une organization
+ * @summary Réglages d'une organization
  */
 export const PutApiOrganizationsOrganizationIdParams = /*#__PURE__*/ zod.object({
   organizationId: /*#__PURE__*/ zod.uuid(),
 });
 
-export const putApiOrganizationsOrganizationIdBodyNameMax = 200;
+export const putApiOrganizationsOrganizationIdBodyOneNameMax = 200;
 
-export const PutApiOrganizationsOrganizationIdBody = /*#__PURE__*/ zod.object({
-  name: /*#__PURE__*/ zod
-    .string()
-    .check(/*#__PURE__*/ zod.minLength(1))
-    .check(/*#__PURE__*/ zod.maxLength(putApiOrganizationsOrganizationIdBodyNameMax)),
-});
+export const putApiOrganizationsOrganizationIdBodyOneDescriptionMax = 1000;
+
+export const putApiOrganizationsOrganizationIdBodyTwoBillingAddressMax = 500;
+
+export const PutApiOrganizationsOrganizationIdBody = /*#__PURE__*/ zod.intersection(
+  /*#__PURE__*/ zod.object({
+    name: /*#__PURE__*/ zod
+      .string()
+      .check(/*#__PURE__*/ zod.minLength(1))
+      .check(
+        /*#__PURE__*/ zod.maxLength(putApiOrganizationsOrganizationIdBodyOneNameMax),
+      ),
+    description: /*#__PURE__*/ zod
+      .string()
+      .check(
+        /*#__PURE__*/ zod.maxLength(
+          putApiOrganizationsOrganizationIdBodyOneDescriptionMax,
+        ),
+      ),
+  }),
+  /*#__PURE__*/ zod.object({
+    billingAddress: /*#__PURE__*/ zod.nullish(
+      /*#__PURE__*/ zod
+        .string()
+        .check(
+          /*#__PURE__*/ zod.maxLength(
+            putApiOrganizationsOrganizationIdBodyTwoBillingAddressMax,
+          ),
+        ),
+    ),
+  }),
+);
 
 export const PutApiOrganizationsOrganizationIdResponse = /*#__PURE__*/ zod.object({
   id: /*#__PURE__*/ zod.uuid(),
   name: /*#__PURE__*/ zod.string(),
+  description: /*#__PURE__*/ zod.string(),
 });
 
 /**
@@ -123,7 +154,19 @@ export const DeleteApiOrganizationsOrganizationIdParams = /*#__PURE__*/ zod.obje
 export const DeleteApiOrganizationsOrganizationIdResponse = /*#__PURE__*/ zod.void();
 
 /**
- * @summary Renommer un projet
+ * @summary L'adresse de facturation
+ */
+export const GetApiOrganizationsOrganizationIdBillingParams = /*#__PURE__*/ zod.object({
+  organizationId: /*#__PURE__*/ zod.uuid(),
+});
+
+export const GetApiOrganizationsOrganizationIdBillingResponse =
+  /*#__PURE__*/ zod.object({
+    billingAddress: /*#__PURE__*/ zod.nullable(/*#__PURE__*/ zod.string()),
+  });
+
+/**
+ * @summary Réglages d'un projet
  */
 export const PutApiOrganizationsOrganizationIdProjectsProjectIdParams =
   /*#__PURE__*/ zod.object({
@@ -132,6 +175,8 @@ export const PutApiOrganizationsOrganizationIdProjectsProjectIdParams =
   });
 
 export const putApiOrganizationsOrganizationIdProjectsProjectIdBodyNameMax = 200;
+
+export const putApiOrganizationsOrganizationIdProjectsProjectIdBodyDescriptionMax = 1000;
 
 export const PutApiOrganizationsOrganizationIdProjectsProjectIdBody =
   /*#__PURE__*/ zod.object({
@@ -143,12 +188,20 @@ export const PutApiOrganizationsOrganizationIdProjectsProjectIdBody =
           putApiOrganizationsOrganizationIdProjectsProjectIdBodyNameMax,
         ),
       ),
+    description: /*#__PURE__*/ zod
+      .string()
+      .check(
+        /*#__PURE__*/ zod.maxLength(
+          putApiOrganizationsOrganizationIdProjectsProjectIdBodyDescriptionMax,
+        ),
+      ),
   });
 
 export const PutApiOrganizationsOrganizationIdProjectsProjectIdResponse =
   /*#__PURE__*/ zod.object({
     id: /*#__PURE__*/ zod.uuid(),
     name: /*#__PURE__*/ zod.string(),
+    description: /*#__PURE__*/ zod.string(),
   });
 
 /**
@@ -177,6 +230,7 @@ export const GetApiOrganizationsOrganizationIdProjectsProjectIdResponse =
     /*#__PURE__*/ zod.object({
       id: /*#__PURE__*/ zod.uuid(),
       name: /*#__PURE__*/ zod.string(),
+      description: /*#__PURE__*/ zod.string(),
     }),
     /*#__PURE__*/ zod.object({
       createdAt: /*#__PURE__*/ zod.iso.datetime({ offset: true }),
@@ -315,6 +369,7 @@ export const PostApiOrganizationsOrganizationIdRolesBody =
           "apikey.manage",
           "project.create",
           "project.delete",
+          "project.settings",
           "org.settings",
           "org.billing",
           "org.transfer",
@@ -417,6 +472,7 @@ export const PutApiOrganizationsOrganizationIdRolesRoleIdBody =
         "apikey.manage",
         "project.create",
         "project.delete",
+        "project.settings",
         "org.settings",
         "org.billing",
         "org.transfer",

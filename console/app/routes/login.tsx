@@ -40,10 +40,12 @@ export default function Login({ actionData, loaderData }: Route.ComponentProps) 
   return (
     <div className="console console-centered">
       <div className="console-panel">
-        <h1>Sign in</h1>
+        <h1>Log in to your account</h1>
 
         {actionData?.error && <Banner tone="error">{actionData.error}</Banner>}
         {oauthError && <Banner tone="error">{oauthErrorMessage(oauthError)}</Banner>}
+
+        <SocialSignIn providers={loaderData.providers} disabled={busy} />
 
         <Form method="post">
           <Field label="Email">
@@ -68,11 +70,9 @@ export default function Login({ actionData, loaderData }: Route.ComponentProps) 
           </Field>
 
           <Button type="submit" variant="primary" block disabled={busy}>
-            {busy ? "Signing in…" : "Sign in"}
+            {busy ? "Logging in…" : "Log in"}
           </Button>
         </Form>
-
-        <SocialSignIn providers={loaderData.providers} disabled={busy} />
 
         <p className="console-form-footer">
           <Link to="/signup">Create an account</Link>

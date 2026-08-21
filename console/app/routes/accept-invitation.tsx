@@ -98,7 +98,7 @@ export default function AcceptInvitation({
               <>
                 <p className="console-muted">
                   {invitation.hasAccount
-                    ? "Sign in to accept."
+                    ? "Log in to accept."
                     : "Create your account to accept."}{" "}
                   This invitation is for <strong>{invitation.email}</strong>.
                 </p>
@@ -106,13 +106,13 @@ export default function AcceptInvitation({
                   className="console-button console-button--primary console-button--block"
                   to={`${invitation.hasAccount ? "/login" : "/signup"}?email=${encodeURIComponent(invitation.email)}`}
                 >
-                  {invitation.hasAccount ? "Sign in" : "Create an account"}
+                  {invitation.hasAccount ? "Log in" : "Create an account"}
                 </Link>
               </>
             ) : session.user.email.toLowerCase() !== invitation.email.toLowerCase() ? (
               <Banner tone="error">
-                You're signed in as {session.user.email}, but this invitation is for{" "}
-                {invitation.email}. Sign out and try again with that address.
+                You're logged in as {session.user.email}, but this invitation is for{" "}
+                {invitation.email}. Log out and try again with that address.
               </Banner>
             ) : (
               <Form method="post">

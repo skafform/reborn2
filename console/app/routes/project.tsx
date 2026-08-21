@@ -1,4 +1,4 @@
-import { KeyRound, LayoutDashboard, Users } from "lucide-react";
+import { KeyRound, LayoutDashboard, Settings, Users } from "lucide-react";
 import { Link, Outlet, useOutletContext } from "react-router";
 import type * as z from "zod/mini";
 import { api } from "../lib/api";
@@ -67,6 +67,13 @@ export default function ProjectLayout({ loaderData }: Route.ComponentProps) {
       end: false,
       needs: "apikey.manage",
       icon: KeyRound,
+    },
+    {
+      to: `${base}/settings`,
+      label: "Settings",
+      end: false,
+      needs: "project.settings",
+      icon: Settings,
     },
   ].filter((section) => section.needs === null || permissions.includes(section.needs));
 

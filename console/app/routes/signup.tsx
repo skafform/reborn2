@@ -43,9 +43,14 @@ export default function Signup({ actionData, loaderData }: Route.ComponentProps)
   return (
     <div className="console console-centered">
       <div className="console-panel">
-        <h1>Create an account</h1>
+        <h1>Create your account</h1>
 
         {actionData?.error && <Banner tone="error">{actionData.error}</Banner>}
+
+        {/* Le même composant qu'à la connexion, et c'est fidèle : avec OAuth
+            les deux gestes ne se distinguent pas — le compte est créé à la
+            première arrivée et réutilisé ensuite. */}
+        <SocialSignIn providers={loaderData.providers} disabled={busy} />
 
         <Form method="post">
           <Field label="Name">
@@ -78,11 +83,6 @@ export default function Signup({ actionData, loaderData }: Route.ComponentProps)
             {busy ? "Creating…" : "Create account"}
           </Button>
         </Form>
-
-        {/* Le même composant qu'à la connexion, et c'est fidèle : avec OAuth
-            les deux gestes ne se distinguent pas — le compte est créé à la
-            première arrivée et réutilisé ensuite. */}
-        <SocialSignIn providers={loaderData.providers} disabled={busy} />
 
         <p className="console-form-footer">
           <Link to="/login">I already have an account</Link>

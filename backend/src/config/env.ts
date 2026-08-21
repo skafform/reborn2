@@ -82,7 +82,8 @@ export const envSchema = z
       ctx.addIssue({
         code: "custom",
         path: ["GITHUB_CLIENT_SECRET"],
-        message: "GITHUB_CLIENT_ID et GITHUB_CLIENT_SECRET vont ensemble : les deux, ou aucun",
+        message:
+          "GITHUB_CLIENT_ID et GITHUB_CLIENT_SECRET vont ensemble : les deux, ou aucun",
       });
     }
   });

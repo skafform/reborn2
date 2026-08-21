@@ -47,6 +47,7 @@ export default [
       route("inbox", "routes/inbox.tsx"),
       route("team", "routes/team.tsx"),
       route("roles", "routes/roles.tsx"),
+      route("settings", "routes/organization-settings.tsx"),
       // ⚠️ Le compte n'appartient à aucune organization — même compromis que
       // l'Inbox, et pour la même raison : la coque vit sous `org/:id`. D'où
       // **aucune entrée dans la barre latérale** : on y arrive par l'avatar, ce
@@ -59,6 +60,7 @@ export default [
       index("routes/project-overview.tsx"),
       route("team", "routes/project-team.tsx"),
       route("api-keys", "routes/project-api-keys.tsx"),
+      route("settings", "routes/project-settings.tsx"),
     ]),
   ]),
 ] satisfies RouteConfig;

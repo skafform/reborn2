@@ -80,6 +80,9 @@
   --console-font-size-xs: 12px;
   --console-font-size-sm: 13px;
   --console-font-size-base: 14px;
+  /* Le seul cran au-dessus du corps de texte, et il ne sert qu'aux titres des
+     panneaux d'entrée — voir `.console-panel h1`. */
+  --console-font-size-lg: 20px;
   --console-tracking-tight: -0.02em;
 
   font-family: var(--console-font-sans);
@@ -400,6 +403,18 @@ body {
   color: var(--console-foreground);
 }
 
+/* Le titre d'un panneau d'entrée : plus grand, et centré.
+   L'échelle serrée du reste de l'interface marche parce qu'un titre y est
+   entouré — une barre latérale, des sections, un tableau le situent. Ici il
+   est seul en haut d'une carte de 360px, et à 14px il se lisait comme
+   l'étiquette d'un champ plutôt que comme le titre de l'écran.
+   ⚠️ Graisse inchangée : la hiérarchie vient de la taille, jamais du gras. */
+.console-panel h1 {
+  margin-bottom: 1.25rem;
+  font-size: var(--console-font-size-lg);
+  text-align: center;
+}
+
 .console-panel {
   width: 100%;
   max-width: 360px;
@@ -608,6 +623,24 @@ body {
   gap: 16px;
   margin: 16px 0 0;
   font-size: var(--console-font-size-sm);
+}
+
+/* Ce qui empêche une suppression, listé avant le clic. En couleur d'alerte
+   parce que ce sont les raisons d'un bouton éteint : sans elles, une règle
+   claire devient un mystère. */
+.console-blockers {
+  margin: 0 0 16px;
+  padding-left: 20px;
+  font-size: var(--console-font-size-sm);
+  color: var(--console-danger);
+}
+
+/* Des boutons pleine largeur empilés. Sans écart ils se touchent, et deux
+   bordures adjacentes se lisent comme un seul contrôle coupé en deux. */
+.console-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
 }
 
 /* A rule with a word in it — "or" — between two ways of doing one thing. A

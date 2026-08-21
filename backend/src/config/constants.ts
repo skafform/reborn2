@@ -11,6 +11,21 @@
 /** Un jour en millisecondes, pour les calculs d'expiration. */
 export const DAY_IN_MS = 24 * 60 * 60 * 1000;
 
+/**
+ * Plafonds des champs libres d'une organization et d'un projet.
+ *
+ * ⚠️ **Ce ne sont pas des limites de stockage** — la colonne est un `text`,
+ * sans borne côté Postgres. Ils existent pour que la validation refuse à la
+ * frontière plutôt que de laisser entrer une valeur que rien n'affichera : un
+ * nom de 4 000 caractères casse chaque tableau qui le montre.
+ *
+ * Le plafond du nom vivait en dur dans le handler, ce que la règle des valeurs
+ * en dur interdit pour un plafond. Il rejoint les autres ici.
+ */
+export const NAME_MAX_LENGTH = 200;
+export const DESCRIPTION_MAX_LENGTH = 1000;
+export const BILLING_ADDRESS_MAX_LENGTH = 500;
+
 /** Durée de validité d'une invitation (architecture/invitations.md). */
 export const INVITATION_EXPIRY_DAYS = 7;
 

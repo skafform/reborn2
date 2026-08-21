@@ -4,6 +4,7 @@ import {
   GetApiInboxResponse,
   type GetApiInboxResponseItem,
   GetApiInvitationsTokenResponse,
+  GetApiOrganizationsOrganizationIdBillingResponse,
   GetApiOrganizationsOrganizationIdInvitationsResponse,
   type GetApiOrganizationsOrganizationIdInvitationsResponseItem,
   GetApiOrganizationsOrganizationIdMembersResponse,
@@ -37,8 +38,10 @@ import {
   PostApiOrganizationsOrganizationIdRolesBody,
   PostApiOrganizationsOrganizationIdRolesResponse,
   PostApiOrganizationsResponse,
+  PutApiOrganizationsOrganizationIdBody,
   PutApiOrganizationsOrganizationIdMembersUserIdRoleBody,
   PutApiOrganizationsOrganizationIdMembersUserIdSuspensionBody,
+  PutApiOrganizationsOrganizationIdProjectsProjectIdBody,
   PutApiOrganizationsOrganizationIdRolesRoleIdBody,
 } from "./api-schemas";
 
@@ -68,6 +71,27 @@ import {
  * marcherait.
  */
 export const AuthProvidersSchema = GetApiAuthProvidersResponse;
+
+/**
+ * Ce qu'un écran de réglages envoie, en **un seul enregistrement**.
+ *
+ * ⚠️ Celui d'une organization porte en plus l'adresse de facturation, et elle
+ * y est **facultative** : absente, elle n'est pas touchée ; présente, le
+ * serveur exige `org.billing` en plus de `org.settings`. C'est ce qui permet
+ * un seul bouton sans confondre deux permissions.
+ */
+export const OrganizationSettingsSchema = PutApiOrganizationsOrganizationIdBody;
+export const ProjectSettingsSchema =
+  PutApiOrganizationsOrganizationIdProjectsProjectIdBody;
+
+/**
+ * L'adresse de facturation se **lit** à part, et s'**écrit** avec le reste.
+ *
+ * ⚠️ Elle garde sa route de lecture parce qu'elle garde sa permission :
+ * l'accrocher à `GET /organizations`, lisible par tout membre, viderait
+ * `org.billing` de son sens.
+ */
+export const BillingSchema = GetApiOrganizationsOrganizationIdBillingResponse;
 
 export const OrganizationsSchema = GetApiOrganizationsResponse;
 export type Organization = z.infer<typeof GetApiOrganizationsResponseItem>;

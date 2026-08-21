@@ -42,6 +42,14 @@ export type OrganizationContext = {
   // lecture de session pour un champ que la coque tient déjà.
   user: { id: string; name: string; email: string };
   currentId: string;
+  /**
+   * L'organization courante, déjà chargée et validée ici.
+   *
+   * Elle sert l'écran de réglages, qui la préremplit. La redemander coûterait
+   * une requête pour une ligne que la coque vient de lire — et le sélecteur
+   * en haut à gauche l'affiche déjà.
+   */
+  current: { id: string; name: string; description: string };
 };
 
 export default function OrganizationLayout({ loaderData }: Route.ComponentProps) {
@@ -76,7 +84,9 @@ export default function OrganizationLayout({ loaderData }: Route.ComponentProps)
         </div>
       </header>
 
-      <Outlet context={{ user, currentId: current.id } satisfies OrganizationContext} />
+      <Outlet
+        context={{ user, currentId: current.id, current } satisfies OrganizationContext}
+      />
     </div>
   );
 }
