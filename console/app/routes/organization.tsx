@@ -2,6 +2,7 @@ import { Outlet, redirect, useNavigate } from "react-router";
 import { api } from "../lib/api";
 import { OrganizationsSchema } from "../lib/api-contract";
 import { authClient } from "../lib/auth";
+import { AccountMenu } from "../ui/account-menu";
 import { OrgSwitcher } from "../ui/org-switcher";
 import type { Route } from "./+types/organization";
 
@@ -37,7 +38,9 @@ export async function clientLoader({ params }: Route.ClientLoaderArgs) {
 
 /** Ce que la coque transmet, déjà chargé — plutôt qu'une seconde requête. */
 export type OrganizationContext = {
-  user: { id: string; email: string };
+  // `name` sert l'écran de compte, qui le pré-remplit — plutôt qu'une seconde
+  // lecture de session pour un champ que la coque tient déjà.
+  user: { id: string; name: string; email: string };
   currentId: string;
 };
 
@@ -62,17 +65,14 @@ export default function OrganizationLayout({ loaderData }: Route.ComponentProps)
         </div>
 
         <div className="console-topbar-right">
-          <span className="console-muted">{user.email}</span>
-          <button
-            type="button"
-            className="console-button"
-            onClick={async () => {
+          <AccountMenu
+            user={user}
+            onAccount={() => navigate(`/org/${current.id}/account`)}
+            onSignOut={async () => {
               await authClient.signOut();
               navigate("/login", { replace: true });
             }}
-          >
-            Sign out
-          </button>
+          />
         </div>
       </header>
 

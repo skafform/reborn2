@@ -37,5 +37,10 @@ export function authErrorMessage(error: { message?: string; code?: string }): st
   if (error.code === "USER_ALREADY_EXISTS") {
     return "An account already exists for that email.";
   }
+  // Changing a password: the current one didn't match. Their own wording names
+  // no field, which reads as though the new one were at fault.
+  if (error.code === "INVALID_PASSWORD") {
+    return "Your current password is incorrect.";
+  }
   return error.message ?? "The request was refused.";
 }

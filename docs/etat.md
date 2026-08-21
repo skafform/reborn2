@@ -77,9 +77,33 @@ description de la disposition a été corrigée.
 `invitations/accept` (où mène le lien du courriel), `new-organization`.
 
 **La coque**, sous `org/:organizationId` — barre du haut avec le sélecteur
-d'organization, barre latérale (`Inbox`, `Projects`, `Team`), panneau flottant.
-Elle porte le **contrôle de session à un seul endroit** et vérifie que
-l'organization du chemin est bien une des siennes.
+d'organization à gauche et le menu de compte à droite, barre latérale
+(`Inbox`, `Projects`, `Team`, `Roles`), panneau flottant. Elle porte le
+**contrôle de session à un seul endroit** et vérifie que l'organization du
+chemin est bien une des siennes.
+
+**L'écran de compte**, `org/:organizationId/account` — nom modifiable, adresse
+en lecture seule, changement de mot de passe. ⚠️ **Aucune route du backend n'y
+participe** : Better-Auth sert déjà `/update-user` et `/change-password`, et son
+client publié *est* leur contrat.
+
+Le compte n'appartient à aucune organization, mais toute la coque vit sous
+`org/:id` — même compromis que l'Inbox. D'où **aucune entrée dans la barre
+latérale** : on y arrive par l'avatar, ce qui dit que ce n'est pas une section
+de l'organization et laisse l'identifiant n'être que de la plomberie.
+
+⚠️ **Changer d'adresse reste hors périmètre** — une invitation en attente est
+appariée sur l'adresse exacte, et les deux divergeraient
+([auth.md](architecture/auth.md)). **Supprimer son compte** l'est aussi, et ce
+n'est pas un écran manquant mais une décision non prise : que devient la
+dernière `owner` d'une organization, que le trigger `protect_last_owner`
+refusera de laisser partir ?
+
+**Les avatars** sont des identicons à la GitHub — grille 5×5 miroir, teinte
+tirée de la même graine, calculés côté client. Rien n'est demandé au réseau :
+Gravatar enverrait à un tiers le hachage de l'adresse d'un client à chaque
+chargement. ⚠️ La graine est l'**identifiant du compte**, jamais l'adresse —
+sans quoi le visage changerait le jour où l'adresse change.
 
 Le client d'authentification est `better-auth/react` : les routes de
 Better-Auth sont **volontairement hors de notre spec OpenAPI**, donc aucun

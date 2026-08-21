@@ -46,6 +46,11 @@
   --console-danger: #b91c1c;
   --console-danger-hover: #991b1b;
 
+  /* The square behind an identicon. Without it the cells float, and two avatars
+     side by side carry a different visual weight depending on how many are
+     filled. Neutral, so it never competes with the hue it holds. */
+  --console-avatar-ground: #e8e8ea;
+
   --console-chrome-background: #efeff0;
   --console-chrome-foreground: #3f3f46;
   --console-chrome-active-foreground: #18181b;
@@ -102,6 +107,8 @@
     --console-accent-muted: rgb(245 158 11 / 20%);
     --console-danger: #ef4444;
     --console-danger-hover: #dc2626;
+
+    --console-avatar-ground: #1e1e20;
 
     --console-chrome-background: #09090a;
     --console-chrome-foreground: #d4d4d8;
@@ -290,11 +297,11 @@ body {
 
 /* Collé à la marque, séparé d'un `/` : il se lit comme une adresse, pas comme
    un réglage qu'on irait chercher. */
-.console-switcher {
+.console-menu-anchor {
   position: relative;
 }
 
-.console-switcher-trigger {
+.console-menu-trigger {
   display: inline-flex;
   align-items: center;
   gap: 6px;
@@ -312,13 +319,13 @@ body {
     border-color 0.15s;
 }
 
-.console-switcher-trigger:hover,
-.console-switcher-trigger[aria-expanded="true"] {
+.console-menu-trigger:hover,
+.console-menu-trigger[aria-expanded="true"] {
   background: var(--console-panel-background);
   border-color: var(--console-border);
 }
 
-.console-switcher-chevron {
+.console-menu-chevron {
   font-size: var(--console-font-size-xs);
   color: var(--console-foreground-muted);
   /* Le glyphe est bas dans sa boîte ; le remonter le centre sur le libellé. */
@@ -328,7 +335,6 @@ body {
 .console-menu {
   position: absolute;
   top: calc(100% + 6px);
-  left: 0;
   z-index: 10;
   min-width: 240px;
   padding: 4px;
@@ -336,6 +342,16 @@ body {
   border: 1px solid var(--console-border);
   border-radius: var(--console-radius);
   box-shadow: 0 8px 24px rgb(0 0 0 / 12%);
+}
+
+/* Which edge the panel lines up with. The account menu sits at the far right of
+   the bar, where a panel growing rightwards would run off the page. */
+.console-menu--start {
+  left: 0;
+}
+
+.console-menu--end {
+  right: 0;
 }
 
 .console-menu-item {
@@ -552,6 +568,20 @@ body {
   box-shadow: 0 0 0 3px var(--console-accent-muted);
 }
 
+/* A value one can read and copy but not change. `readonly` rather than
+   `disabled`, which would drop it out of the tab order — hence a style to say
+   so, since a read-only field looks exactly like an editable one. */
+.console-input[readonly] {
+  color: var(--console-foreground-muted);
+  background: var(--console-border-subtle);
+  cursor: default;
+}
+
+.console-input[readonly]:focus {
+  border-color: var(--console-border);
+  box-shadow: none;
+}
+
 .console-field {
   display: block;
   margin-bottom: 14px;
@@ -593,6 +623,22 @@ body {
 }
 
 /* --- Tableaux --- */
+
+/* An identicon and the text it belongs to, as one unit: 6px between them, so
+   they stay closer to each other than to whatever sits alongside. */
+.console-identity {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+/* `flex: none` because a long name must not squeeze the square out of shape. */
+.console-avatar {
+  flex: none;
+  border-radius: var(--console-radius-sm);
+  background: var(--console-avatar-ground);
+}
 
 .console-table {
   width: 100%;

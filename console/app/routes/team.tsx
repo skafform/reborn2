@@ -11,6 +11,7 @@ import {
   SentInvitationSchema,
 } from "../lib/api-contract";
 import { applyMembershipChange } from "../lib/membership-actions";
+import { Avatar } from "../ui/avatar";
 import {
   Banner,
   Button,
@@ -226,7 +227,12 @@ export default function Team({ loaderData, actionData }: Route.ComponentProps) {
           <tbody>
             {loaderData.members.map((member) => (
               <tr key={member.userId}>
-                <td>{member.name}</td>
+                <td>
+                  <span className="console-identity">
+                    <Avatar seed={member.userId} />
+                    {member.name}
+                  </span>
+                </td>
                 <td>{member.email}</td>
                 <td>
                   <span

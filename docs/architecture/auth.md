@@ -44,24 +44,8 @@ Better-Auth). À faire si le cas se présente.
 
 ## Réinitialisation de mot de passe
 
-Implémentée par `sendResetPassword` : lien à usage unique, et **toutes les
-sessions actives sont révoquées** après le changement — si le compte était
-compromis, l'attaquant perd son accès au moment même du reset.
-
-## Changement d'email
-
-- **Hors MVP** : un utilisateur ne peut pas changer l'email de son compte.
-  Cela évite d'avoir à gérer les invitations en attente adressées à
-  l'ancienne adresse, qui deviendraient inutilisables (la correspondance
-  d'email est stricte, voir [invitations.md](./invitations.md))
-
-## Comptes créés via invitation
-
-- Pas de vérification supplémentaire requise — cliquer sur le lien
-  d'invitation prouve déjà la possession de l'email (voir
-  [invitations.md](./invitations.md))
-
-## Réinitialisation de mot de passe
+Pour qui a **oublié** le sien, donc depuis l'écran de connexion. Implémentée
+par `sendResetPassword`.
 
 - L'utilisateur demande une réinitialisation → email contenant un lien
 - Lien **valide 1 h**, à **usage unique**
@@ -69,6 +53,46 @@ compromis, l'attaquant perd son accès au moment même du reset.
   sont révoquées** — si le compte était compromis, l'attaquant perd son accès
   au moment même du reset
 - Rate limité (voir *Rate limiting* ci-dessous)
+
+## Changement de mot de passe
+
+Pour qui **connaît** le sien, depuis l'écran de compte de la console. Aucune
+route applicative n'y participe : `/change-password` appartient à Better-Auth,
+qui exige l'ancien mot de passe.
+
+⚠️ **Les autres sessions sont révoquées ici aussi** (`revokeOtherSessions`), et
+pour la même raison qu'au reset : on change son mot de passe parce qu'on le
+croit connu d'un tiers. Better-Auth supprime toutes les sessions puis en ouvre
+une neuve pour le navigateur courant — seul celui-ci survit.
+
+⚠️ **Cet écran suppose que le compte a un mot de passe.** C'est vrai
+aujourd'hui, ce ne le sera plus avec OAuth — voir *Deux hypothèses à ne jamais
+coder en dur* plus bas. Better-Auth refuse alors par
+`CREDENTIAL_ACCOUNT_NOT_FOUND` : l'écran ne casse pas, mais il proposera le
+mauvais geste tant qu'il ne distinguera pas *définir* de *changer*.
+
+## Changement d'email
+
+- **Hors périmètre** : un utilisateur ne peut pas changer l'email de son
+  compte. Cela évite d'avoir à gérer les invitations en attente adressées à
+  l'ancienne adresse, qui deviendraient inutilisables (la correspondance
+  d'email est stricte, voir [invitations.md](./invitations.md))
+- L'écran de compte affiche donc l'adresse **en lecture seule, avec la
+  raison** — plutôt que de l'omettre : savoir sous quel compte on est connecté
+  est la première chose que cet écran sert à voir
+
+## Suppression de compte
+
+**Non construite, et ce n'est pas un écran manquant** : que devient la dernière
+`owner` d'une organization ? Le trigger `protect_last_owner` refusera de la
+laisser partir, à raison. Il faut trancher — transférer, supprimer
+l'organization, ou refuser — avant d'ouvrir le bouton.
+
+## Comptes créés via invitation
+
+- Pas de vérification supplémentaire requise — cliquer sur le lien
+  d'invitation prouve déjà la possession de l'email (voir
+  [invitations.md](./invitations.md))
 
 ## Sessions
 
