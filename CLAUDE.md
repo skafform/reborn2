@@ -59,6 +59,11 @@ mais autant le voir dans la PR. Voir
 ⚠️ **Ne jamais éditer `api-schemas.ts` à la main.** Il est régénéré, et une
 correction manuelle recréerait exactement la dérive qu'il élimine.
 
+La CI (`.github/workflows/ci.yml`) le vérifie : elle démarre le backend,
+relance `api:sync` et échoue si les fichiers commités diffèrent. Elle récupère
+la spec **par HTTP sur le serveur en marche** — régénérer depuis la copie
+commitée laisserait passer l'oubli qu'elle cherche.
+
 Tests : **`node:test` natif**, pas de Vitest — aucune dépendance, et Node
 exécute déjà le TypeScript. Les fichiers sont en `src/**/*.test.ts`, à côté du
 code testé. Les tests d'intégration touchent la vraie base locale et nettoient

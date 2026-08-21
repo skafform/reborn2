@@ -157,15 +157,35 @@ est le seul endroit qui tranche : une saisie invalide donne un bandeau, une
 réponse hors contrat remonte bruyamment à l'`ErrorBoundary` — c'est un défaut à
 corriger, pas une situation à présenter poliment.
 
-⏳ **Reste à faire** : la vérification en CI, seule pièce à attraper l'oubli
-d'`api:sync` dans la PR. Il n'existe aucune CI aujourd'hui — et ⚠️ régénérer
-depuis la spec commitée **ne suffirait pas** : la spec doit venir du serveur en
-marche. Détail dans
-[architecture/api.md](architecture/api.md#comment-la-console-dérive-son-client--fait).
+**Ce qui reste ouvert** : les chemins d'appel (une chaîne, qu'un client Orval
+complet fermerait — écarté), et le fait que **la console n'a aucun test**
+([backlog 0012](backlog/0012-la-console-n-a-aucun-test.md)) : la validation ne
+se déclenche que sur les écrans ouverts à la main.
 
-**Ce qui reste ouvert, après ça** : les chemins d'appel (une chaîne, qu'un
-client Orval complet fermerait — écarté), et le fait que **la console n'a aucun
-test** : la validation ne se déclenche que sur les écrans ouverts à la main.
+## Il y a une CI
+
+[`.github/workflows/ci.yml`](../.github/workflows/ci.yml). Avant elle, les 113
+tests, les deux typechecks et les deux lints n'avaient jamais tourné ailleurs
+que sur une machine de développement.
+
+| Job | Ce qu'il fait |
+|---|---|
+| `backend` | Postgres 17 en service, `db:bootstrap`, les deux migrations, tests, typecheck, lint — puis la vérification du contrat |
+| `console` | typecheck, lint, build |
+
+⚠️ **La vérification du contrat démarre vraiment le backend** et récupère la
+spec par HTTP. Régénérer depuis la copie commitée aurait été bien plus simple,
+et aurait laissé passer précisément l'oubli d'`api:sync` qu'elle prétend
+attraper — voir [architecture/api.md](architecture/api.md#les-cinq-étapes).
+
+C'est pourquoi elle partage le job du backend : la base est déjà là. Effet de
+bord utile — `db:bootstrap` s'exécute à chaque fois, seule preuve automatique
+que le provisionnement d'un environnement neuf fonctionne encore.
+
+Éprouvé localement dans les deux sens avant d'être commité : `api:sync` sur un
+backend inchangé réécrit les fichiers **à l'identique** (sans quoi la CI serait
+rouge en permanence), et resserrer une borne de validation côté serveur la fait
+échouer en nommant le champ.
 
 ### Par quoi continuer
 

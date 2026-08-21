@@ -1,0 +1,181 @@
+name: CI
+
+# Two projects, deliberately agnostic of each other — the workflow is the one
+# place they meet, and it meets them the way a developer does: over HTTP, on a
+# running server. It never reaches across from one source tree into the other.
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+# A superseded run has nothing left to prove, and this one holds a database.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # Tests need a real database (they exercise RLS), and so does the contract
+  # check: the spec has to come from a server that started. Splitting them
+  # would provision the same database twice.
+  backend:
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          # A throwaway database, reachable only from this runner. These are
+          # not secrets — real deployments read them from the environment.
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: skafform
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: pnpm
+          cache-dependency-path: |
+            backend/pnpm-lock.yaml
+            console/pnpm-lock.yaml
+
+      - name: Install backend dependencies
+        working-directory: backend
+        run: pnpm install --frozen-lockfile
+
+      # The roles this writes exist before any migration, and nothing else
+      # creates them. Running the real script here is also the only automated
+      # proof that provisioning a fresh environment still works.
+      - name: Write backend environment
+        run: |
+          cat > backend/.env <<'ENV'
+          NODE_ENV=development
+          PORT=3000
+          PLATFORM_URL=http://localhost:5173
+          DATABASE_URL=postgresql://skafform_app:ci_app@127.0.0.1:5432/skafform
+          DATABASE_MIGRATION_URL=postgresql://skafform_owner:ci_owner@127.0.0.1:5432/skafform
+          BETTER_AUTH_SECRET=ci-secret-not-used-anywhere-else-32chars
+          BETTER_AUTH_URL=http://localhost:3000
+          TRUSTED_ORIGINS=http://localhost:5173
+          PLATFORM_MAIL_FROM=noreply@example.com
+          DATABASE_ADMIN_URL=postgresql://postgres:postgres@127.0.0.1:5432/skafform
+          DATABASE_OWNER_PASSWORD=ci_owner
+          DATABASE_APP_PASSWORD=ci_app
+          ENV
+
+      - name: Provision roles and privileges
+        working-directory: backend
+        run: pnpm db:bootstrap
+
+      # Better-Auth first: the application tables carry foreign keys to `user`.
+      - name: Migrate
+        working-directory: backend
+        run: |
+          pnpm auth:migrate:apply
+          pnpm db:migrate
+
+      - name: Test
+        working-directory: backend
+        run: pnpm test
+
+      - name: Typecheck
+        working-directory: backend
+        run: pnpm typecheck
+
+      - name: Lint
+        working-directory: backend
+        run: pnpm lint
+
+      # --- Contract -------------------------------------------------------
+      # Regenerating from the committed spec would prove nothing: a stale
+      # openapi.json regenerates identical schemas and diffs clean. The spec
+      # has to come from the running server, over HTTP — ADR 0005 rules out
+      # the file-path shortcut, spec included.
+
+      - name: Install console dependencies
+        working-directory: console
+        run: pnpm install --frozen-lockfile
+
+      - name: Start the API
+        working-directory: backend
+        run: |
+          pnpm start > "$RUNNER_TEMP/backend.log" 2>&1 &
+          for _ in $(seq 1 30); do
+            curl -sf http://localhost:3000/health > /dev/null && exit 0
+            sleep 1
+          done
+          echo "::error::The API did not answer /health within 30s."
+          cat "$RUNNER_TEMP/backend.log"
+          exit 1
+
+      - name: The console's client matches the API
+        working-directory: console
+        run: |
+          echo 'API_PROXY_TARGET=http://localhost:3000' > .env
+          pnpm api:sync
+
+      # Scoped to the two generated files: anything else `pnpm format` may
+      # have touched is the lint job's business, not a contract drift.
+      #
+      # A difference means someone changed the API and did not run `api:sync`.
+      # The diff names the field. Nothing is committed here — CI reports, it
+      # does not fix, or the fix would land in an author's commit unread.
+      - name: No drift between the API and the committed contract
+        run: |
+          git diff --exit-code -- \
+            console/app/lib/openapi.json \
+            console/app/lib/api-schemas.ts \
+          || {
+            echo "::error::The contract changed. Run 'pnpm api:sync' in console/ and commit both files."
+            exit 1
+          }
+
+      - name: API log
+        if: failure()
+        run: cat "$RUNNER_TEMP/backend.log" || true
+
+  console:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: pnpm
+          cache-dependency-path: console/pnpm-lock.yaml
+
+      - name: Install dependencies
+        working-directory: console
+        run: pnpm install --frozen-lockfile
+
+      # Checked against the committed schemas, deliberately: it is the
+      # committed state that ships. Whether a regenerated one would also pass
+      # is what the drift check above answers.
+      - name: Typecheck
+        working-directory: console
+        run: pnpm typecheck
+
+      - name: Lint
+        working-directory: console
+        run: pnpm lint
+
+      - name: Build
+        working-directory: console
+        run: pnpm build

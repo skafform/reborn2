@@ -49,7 +49,7 @@ outillage.
 
 ## Lié
 
-La CI qui ferait tourner ces tests n'existe pas non plus — c'est l'étape 5
-d'[architecture/api.md](../architecture/api.md#les-cinq-étapes), ⏳ elle aussi.
-Les deux se décident ensemble : des tests que rien ne lance ne protègent que
-celui qui pense à les lancer.
+La CI existe désormais ([`.github/workflows/ci.yml`](../../.github/workflows/ci.yml))
+et fait tourner le typecheck, le lint et le build de la console. Il ne lui
+manque qu'une ligne le jour où des tests existent — c'est le seul travail
+restant côté CI.

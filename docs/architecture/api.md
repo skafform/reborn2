@@ -111,27 +111,46 @@ atteignable est une saisie que le navigateur a laissée passer — un bandeau.
 Le second est un défaut à corriger, qui doit rester bruyant. `displayableError`
 est le seul endroit qui tranche entre les deux.
 
-**5. Vérifier en CI** — ⏳ *reste à faire : il n'existe aucune CI aujourd'hui*
+**5. Vérifier en CI** — ✅ *fait* — [`.github/workflows/ci.yml`](../../.github/workflows/ci.yml)
 
-Régénérer, puis `git diff --exit-code`. La génération étant déterministe, un
-écart signifie que quelqu'un a oublié `api:sync` — la PR échoue, et le `diff`
-montre le champ en cause.
+Relancer `api:sync`, puis `git diff --exit-code` sur les deux fichiers générés.
+La génération étant déterministe, un écart signifie que quelqu'un a changé
+l'API sans synchroniser — la PR échoue, et le `diff` montre le champ en cause.
 
-⚠️ **Régénérer depuis la spec commitée ne suffit pas.** Ça n'attrape qu'un
-`api-schemas.ts` édité à la main, ou une spec modifiée sans relancer Orval.
-L'oubli d'`api:sync` — le cas pour lequel cette étape existe — passerait au
-vert : `openapi.json` resterait périmé, Orval en régénérerait des schémas
+⚠️ **Régénérer depuis la spec commitée ne suffirait pas.** Ça n'attraperait
+qu'un `api-schemas.ts` édité à la main, ou une spec modifiée sans relancer
+Orval. L'oubli d'`api:sync` — le cas pour lequel cette étape existe — passerait
+au vert : `openapi.json` resterait périmé, Orval en régénérerait des schémas
 identiques, et le `diff` serait propre.
 
-Pour l'attraper, la CI doit obtenir la spec **du backend en marche**, pas de la
-copie commitée. Et ce n'est pas une commodité qu'on peut contourner par un
-chemin de fichier : l'[ADR 0005](../adr/0005-depots-separes-contrat-openapi.md)
-l'interdit nommément, spec comprise. La forme exacte de cette CI reste à
-décider — elle implique une base, puisque le serveur refuse de démarrer sans
-elle.
+La CI obtient donc la spec **du backend en marche**, par HTTP, comme le ferait
+n'importe quel client. Ce n'est pas une rigueur gratuite :
+l'[ADR 0005](../adr/0005-depots-separes-contrat-openapi.md) interdit nommément
+le raccourci par chemin de fichier, spec comprise.
+
+Conséquence assumée : le contrôle a besoin d'une base, puisque le serveur
+refuse de démarrer sans elle. Elle est de toute façon nécessaire — les tests du
+backend exercent RLS. Les deux vivent donc dans le même job, plutôt que
+d'amorcer deux fois la même base. Effet de bord utile : `db:bootstrap` tourne à
+chaque exécution, ce qui est la seule preuve automatique que le provisionnement
+d'un environnement neuf fonctionne encore ([backlog 0007](../backlog/0007-amorcage-et-verification-db.md)).
+
+**Éprouvé dans les deux sens** — la propriété qui compte n'est pas seulement
+qu'un écart soit vu, c'est qu'une absence d'écart le reste :
+
+| Situation | Résultat |
+|---|---|
+| Backend inchangé | `api:sync` réécrit les deux fichiers **à l'identique** — vert |
+| `max(200)` → `max(150)` sur un corps de requête | échec, `diff` sur `maxLength` et `postApiOrganizationsBodyNameMax` |
+
+Le second cas est délibérément choisi discret : une borne de validation
+resserrée côté serveur, que personne ne verrait en revue.
 
 ⚠️ La CI **constate, elle ne corrige pas**. Un fichier régénéré à l'insu de
 l'auteur apparaîtrait dans ses commits sans qu'il l'ait relu.
+
+⚠️ Le `diff` est **limité aux deux fichiers générés**. Ce que `pnpm format`
+aurait pu toucher par ailleurs regarde le lint, pas la dérive de contrat.
 
 #### Ce que chaque pièce ferme
 
