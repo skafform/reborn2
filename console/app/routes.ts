@@ -41,6 +41,7 @@ export default [
       // pour cette route.
       route("inbox", "routes/inbox.tsx"),
       route("team", "routes/team.tsx"),
+      route("roles", "routes/roles.tsx"),
     ]),
 
     route("projects/:projectId", "routes/project.tsx", [

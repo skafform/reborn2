@@ -148,7 +148,7 @@ export async function postJson<B extends z.ZodMiniType, S extends z.ZodMiniType>
   body: z.infer<B>,
   responseSchema: S,
 ): Promise<z.infer<S>> {
-  const checked = check(path, bodySchema, body);
+  const checked = parseBody(bodySchema, body, path);
   return api(path, responseSchema, {
     method: "POST",
     body: JSON.stringify(checked),
@@ -164,13 +164,24 @@ export async function putJson<B extends z.ZodMiniType>(
   bodySchema: B,
   body: z.infer<B>,
 ): Promise<void> {
-  const checked = check(path, bodySchema, body);
+  const checked = parseBody(bodySchema, body, path);
   await request(path, { method: "PUT", body: JSON.stringify(checked) });
 }
 
-/** Valide un corps avant de l'envoyer, et refuse en nommant le champ. */
-function check<B extends z.ZodMiniType>(path: string, schema: B, body: z.infer<B>) {
-  const checked = schema.safeParse(body);
+/**
+ * Rétrécit une valeur au type du contrat.
+ *
+ * `FormData` ne rend que des chaînes, alors qu'un corps peut attendre une
+ * énumération — les permissions d'un rôle, par exemple. Le schéma généré est
+ * l'autorité pour les reconnaître ; l'alternative serait un `as` qui affirme
+ * sans vérifier, ou une liste de valeurs recopiée ici, hors de sa source.
+ */
+export function parseBody<B extends z.ZodMiniType>(
+  schema: B,
+  value: unknown,
+  path = "(corps de requête)",
+): z.infer<B> {
+  const checked = schema.safeParse(value);
   if (!checked.success)
     throw new InvalidRequestError(path, describeIssues(checked.error));
   return checked.data;

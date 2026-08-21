@@ -764,3 +764,32 @@ body {
 .console-facts dd {
   margin: 0;
 }
+
+/* Les permissions d'un rôle : une case par ligne, avec le libellé que le
+   serveur envoie et la clé à côté. La clé compte autant que la phrase — c'est
+   elle qu'on retrouve dans la documentation et dans les messages de refus. */
+.console-permissions {
+  margin: 0;
+  padding: 0;
+  border: none;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  /* Un catalogue tient sur un écran aujourd'hui, pas nécessairement demain :
+     la fenêtre défile plutôt que de pousser ses boutons hors de vue. */
+  max-height: 40vh;
+  overflow-y: auto;
+}
+
+.console-permissions legend {
+  padding: 0 0 8px;
+  font-size: var(--console-font-size-xs);
+  color: var(--console-foreground-muted);
+}
+
+.console-permission {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  font-size: var(--console-font-size-base);
+}

@@ -52,6 +52,14 @@ export default function OrganizationSections({ loaderData }: Route.ComponentProp
       end: false,
       needs: "member.read",
     },
+    // `role.manage` is owner-only (ADR 0014): defining what a role means is a
+    // different power from assigning one, and an admin keeps only the second.
+    {
+      to: `/org/${organizationId}/roles`,
+      label: "Roles",
+      end: false,
+      needs: "role.manage",
+    },
   ].filter((section) => section.needs === null || permissions.includes(section.needs));
 
   return (

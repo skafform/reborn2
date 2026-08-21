@@ -20,6 +20,8 @@ import {
   type GetApiOrganizationsOrganizationIdRolesResponseItem,
   GetApiOrganizationsResponse,
   type GetApiOrganizationsResponseItem,
+  GetApiPermissionsResponse,
+  type GetApiPermissionsResponseItem,
   PostApiInboxInvitationIdAcceptResponse,
   PostApiInvitationsTokenAcceptResponse,
   PostApiOrganizationsBody,
@@ -31,9 +33,12 @@ import {
   PostApiOrganizationsOrganizationIdProjectsProjectIdInvitationsBody,
   PostApiOrganizationsOrganizationIdProjectsProjectIdInvitationsResponse,
   PostApiOrganizationsOrganizationIdProjectsResponse,
+  PostApiOrganizationsOrganizationIdRolesBody,
+  PostApiOrganizationsOrganizationIdRolesResponse,
   PostApiOrganizationsResponse,
   PutApiOrganizationsOrganizationIdMembersUserIdRoleBody,
   PutApiOrganizationsOrganizationIdMembersUserIdSuspensionBody,
+  PutApiOrganizationsOrganizationIdRolesRoleIdBody,
 } from "./api-schemas";
 
 /**
@@ -115,6 +120,17 @@ export type Member = z.infer<
 
 export const RolesSchema = GetApiOrganizationsOrganizationIdRolesResponse;
 export type Role = z.infer<typeof GetApiOrganizationsOrganizationIdRolesResponseItem>;
+
+/**
+ * Le vocabulaire de l'autorisation, que la console ne peut connaître
+ * autrement : il vit en code côté serveur.
+ */
+export const PermissionCatalogueSchema = GetApiPermissionsResponse;
+export type PermissionDescriptor = z.infer<typeof GetApiPermissionsResponseItem>;
+
+export const NewRoleSchema = PostApiOrganizationsOrganizationIdRolesBody;
+export const CreatedRoleSchema = PostApiOrganizationsOrganizationIdRolesResponse;
+export const RoleEditSchema = PutApiOrganizationsOrganizationIdRolesRoleIdBody;
 
 export const PendingInvitationsSchema =
   GetApiOrganizationsOrganizationIdInvitationsResponse;
