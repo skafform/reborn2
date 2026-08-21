@@ -69,6 +69,10 @@
 
   font-family: var(--console-font-sans);
   font-size: var(--console-font-size-base);
+  /* 450, pas 400 : une valeur intermédiaire que seule une police variable rend
+     possible, et que Linear utilise pour son texte courant. Inter est ici
+     variable de 100 à 900, donc ça ne coûte aucun fichier de plus. */
+  font-weight: 450;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -143,6 +147,8 @@ body {
   min-width: 0;
 }
 
+/* Seule graisse au-dessus de 500 de toute l'interface, et assumée : c'est un
+   logotype, pas un niveau de hiérarchie. */
 .console-brand {
   font-weight: 600;
   color: var(--console-accent);
@@ -249,10 +255,12 @@ body {
   text-decoration: none;
 }
 
+/* Pas de saut de graisse : l'entrée active se signale par sa couleur et par le
+   trait ambre à gauche, ce qui suffit. Un 600 ici serait le seul poids de
+   l'interface à dépasser 500, pour une information déjà donnée deux fois. */
 .console-sidebar .console-nav-link--active,
 .console-sidebar .console-nav-link--active:hover {
   color: var(--console-foreground);
-  font-weight: 600;
   border-left-color: var(--console-accent);
   text-decoration: none;
 }
@@ -682,25 +690,29 @@ body {
 /* Même taille et même poids que le libellé actif de la barre latérale
    (`.console-nav-link--active` : `font-size-base`, `font-weight: 600`) — un
    titre de page n'est rien d'autre que la section courante, répétée en haut du
-   panneau. */
+   panneau.
+
+   ⚠️ Graisse 500, pas 600. Relevé chez Linear : **aucune de leurs graisses ne
+   dépasse 500**, titres compris — la hiérarchie y vient de la taille et de la
+   couleur, jamais du gras. On faisait l'inverse. */
 .console h1 {
   margin: 0 0 0.75rem;
   font-size: var(--console-font-size-base);
-  font-weight: 600;
+  font-weight: 500;
   letter-spacing: var(--console-tracking-tight);
 }
 
 .console h2 {
   margin: 0 0 0.625rem;
   font-size: var(--console-font-size-sm);
-  font-weight: 600;
+  font-weight: 500;
   letter-spacing: var(--console-tracking-tight);
 }
 
 .console h3 {
   margin: 0 0 0.5rem;
   font-size: var(--console-font-size-xs);
-  font-weight: 600;
+  font-weight: 500;
   letter-spacing: var(--console-tracking-tight);
 }
 
