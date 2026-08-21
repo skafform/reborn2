@@ -10,8 +10,14 @@ Le détail des décisions techniques vit dans
 
 ## Le socle réutilisable
 
-Rien dans ces étapes ne parle de CMS. C'est la partie extractible, dont la
-frontière se marque par le tag `socle-v0`.
+Rien dans ces étapes ne parle de CMS. C'est la partie extractible — et elle ne
+s'arrête pas à l'étape 6a : les rôles personnalisés, les adhésions et la
+chaîne du contrat en font partie aussi.
+
+⚠️ Sa frontière se taguera au **début de l'étape 6b**, seul point qui ne
+périmera pas. Un tag posé plus tôt cesse de décrire le socle dès que celui-ci
+continue de grandir — c'est ce qui est arrivé au premier, retiré depuis
+([etat.md](etat.md)).
 
 ### 1 — Squelette ✅
 
@@ -44,7 +50,9 @@ organization. Gabarits d'email maison, prévisualisation sur `/dev/emails`.
 Publique, preview et secrète, **par environnement** ([ADR 0013](adr/0013-cles-api-rattachees-a-un-environnement.md)).
 Stockage asymétrique : les deux premières consultables, la secrète hachée.
 
-**C'est ici que se pose le tag `socle-v0`.**
+**Le socle ne s'arrête pas ici.** Tout ce qui a suivi — rôles personnalisés,
+gestion des adhésions, clés API exposées, contrat généré, CI — en fait partie
+au même titre.
 
 ## Le CMS
 

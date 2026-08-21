@@ -5,9 +5,9 @@ travail : où on en est, ce qui reste, par quoi commencer.
 
 ## Le socle est complet et commité
 
-Étapes 1 à 6a de la [feuille de route](roadmap.md). **113 tests au vert**,
-typecheck et lint propres des deux côtés. Le tag **`socle-v0`** marque la
-frontière du socle réutilisable (commit `de5e593`).
+Étapes 1 à 6a de la [feuille de route](roadmap.md), et beaucoup de socle
+depuis : rôles personnalisés, adhésions, routes de clés, chaîne du contrat,
+CI. **146 tests au vert**, typecheck et lint propres des deux côtés.
 
 | | |
 |---|---|
@@ -19,8 +19,22 @@ frontière du socle réutilisable (commit `de5e593`).
 | Emails | Gabarits maison sans dépendance, prévisualisation sur `/dev/emails` |
 | Clés API | Publique · preview · secrète, par environnement |
 
-⚠️ **Le tag se pousse avec `git push --follow-tags`** — `git push` seul le
-laisse derrière.
+⚠️ **Il n'y a plus de tag `socle-v0`, et c'est délibéré.** Il pointait sur
+l'étape 6a en affirmant que le CMS commençait après — or vingt-quatre commits
+de socle ont suivi. Un tag est une **photo** : il ne bouge pas, donc il cesse
+de décrire ce qu'il nomme dès que le travail continue.
+
+Le seul point de coupe qui ne périmera pas est le **dernier commit avant le
+premier fichier de CMS**. Il n'existe pas encore : c'est au début de l'étape 6b
+qu'il se taguera.
+
+⚠️ Et un tag ne garantit rien. Il répond à *« où couper ? »*, jamais à
+*« est-ce encore coupable ? »* — la seconde question ne se règle que
+mécaniquement. La frontière console ↔ backend est tenue par
+`noRestrictedImports` parce que la discipline seule n'avait pas suffi ; celle
+du socle n'est tenue par rien. Elle ne peut pas l'être aujourd'hui, faute de
+module CMS à interdire d'importer. **La règle se pose en même temps que le
+tag**, au premier module de 6b.
 
 ## En cours : la console d'administration
 
