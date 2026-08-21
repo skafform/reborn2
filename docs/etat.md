@@ -290,11 +290,11 @@ Et `listApiKeys` ne sélectionne plus `last_used_at` : rien ne l'écrit avant
 l'étape 7, et le renvoyer aurait mis dans la spec un champ qui ne peut dire
 qu'une seule chose.
 
-### En cours : la gestion des adhésions
+### La gestion des adhésions — faite
 
-Retirer, suspendre, réactiver, changer de rôle, et quitter de soi-même.
-Aujourd'hui **personne ne peut retirer personne** — une fois entré dans une
-organization, on y reste.
+Retirer, suspendre, réactiver, changer de rôle, et quitter de soi-même — au
+niveau de l'organization comme du projet. Avant ça, **personne ne pouvait
+retirer personne** : une fois entré, on y restait.
 
 ⚠️ **Adhésion, pas compte.** Un admin d'organization ne touche jamais à la
 table `user` : il effacerait l'accès de la personne à sa propre organization
@@ -305,17 +305,22 @@ La matrice de qui peut retirer qui est **déjà écrite** — symétrique de cel
 l'invitation, et `canAssignRole` en est le miroir déjà construit. Détail dans
 [architecture/roles-permissions.md](architecture/roles-permissions.md#retrait-dun-membre).
 
-Trois choses à ne pas redécouvrir :
+Les trois pièges annoncés étaient réels, et sont fermés :
 
-- ⚠️ **La console ne peut pas déduire cette matrice.** `GET …/members` dira,
-  **par membre**, ce que l'appelant peut en faire — même procédé qu'`assignable`
-  sur `GET …/roles`
-- ⚠️ **Le trigger du dernier `owner` est différé** : il se déclenche au commit,
-  pas à l'instruction. Un `.catch()` sur le `DELETE` ne l'attrapera jamais, et
-  un refus lisible deviendrait un 500
-- ⚠️ **Suspendre le seul `owner` orphelinerait l'organization.** Le trigger doit
-  compter les propriétaires **actifs**, sinon la règle du dernier `owner` se
-  contourne par une autre porte
+- **La console ne peut pas déduire la matrice.** `GET …/members` renvoie
+  **par membre** un `manageable`, calculé par le garde-fou qui refuserait
+  ensuite — même procédé qu'`assignable` sur `GET …/roles`
+- **Le trigger du dernier `owner` est différé.** Vérifié par une sonde : le
+  `DELETE` réussit, l'exception sort **au commit**, code `23001`. Un `.catch()`
+  sur l'instruction n'aurait rien vu. Le refus est traduit autour de
+  `withContext`, et un test épingle le 409
+- **Suspendre le seul `owner` l'aurait orphelinée.** Le trigger compte
+  désormais les propriétaires **actifs**
+
+Et un quatrième, trouvé en chemin : quatre classes d'erreur avaient pris la
+même forme, et `onError` en avait déjà oublié une — **chaque refus des clés API
+remontait en 500**. Elles partagent maintenant une base `ServiceError`, et
+`onError` fait un seul `instanceof` : la cinquième ne pourra pas être oubliée.
 
 La suspension se lit à la **résolution du grant**, jamais dans `can()` : une
 suspension n'est pas une permission en moins, c'est une adhésion qui ne compte

@@ -1,8 +1,9 @@
-import { Outlet } from "react-router";
+import { Outlet, useOutletContext } from "react-router";
 import { api } from "../lib/api";
 import { MembershipSchema } from "../lib/api-contract";
 import { Sidebar } from "../ui/sidebar";
 import type { Route } from "./+types/organization-sections";
+import type { OrganizationContext } from "./organization";
 
 /**
  * Les sections de l'organization elle-même. Entrer dans un projet quitte cette
@@ -27,6 +28,9 @@ export async function clientLoader({ params }: Route.ClientLoaderArgs) {
 
 export default function OrganizationSections({ loaderData }: Route.ComponentProps) {
   const { organizationId, permissions } = loaderData;
+  // Relayé tel quel : cette coque n'ajoute rien à ce que la précédente sait,
+  // elle ne fait que s'intercaler pour porter sa propre barre latérale.
+  const parent = useOutletContext<OrganizationContext>();
 
   /**
    * ⚠️ Masquer une entrée est un **confort, jamais le garde-fou** : chaque
@@ -54,7 +58,7 @@ export default function OrganizationSections({ loaderData }: Route.ComponentProp
     <div className="console-body">
       <Sidebar sections={sections} />
       <main className="console-main">
-        <Outlet />
+        <Outlet context={parent} />
       </main>
     </div>
   );

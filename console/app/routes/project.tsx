@@ -1,13 +1,16 @@
-import { Link, Outlet } from "react-router";
+import { Link, Outlet, useOutletContext } from "react-router";
 import type * as z from "zod/mini";
 import { api } from "../lib/api";
 import { ProjectMembershipSchema, ProjectSchema } from "../lib/api-contract";
 import { Sidebar } from "../ui/sidebar";
 import type { Route } from "./+types/project";
+import type { OrganizationContext } from "./organization";
 
 /** Ce que la coque transmet à ses écrans, déjà chargé et validé. */
 export type ProjectContext = {
   organizationId: string;
+  /** L'utilisateur connecté, relayé par la coque du dessus. */
+  session: OrganizationContext["user"];
   project: z.infer<typeof ProjectSchema>;
   permissions: string[];
 };
@@ -42,6 +45,7 @@ export async function clientLoader({ params }: Route.ClientLoaderArgs) {
 
 export default function ProjectLayout({ loaderData }: Route.ComponentProps) {
   const { organizationId, project, permissions } = loaderData;
+  const { user } = useOutletContext<OrganizationContext>();
   const base = `/org/${organizationId}/projects/${project.id}`;
 
   const sections = [
@@ -70,7 +74,14 @@ export default function ProjectLayout({ loaderData }: Route.ComponentProps) {
         {/* Le projet est déjà chargé ici : le passer plutôt que le redemander
             évite une seconde requête pour la même chose. */}
         <Outlet
-          context={{ organizationId, project, permissions } satisfies ProjectContext}
+          context={
+            {
+              organizationId,
+              session: user,
+              project,
+              permissions,
+            } satisfies ProjectContext
+          }
         />
       </main>
     </div>

@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
-import { Form, useNavigation } from "react-router";
+import { Form, useNavigation, useOutletContext } from "react-router";
 import { api, apiVoid, displayableError, postJson } from "../lib/api";
+import type { Member } from "../lib/api-contract";
 import {
   MembershipSchema,
   MembersSchema,
@@ -9,6 +10,7 @@ import {
   RolesSchema,
   SentInvitationSchema,
 } from "../lib/api-contract";
+import { applyMembershipChange } from "../lib/membership-actions";
 import {
   Banner,
   Button,
@@ -19,7 +21,9 @@ import {
   RowAction,
   Section,
 } from "../ui/controls";
+import { MemberActions } from "../ui/member-actions";
 import type { Route } from "./+types/team";
+import type { OrganizationContext } from "./organization";
 
 export async function clientLoader({ params }: Route.ClientLoaderArgs) {
   const base = `/organizations/${params.organizationId}`;
@@ -85,6 +89,9 @@ export async function clientAction({ params, request }: Route.ClientActionArgs) 
       return { cancelled: true };
     }
 
+    const membershipChange = await applyMembershipChange(`${base}/members`, form);
+    if (membershipChange) return membershipChange;
+
     await postJson(
       `${base}/invitations`,
       NewInvitationSchema,
@@ -109,6 +116,9 @@ const day = (iso: string) => new Date(iso).toLocaleDateString("en-CA");
 export default function Team({ loaderData, actionData }: Route.ComponentProps) {
   const busy = useNavigation().state !== "idle";
   const [open, setOpen] = useState(false);
+  /** Le membre dont on change le rôle — `null` quand la fenêtre est fermée. */
+  const [roleFor, setRoleFor] = useState<Member | null>(null);
+  const { user } = useOutletContext<OrganizationContext>();
 
   // Un `actionData` neuf arrive à chaque soumission — cet effet referme donc
   // le modal à chaque envoi réussi. Il ne réagit qu'à `sent` : une annulation
@@ -116,6 +126,8 @@ export default function Team({ loaderData, actionData }: Route.ComponentProps) {
   // ça.
   useEffect(() => {
     if (actionData && "sent" in actionData) setOpen(false);
+    // Toute réussite d'un changement d'adhésion referme sa fenêtre.
+    if (actionData && "roleChanged" in actionData) setRoleFor(null);
   }, [actionData]);
 
   return (
@@ -137,6 +149,13 @@ export default function Team({ loaderData, actionData }: Route.ComponentProps) {
       {actionData && "cancelled" in actionData && (
         <Banner>Invitation cancelled.</Banner>
       )}
+      {actionData && "removed" in actionData && <Banner>Member removed.</Banner>}
+      {actionData && "suspended" in actionData && (
+        <Banner>
+          {actionData.suspended ? "Access suspended." : "Access restored."}
+        </Banner>
+      )}
+      {actionData && "roleChanged" in actionData && <Banner>Role changed.</Banner>}
 
       {/* Section entière conditionnée : une invitation en attente relève du
           recrutement, pas de l'annuaire. Un `viewer` n'a pas à savoir qui est
@@ -201,6 +220,7 @@ export default function Team({ loaderData, actionData }: Route.ComponentProps) {
               <th>Email</th>
               <th>Role</th>
               <th>Joined</th>
+              <th />
             </tr>
           </thead>
           <tbody>
@@ -214,13 +234,58 @@ export default function Team({ loaderData, actionData }: Route.ComponentProps) {
                   >
                     {member.roleName}
                   </span>
+                  {/* L'adhésion existe toujours : la montrer barrée dirait
+                      qu'elle a disparu. */}
+                  {member.suspendedAt && (
+                    <span className="console-badge">suspended</span>
+                  )}
                 </td>
                 <td className="console-muted">{day(member.joinedAt)}</td>
+                <td>
+                  <MemberActions
+                    member={member}
+                    isSelf={member.userId === user.id}
+                    busy={busy}
+                    onChangeRole={() => setRoleFor(member)}
+                  />
+                </td>
               </tr>
             ))}
           </tbody>
         </table>
       </Section>
+
+      <Modal
+        open={roleFor !== null}
+        onClose={() => setRoleFor(null)}
+        title={`Change role for ${roleFor?.name ?? ""}`}
+      >
+        <Form method="post" className="console-form">
+          <input type="hidden" name="changeRoleFor" value={roleFor?.userId ?? ""} />
+          <Field label="Role">
+            <select
+              className="console-input"
+              name="roleId"
+              required
+              defaultValue={roleFor?.roleId}
+            >
+              {loaderData.roles.map((role) => (
+                <option key={role.id} value={role.id}>
+                  {role.name}
+                </option>
+              ))}
+            </select>
+          </Field>
+          <div className="console-modal-actions">
+            <Button type="button" onClick={() => setRoleFor(null)}>
+              Cancel
+            </Button>
+            <Button type="submit" variant="primary" disabled={busy}>
+              {busy ? "Saving…" : "Save"}
+            </Button>
+          </div>
+        </Form>
+      </Modal>
 
       {/* `canManage` explicitement, plutôt que de compter sur l'absence du
           bouton qui l'ouvre : un modal dont le formulaire échouerait de toute
@@ -230,7 +295,9 @@ export default function Team({ loaderData, actionData }: Route.ComponentProps) {
         onClose={() => setOpen(false)}
         title="New invitation"
       >
-        {actionData?.error && <Banner tone="error">{actionData.error}</Banner>}
+        {actionData && "error" in actionData && (
+          <Banner tone="error">{actionData.error}</Banner>
+        )}
         <Form method="post" className="console-form">
           <Field label="Email">
             <input className="console-input" name="email" type="email" required />

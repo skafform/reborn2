@@ -148,14 +148,32 @@ export async function postJson<B extends z.ZodMiniType, S extends z.ZodMiniType>
   body: z.infer<B>,
   responseSchema: S,
 ): Promise<z.infer<S>> {
-  const checked = bodySchema.safeParse(body);
-  if (!checked.success)
-    throw new InvalidRequestError(path, describeIssues(checked.error));
-
+  const checked = check(path, bodySchema, body);
   return api(path, responseSchema, {
     method: "POST",
-    body: JSON.stringify(checked.data),
+    body: JSON.stringify(checked),
   });
+}
+
+/**
+ * Un `PUT` sans corps de réponse — poser un état plutôt que déclencher une
+ * action. Suspendre et réactiver sont ainsi la même route, donc idempotentes.
+ */
+export async function putJson<B extends z.ZodMiniType>(
+  path: string,
+  bodySchema: B,
+  body: z.infer<B>,
+): Promise<void> {
+  const checked = check(path, bodySchema, body);
+  await request(path, { method: "PUT", body: JSON.stringify(checked) });
+}
+
+/** Valide un corps avant de l'envoyer, et refuse en nommant le champ. */
+function check<B extends z.ZodMiniType>(path: string, schema: B, body: z.infer<B>) {
+  const checked = schema.safeParse(body);
+  if (!checked.success)
+    throw new InvalidRequestError(path, describeIssues(checked.error));
+  return checked.data;
 }
 
 /**

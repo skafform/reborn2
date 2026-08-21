@@ -32,6 +32,8 @@ import {
   PostApiOrganizationsOrganizationIdProjectsProjectIdInvitationsResponse,
   PostApiOrganizationsOrganizationIdProjectsResponse,
   PostApiOrganizationsResponse,
+  PutApiOrganizationsOrganizationIdMembersUserIdRoleBody,
+  PutApiOrganizationsOrganizationIdMembersUserIdSuspensionBody,
 } from "./api-schemas";
 
 /**
@@ -125,6 +127,14 @@ export const NewInvitationSchema = PostApiOrganizationsOrganizationIdInvitations
 /** Ce que renvoie l'envoi d'une invitation : son identifiant, rien d'autre. */
 export const SentInvitationSchema =
   PostApiOrganizationsOrganizationIdInvitationsResponse;
+
+/**
+ * Ce qu'on envoie pour changer une adhésion. Les deux mêmes corps servent au
+ * niveau de l'organization et du projet — l'endroit vient de l'adresse.
+ */
+export const SuspensionSchema =
+  PutApiOrganizationsOrganizationIdMembersUserIdSuspensionBody;
+export const RoleChangeSchema = PutApiOrganizationsOrganizationIdMembersUserIdRoleBody;
 
 export const ReceivedInvitationsSchema = GetApiInboxResponse;
 export type ReceivedInvitation = z.infer<typeof GetApiInboxResponseItem>;

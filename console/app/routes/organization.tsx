@@ -35,6 +35,12 @@ export async function clientLoader({ params }: Route.ClientLoaderArgs) {
   return { user: session.user, organizations, current };
 }
 
+/** Ce que la coque transmet, déjà chargé — plutôt qu'une seconde requête. */
+export type OrganizationContext = {
+  user: { id: string; email: string };
+  currentId: string;
+};
+
 export default function OrganizationLayout({ loaderData }: Route.ComponentProps) {
   const navigate = useNavigate();
   const { current, organizations, user } = loaderData;
@@ -70,7 +76,7 @@ export default function OrganizationLayout({ loaderData }: Route.ComponentProps)
         </div>
       </header>
 
-      <Outlet />
+      <Outlet context={{ user, currentId: current.id } satisfies OrganizationContext} />
     </div>
   );
 }

@@ -9,6 +9,7 @@ import {
   RolesSchema,
   SentProjectInvitationSchema,
 } from "../lib/api-contract";
+import { applyMembershipChange } from "../lib/membership-actions";
 import {
   Banner,
   Button,
@@ -19,6 +20,7 @@ import {
   RowAction,
   Section,
 } from "../ui/controls";
+import { MemberActions } from "../ui/member-actions";
 import type { Route } from "./+types/project-team";
 import type { ProjectContext } from "./project";
 
@@ -88,6 +90,9 @@ export async function clientAction({ params, request }: Route.ClientActionArgs) 
       return { cancelled: true };
     }
 
+    const membershipChange = await applyMembershipChange(`${base}/members`, form);
+    if (membershipChange) return membershipChange;
+
     await postJson(
       `${base}/invitations`,
       NewProjectInvitationSchema,
@@ -112,10 +117,14 @@ const day = (iso: string) => new Date(iso).toLocaleDateString("en-CA");
 export default function ProjectTeam({ loaderData, actionData }: Route.ComponentProps) {
   const busy = useNavigation().state !== "idle";
   const [open, setOpen] = useState(false);
-  const { project } = useOutletContext<ProjectContext>();
+  const [roleFor, setRoleFor] = useState<(typeof loaderData.members)[number] | null>(
+    null,
+  );
+  const { project, session } = useOutletContext<ProjectContext>();
 
   useEffect(() => {
     if (actionData && "sent" in actionData) setOpen(false);
+    if (actionData && "roleChanged" in actionData) setRoleFor(null);
   }, [actionData]);
 
   return (
@@ -134,6 +143,13 @@ export default function ProjectTeam({ loaderData, actionData }: Route.ComponentP
       {actionData && "cancelled" in actionData && (
         <Banner>Invitation cancelled.</Banner>
       )}
+      {actionData && "removed" in actionData && <Banner>Member removed.</Banner>}
+      {actionData && "suspended" in actionData && (
+        <Banner>
+          {actionData.suspended ? "Access suspended." : "Access restored."}
+        </Banner>
+      )}
+      {actionData && "roleChanged" in actionData && <Banner>Role changed.</Banner>}
 
       {loaderData.canManage && (
         <Section
@@ -199,6 +215,7 @@ export default function ProjectTeam({ loaderData, actionData }: Route.ComponentP
                 <th>Email</th>
                 <th>Role</th>
                 <th>Joined</th>
+                <th />
               </tr>
             </thead>
             <tbody>
@@ -208,8 +225,19 @@ export default function ProjectTeam({ loaderData, actionData }: Route.ComponentP
                   <td>{member.email}</td>
                   <td>
                     <span className="console-badge">{member.roleName}</span>
+                    {member.suspendedAt && (
+                      <span className="console-badge">suspended</span>
+                    )}
                   </td>
                   <td className="console-muted">{day(member.joinedAt)}</td>
+                  <td>
+                    <MemberActions
+                      member={member}
+                      isSelf={member.userId === session.id}
+                      busy={busy}
+                      onChangeRole={() => setRoleFor(member)}
+                    />
+                  </td>
                 </tr>
               ))}
             </tbody>
@@ -218,11 +246,45 @@ export default function ProjectTeam({ loaderData, actionData }: Route.ComponentP
       </Section>
 
       <Modal
+        open={roleFor !== null}
+        onClose={() => setRoleFor(null)}
+        title={`Change role for ${roleFor?.name ?? ""}`}
+      >
+        <Form method="post" className="console-form">
+          <input type="hidden" name="changeRoleFor" value={roleFor?.userId ?? ""} />
+          <Field label="Role">
+            <select
+              className="console-input"
+              name="roleId"
+              required
+              defaultValue={roleFor?.roleId}
+            >
+              {loaderData.roles.map((role) => (
+                <option key={role.id} value={role.id}>
+                  {role.name}
+                </option>
+              ))}
+            </select>
+          </Field>
+          <div className="console-modal-actions">
+            <Button type="button" onClick={() => setRoleFor(null)}>
+              Cancel
+            </Button>
+            <Button type="submit" variant="primary" disabled={busy}>
+              {busy ? "Saving…" : "Save"}
+            </Button>
+          </div>
+        </Form>
+      </Modal>
+
+      <Modal
         open={open && loaderData.canManage}
         onClose={() => setOpen(false)}
         title="New invitation"
       >
-        {actionData?.error && <Banner tone="error">{actionData.error}</Banner>}
+        {actionData && "error" in actionData && (
+          <Banner tone="error">{actionData.error}</Banner>
+        )}
         <p className="console-muted">
           They'll get access to {project.name}, and to nothing else in this
           organization.
