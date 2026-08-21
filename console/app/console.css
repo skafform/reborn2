@@ -35,10 +35,10 @@
      de la profondeur en sombre, un contour sale en clair. Deux surfaces, pas
      trois. C'est le modèle de Linear, dont `--bg-color` vaut
      `--bg-sidebar-color`. */
-  --console-background: #fafafa;
-  --console-panel-background: #ffffff;
+  --console-background: #efeff0;
+  --console-panel-background: #f9f9fa;
   --console-foreground: #111111;
-  --console-border: #dddddd;
+  --console-border: #e2e2e2;
   --console-border-subtle: rgb(0 0 0 / 10%);
 
   --console-accent: #b45309;
@@ -46,9 +46,13 @@
   --console-danger: #b91c1c;
   --console-danger-hover: #991b1b;
 
-  --console-chrome-background: #fafafa;
+  --console-chrome-background: #efeff0;
   --console-chrome-foreground: #3f3f46;
   --console-chrome-active-foreground: #18181b;
+  /* ⚠️ Pas leur `#b0b5c0`, qui donne **1,95:1** sur ce panneau — bien sous le
+     seuil WCAG AA de 4,5:1, et c'est ce gris qui porte dates, adresses et
+     libellés. Celui-ci est à **4,6:1**, déjà discret. Même arbitrage qu'en
+     sombre, où on s'est arrêté à 4,7:1 plutôt qu'à leur 3,7:1. */
   --console-foreground-muted: #6b7280;
 
   --console-topbar-height: 48px;
