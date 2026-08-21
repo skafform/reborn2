@@ -18,7 +18,7 @@ indirection ou une discipline au bon endroit.
 | [Quotas / facturation](#quotas--facturation) | 🟠 Moyenne | Comptage de l'usage durable |
 | [OAuth (Google, GitHub)](#oauth-google-github) | 🟠 Moyenne | Politique de liaison décidée, pas d'hypothèse « mot de passe » |
 | [Environnements](#environnements) | 🟠 Moyenne | `environment_id` en place |
-| [Rôles personnalisés](#rôles-personnalisés) | 🟢 Nulle | Catalogue RBAC déjà en place |
+| [Extraction du socle](#extraction-du-socle) | 🟠 Moyenne | Répertoire `src/cms/` + règle d'import, au premier module de 6b |
 | [2FA](#2fa) | 🟢 Nulle | Aucune |
 | [Recherche plein texte](#recherche-plein-texte) | 🟢 Nulle | Aucune — mais dépend de la localisation |
 
@@ -136,21 +136,53 @@ configuration linguistique, donc il faut connaître la langue d'un document
 pour l'indexer correctement. Voir [recherche.md](./recherche.md) et
 [localisation.md](./localisation.md).
 
-## Rôles personnalisés
+## Extraction du socle
 
-Permettre à un client de définir ses propres rôles, en composant les
-permissions du catalogue. Contentful et Sanity réservent tous deux cette
-fonctionnalité à leurs paliers payants — Sanity la limite à Enterprise, le plan
-gratuit n'offrant qu'Admin et Editor.
+Le socle — authentification, multi-tenant, RBAC, invitations, adhésions, clés,
+contrat — pourrait un jour servir à autre chose que ce CMS.
 
-**Aucune couture supplémentaire.** L'approche RBAC est déjà en place : un
-catalogue de permissions atomiques, une correspondance rôle → permissions, et
-un seul `can()`. Les rôles fixes actuels ne sont qu'une correspondance
-particulière.
+⚠️ **Il n'a jamais été conçu pour ça : il a émergé.** Chaque pièce existe parce
+que Skafform en a eu besoin. C'est ce qui fait sa solidité — aucune abstraction
+spéculative — mais ça veut dire qu'il n'est **pas prouvé réutilisable**, il en
+a l'air. La seule preuve serait un second consommateur, et il n'existe pas.
+Tant qu'il n'existe pas, « socle » est une hypothèse sur le code.
 
-Le passage se fait en déplaçant cette correspondance **du code vers la base**,
-sans toucher ni au catalogue, ni aux points de vérification. Voir
-[roles-permissions.md](./roles-permissions.md).
+Le vocabulaire de CMS dans `config/permissions.ts` — `content.publish`,
+`schema.write` — est le fossile de cette émergence : ces permissions sont là
+parce qu'il fallait publier du contenu pendant la construction, pas parce qu'un
+socle devrait en avoir.
+
+### La couture, à poser au premier module de 6b
+
+**`src/cms/`, et une règle d'import qui interdit à tout le reste de le
+consulter.** La flèche de dépendance devient à sens unique, vérifiée par le
+lint à chaque commit — la même mécanique que la frontière console ↔ backend,
+où la discipline seule n'avait pas suffi.
+
+Ce qui compte n'est pas de pouvoir extraire un jour, c'est de savoir **à tout
+moment** si c'est encore possible. Un répertoire répond à « quels fichiers sont
+le socle ? » à n'importe quel commit ; un tag ne répond qu'une fois, le jour où
+on le pose.
+
+⚠️ Cette règle empêche le socle de **dépendre** du CMS. Elle ne l'empêche pas
+d'en **contenir** le vocabulaire : c'est le catalogue composable qui s'en
+charge, seul vrai travail de conception des trois
+([backlog 0014](../backlog/0014-frontiere-du-socle.md)).
+
+### Ce qu'on ne fait pas
+
+**Pas de second dépôt, pas de paquet publié.** Un socle avec un seul
+consommateur n'est pas une bibliothèque, c'est un répertoire avec de la
+cérémonie — et deux dépôts créeraient exactement le risque qu'on veut éviter :
+une correction trouvée en construisant le CMS qu'il faudrait reporter, publier,
+réinstaller. Avec une seule histoire, elle est simplement faite.
+
+**Pas de système de plugins.** Les outils utilisés portent déjà leurs points de
+montage — Hono monte des sous-applications (`app.route`), Drizzle lit un
+schéma, les migrations sont numérotées. Un registre et une API d'extension
+n'ajouteraient rien, et concevoir une API d'extension avant d'avoir un second
+consommateur, c'est dessiner la couture avant la pièce — l'inverse de ce qui a
+fonctionné jusqu'ici.
 
 ## 2FA
 

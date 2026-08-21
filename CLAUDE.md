@@ -8,7 +8,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 commencer.** À lire en premier en reprenant le travail.
 
 
-Le **socle est complet** — étapes 1 à 6a :
+Le **socle** couvre les étapes 1 à 6a, et **ne s'y arrête pas** — les rôles
+personnalisés, la gestion des adhésions, les routes de clés, le contrat généré
+et la CI en font partie au même titre :
 
 - Squelette Hono + `@hono/zod-openapi`, validation d'environnement
 - Better-Auth sur Postgres (`pg.Pool`), confirmation d'adresse obligatoire,
@@ -16,11 +18,18 @@ Le **socle est complet** — étapes 1 à 6a :
 - Tables applicatives sous RLS forcé, point de passage `withContext`
 - Rôles personnalisables par organization, catalogue de permissions, `can()`,
   garde-fous d'escalade, routes de gestion
+- Adhésions : retrait, suspension, changement de rôle, départ volontaire
 - Invitations et emails (gabarits maison, prévisualisation sur `/dev/emails`)
 - Clés API : publique, preview, secrète — par environnement
+- Console d'administration, et son contrat généré depuis OpenAPI
 
 **Pas encore** : schémas de contenu et documents (étape 6b) — c'est là que le
-CMS commence, tout ce qui précède est réutilisable.
+CMS commence.
+
+⚠️ Le socle **a émergé** de ce projet, il n'a pas été conçu d'avance. Il n'est
+donc pas *prouvé* réutilisable — il en a l'air, et la seule preuve serait un
+second consommateur. Voir
+[evolutions-prevues.md](docs/architecture/evolutions-prevues.md#extraction-du-socle).
 
 ## Commandes
 
@@ -415,6 +424,14 @@ Deux documents à consulter avant toute décision technique :
 
 Ces contraintes ne se devinent pas en lisant le code. Les violer se paie par un
 refactor, pas par un bug immédiat.
+
+⚠️ **Au premier fichier de l'étape 6b, poser la frontière du socle** — le CMS
+dans `src/cms/`, une règle Biome interdisant à tout le reste de l'importer, et
+le catalogue de permissions rendu composable. Le socle et le CMS sont deux
+projets logiques dans un seul processus : rien dans le code ne rappellera
+jamais qu'il fallait créer ce répertoire, et chaque import qui traverse ensuite
+est une dette à défaire. La règle est **déjà éprouvée** et prête à copier dans
+[docs/backlog #0014](docs/backlog/0014-frontiere-du-socle.md).
 
 **Better-Auth n'utilise pas Drizzle.** La base a *deux propriétaires de
 schéma* : Better-Auth accède à Postgres par un `pg.Pool` direct pour ses

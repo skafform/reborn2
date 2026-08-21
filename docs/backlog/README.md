@@ -46,3 +46,4 @@ n'est jamais réattribué.
 | [0011](0011-nettoyage-des-tests-avale-ses-erreurs.md) | Le nettoyage des tests avale ses erreurs | 🟠 | **fait** |
 | [0012](0012-la-console-n-a-aucun-test.md) | La console n'a aucun test | 🟠 Avec la CI | ouvert |
 | [0013](0013-portee-de-role-non-verifiee.md) | La portée d'un rôle n'est pas vérifiée à l'invitation | 🔴 | **fait** |
+| [0014](0014-frontiere-du-socle.md) | Poser la frontière du socle au premier module de CMS | 🔴 Au premier fichier de 6b | ouvert |
