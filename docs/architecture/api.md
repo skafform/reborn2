@@ -303,12 +303,36 @@ comptage **durable et agrégeable**, plutôt qu'une simple fenêtre glissante en
 mémoire.
 
 Raison : on ne facture pas — et on ne plafonne pas rétroactivement — ce qu'on
-n'a pas compté. Le nombre de requêtes API est un compteur à forte volumétrie,
-**impossible à reconstituer après coup**. Les autres mesures (nombre de
-projets, d'environnements, de documents) se recomptent à tout moment par une
-requête, donc aucune urgence les concernant.
+n'a pas compté.
 
-Voir [evolutions-prevues.md](./evolutions-prevues.md).
+**Deux natures, un seul calendrier.** Contentful et Sanity mesurent les mêmes
+choses, et le partage est net :
+
+| Mesure | Nature | Ce qu'il faut |
+|---|---|---|
+| Requêtes, octets sortis | **flux** — non compté = perdu à jamais | un compteur durable |
+| Documents, projets, assets | **état** — recalculable | une requête, une fois par mois |
+
+⚠️ **Une requête en échec ne compte pas.** Sanity exclut les réponses `4xx` et
+`5xx` ainsi que les `OPTIONS` — ce n'est pas un détail de facturation : le
+compteur se branche **après** avoir connu le statut, pas à l'entrée.
+
+⚠️ **Les mesures d'état sont des instantanés de fin de mois**, pas des
+moyennes. Aucun historique à tenir.
+
+**Le grain est la clé**, pas l'organization : une clé résout vers un
+environnement → un projet → une organization, donc compter au plus fin donne
+les trois vues. L'agrégation monte, elle ne descend pas.
+
+⚠️ **L'écriture est le point coûteux** : un compteur par requête transforme
+chaque lecture — l'opération qu'on veut la moins chère — en lecture *plus*
+écriture. Un `UPSERT` sur la ligne (clé, jour), **hors de la transaction de
+lecture et après la réponse** : un échec de comptage ne doit jamais faire
+échouer une lecture.
+
+À construire à l'**étape 7**, avec l'API de livraison — le seul endroit à fort
+volume. Détail et sources :
+[../research/comptage-de-l-usage.md](../research/comptage-de-l-usage.md).
 
 ### Où on les gère
 

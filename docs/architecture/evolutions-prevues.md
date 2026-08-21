@@ -101,11 +101,17 @@ SSO est une troisième porte d'entrée. Voir [auth.md](./auth.md).
 
 **Couture** : rendre le comptage des requêtes API durable et agrégeable, et
 non une simple fenêtre glissante en mémoire. On ne facture pas ce qu'on n'a
-pas compté, et ce compteur ne se reconstitue pas après coup. Voir
-[api.md](./api.md).
+pas compté, et ce compteur ne se reconstitue pas après coup.
 
-À construire plus tard : plan porté par l'organization, plafonds, tableau
-d'usage.
+Le modèle est **décidé, pas encore construit** — une ligne par clé et par jour,
+requêtes et octets sortis ; les mesures d'état (documents, projets, assets) se
+recomptent quand on veut. Les deux règles qu'on aurait mal devinées : une
+requête en échec ne compte pas, et l'état se mesure par instantané de fin de
+mois. Voir [api.md](./api.md#comptage-de-lusage--couture-pour-les-quotas) et
+[../research/comptage-de-l-usage.md](../research/comptage-de-l-usage.md).
+
+À construire à l'**étape 7** : le comptage lui-même. Puis, plus tard, le plan
+porté par l'organization, les plafonds et le tableau d'usage.
 
 ## OAuth (Google, GitHub)
 
