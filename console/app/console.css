@@ -46,14 +46,16 @@
   --console-foreground-muted: #6b7280;
 
   --console-topbar-height: 48px;
-  --console-sidebar-width: 200px;
+  /* 244px, relevé chez Linear. Assez large pour qu'un nom de projet tienne
+     sur une ligne à côté de son icône, ce que 200px ne garantissait pas. */
+  --console-sidebar-width: 244px;
   /* Les formulaires ne s'étirent pas à la largeur du panneau : une ligne de
      saisie trop longue est plus difficile à relire qu'à remplir. */
   --console-form-width: 480px;
 
   --console-radius-sm: 4px;
   --console-radius: 6px;
-  --console-radius-lg: 10px;
+  --console-radius-lg: 12px;
 
   --console-font-sans:
     "Inter", ui-sans-serif, system-ui, sans-serif, "Apple Color Emoji", "Segoe UI Emoji";
