@@ -123,8 +123,11 @@ C'est plus fort que « séparés », et c'est la règle qui gouverne les autres.
   ⚠️ La cible est le **périmètre**, pas le nom de fichier : `pnpm` 11 utilise
   `pnpm-workspace.yaml` comme emplacement de configuration générale,
   indépendamment des workspaces. Un tel fichier **à l'intérieur** d'un projet,
-  qui ne fait qu'autoriser des scripts d'installation, ne relie rien — c'est le
-  cas de `backend/pnpm-workspace.yaml`, commité et légitime
+  qui ne fait qu'autoriser des scripts d'installation, ne relie rien — les deux
+  projets en ont un, commité et légitime, et chacun ne couvre que le sien.
+  Sans lui, `pnpm install --frozen-lockfile` échoue sur
+  `ERR_PNPM_IGNORED_BUILDS`, mais **seulement sur une installation neuve** :
+  invisible en local, fatal en CI
 - **aucun chemin de fichier** — y compris pour la spec OpenAPI, qui se récupère
   **par HTTP** sur le serveur en marche, jamais à `../backend/openapi.json`
 

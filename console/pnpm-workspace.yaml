@@ -1,0 +1,10 @@
+# Ce n'est pas un monorepo, et ce fichier ne relie rien. pnpm 11 l'utilise
+# comme emplacement de configuration générale, indépendamment des workspaces —
+# l'équivalent existe dans `backend/`, et chacun ne couvre que son projet.
+#
+# `esbuild` installe un binaire natif : son script d'installation doit être
+# explicitement autorisé, pnpm les bloquant par défaut. Sans cette ligne,
+# `pnpm install --frozen-lockfile` échoue sur ERR_PNPM_IGNORED_BUILDS — mais
+# seulement sur une installation neuve, donc en CI et jamais en local.
+allowBuilds:
+  esbuild: true
