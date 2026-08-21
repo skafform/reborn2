@@ -134,6 +134,14 @@ export function Empty({ children }: { children: ReactNode }) {
  *
  * Se ferme sur Échap sans qu'on ait rien à écrire : c'est l'événement natif
  * `close` du `<dialog>`, dont `onClose` reste le miroir.
+ *
+ * ⚠️ **Le contenu n'est monté que pendant l'ouverture.** `defaultValue` et
+ * `defaultChecked` ne s'appliquent qu'au montage : en gardant les enfants
+ * montés, un formulaire ouvert plus tard avec d'autres valeurs gardait celles
+ * du premier montage — c'est-à-dire celles d'avant qu'il y ait quelque chose à
+ * afficher. Trois écrans en souffraient : les cases d'un rôle dupliqué
+ * restaient vides, et les deux menus de changement de rôle proposaient le
+ * premier de la liste au lieu du rôle en cours.
  */
 export function Modal({
   open,
@@ -158,7 +166,7 @@ export function Modal({
   return (
     <dialog ref={ref} className="console-modal" onClose={onClose}>
       <h2>{title}</h2>
-      {children}
+      {open && children}
     </dialog>
   );
 }

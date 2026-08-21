@@ -94,7 +94,7 @@ export async function clientAction({ params, request }: Route.ClientActionArgs) 
   }
 }
 
-/** What the editor is open on: a new role, or an existing one. */
+/** What the window is open on: a role being composed, edited, or just read. */
 type Draft = {
   /** Empty when creating — the form keys on it to choose its route. */
   id: string;
@@ -103,6 +103,13 @@ type Draft = {
   permissions: string[];
   /** Set when duplicating a system role whose permissions we cannot all grant. */
   omitted: string[];
+  /**
+   * A built-in role, open to be read. ⚠️ It shows the role **as it is** — the
+   * whole catalogue, ticked where granted — rather than filtered to what the
+   * reader could grant. Filtering would make `admin` look poorer than it is to
+   * anyone who does not hold everything.
+   */
+  readOnly: boolean;
 };
 
 export default function Roles({ loaderData, actionData }: Route.ComponentProps) {
@@ -129,6 +136,17 @@ export default function Roles({ loaderData, actionData }: Route.ComponentProps) 
       scope: role.scope,
       permissions: role.permissions.filter((key) => loaderData.mine.includes(key)),
       omitted: role.permissions.filter((key) => !loaderData.mine.includes(key)),
+      readOnly: false,
+    });
+
+  const view = (role: Role) =>
+    setDraft({
+      id: role.id,
+      name: role.name,
+      scope: role.scope,
+      permissions: [...role.permissions],
+      omitted: [],
+      readOnly: true,
     });
 
   return (
@@ -143,6 +161,7 @@ export default function Roles({ loaderData, actionData }: Route.ComponentProps) 
               scope: "organization",
               permissions: [],
               omitted: [],
+              readOnly: false,
             })
           }
         >
@@ -190,25 +209,38 @@ export default function Roles({ loaderData, actionData }: Route.ComponentProps) 
       >
         <RoleTable
           roles={system}
-          action={(role) =>
-            // ⚠️ Not `owner`. Duplicating it ticks the whole catalogue, which
-            // is not a starting point — and the copy would be a full-powered
-            // member that the last-owner rule does not count. For a second
-            // owner, promote someone to owner.
-            role.name === "owner" ? null : (
-              <RowAction type="button" onClick={() => duplicate(role)}>
-                Duplicate
+          action={(role) => (
+            <>
+              {/* Reading comes first: one looks at a role before starting from
+                  it, and `owner` can only ever be read. */}
+              <RowAction type="button" onClick={() => view(role)}>
+                View
               </RowAction>
-            )
-          }
+              {/* ⚠️ Not `owner`. Duplicating it ticks the whole catalogue,
+                  which is not a starting point — and the copy would be a
+                  full-powered member that the last-owner rule does not count.
+                  For a second owner, promote someone to owner. */}
+              {role.name !== "owner" && (
+                <RowAction type="button" onClick={() => duplicate(role)}>
+                  Duplicate
+                </RowAction>
+              )}
+            </>
+          )}
         />
       </Section>
 
       <Modal
         open={draft !== null}
         onClose={() => setDraft(null)}
-        title={draft?.id ? `Edit ${draft.name}` : "New role"}
+        title={modalTitle(draft)}
       >
+        {draft?.readOnly && (
+          <p className="console-muted">
+            Built-in roles are the same in every organization and cannot be changed.
+            Duplicate one to start from it.
+          </p>
+        )}
         {draft && draft.omitted.length > 0 && (
           <Banner tone="error">
             Left out, because you don't hold them yourself: {draft.omitted.join(", ")}.
@@ -225,6 +257,7 @@ export default function Roles({ loaderData, actionData }: Route.ComponentProps) 
               required
               maxLength={200}
               defaultValue={draft?.name}
+              disabled={draft?.readOnly}
             />
           </Field>
 
@@ -259,8 +292,15 @@ export default function Roles({ loaderData, actionData }: Route.ComponentProps) 
 
           <fieldset className="console-permissions">
             <legend>Permissions</legend>
+            {/* Reading shows the whole catalogue, ticked where the role grants
+                it; composing offers only what the caller could grant. Filtering
+                a role one is merely reading would make it look poorer than it
+                is. */}
             {loaderData.catalogue
-              .filter((permission) => loaderData.mine.includes(permission.key))
+              .filter(
+                (permission) =>
+                  draft?.readOnly || loaderData.mine.includes(permission.key),
+              )
               .map((permission) => (
                 <label key={permission.key} className="console-permission">
                   <input
@@ -268,6 +308,7 @@ export default function Roles({ loaderData, actionData }: Route.ComponentProps) 
                     name="permissions"
                     value={permission.key}
                     defaultChecked={draft?.permissions.includes(permission.key)}
+                    disabled={draft?.readOnly}
                   />
                   <span>
                     {permission.description}
@@ -278,12 +319,20 @@ export default function Roles({ loaderData, actionData }: Route.ComponentProps) 
           </fieldset>
 
           <div className="console-modal-actions">
-            <Button type="button" onClick={() => setDraft(null)}>
-              Cancel
-            </Button>
-            <Button type="submit" variant="primary" disabled={busy}>
-              {busy ? "Saving…" : "Save"}
-            </Button>
+            {draft?.readOnly ? (
+              <Button type="button" variant="primary" onClick={() => setDraft(null)}>
+                Close
+              </Button>
+            ) : (
+              <>
+                <Button type="button" onClick={() => setDraft(null)}>
+                  Cancel
+                </Button>
+                <Button type="submit" variant="primary" disabled={busy}>
+                  {busy ? "Saving…" : "Save"}
+                </Button>
+              </>
+            )}
           </div>
         </Form>
       </Modal>
@@ -291,12 +340,20 @@ export default function Roles({ loaderData, actionData }: Route.ComponentProps) 
   );
 }
 
+/** `View editor`, `Edit Relecture`, or `New role`. */
+const modalTitle = (draft: Draft | null) => {
+  if (!draft) return "";
+  if (draft.readOnly) return `View ${draft.name}`;
+  return draft.id ? `Edit ${draft.name}` : "New role";
+};
+
 const toDraft = (role: Role): Draft => ({
   id: role.id,
   name: role.name,
   scope: role.scope,
   permissions: [...role.permissions],
   omitted: [],
+  readOnly: false,
 });
 
 function RoleTable({
