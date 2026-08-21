@@ -837,6 +837,142 @@ describe("routes de gestion", () => {
    * exists. The rest is what the screen leans on: system roles are readable
    * but frozen, and a role somebody wears is emptied before it is deleted.
    */
+  /**
+   * Renaming and deleting. Until now an organization created through the API
+   * could never leave it, and neither could a project.
+   */
+  describe("cycle de vie", () => {
+    /**
+     * On its own organization, never the suite's: renaming a shared fixture
+     * broke the Inbox test, which reads that name. The same order-dependency
+     * trap as the role list.
+     */
+    it("renames an organization and a project", async () => {
+      const mover = await signUp("renommeur");
+      sessions.push(mover);
+      const created = await call("/api/organizations", mover, {
+        method: "POST",
+        body: JSON.stringify({ name: "Avant" }),
+      });
+      const { id: orgId } = (await created.json()) as { id: string };
+
+      const renamed = await call(`/api/organizations/${orgId}`, mover, {
+        method: "PUT",
+        body: JSON.stringify({ name: "Après" }),
+      });
+      assert.equal(renamed.status, 200);
+      assert.equal(((await renamed.json()) as { name: string }).name, "Après");
+
+      const project = await call(`/api/organizations/${orgId}/projects`, mover, {
+        method: "POST",
+        body: JSON.stringify({ name: "Projet avant" }),
+      });
+      const { id: projectId } = (await project.json()) as { id: string };
+
+      const moved = await call(
+        `/api/organizations/${orgId}/projects/${projectId}`,
+        mover,
+        { method: "PUT", body: JSON.stringify({ name: "Projet après" }) },
+      );
+      assert.equal(((await moved.json()) as { name: string }).name, "Projet après");
+
+      await call(`/api/organizations/${orgId}/projects/${projectId}`, mover, {
+        method: "DELETE",
+      });
+      assert.equal(
+        (await call(`/api/organizations/${orgId}`, mover, { method: "DELETE" })).status,
+        204,
+      );
+    });
+
+    it("refuses a viewer, who holds neither org.settings nor project.delete", async () => {
+      const response = await call(`/api/organizations/${organizationId}`, viewer, {
+        method: "PUT",
+        body: JSON.stringify({ name: "Détournée" }),
+      });
+      assert.equal(response.status, 403);
+    });
+
+    /**
+     * The documented rule only named project members. Active keys block too:
+     * deleting the project cascades to its environments and then to their
+     * keys, so one still in circulation would die inside someone's production
+     * site, silently.
+     */
+    it("refuses to delete a project while a key still opens it", async () => {
+      const created = await call(
+        `/api/organizations/${organizationId}/projects`,
+        owner,
+        { method: "POST", body: JSON.stringify({ name: "Porteur" }) },
+      );
+      const { id } = (await created.json()) as { id: string };
+      const keys = `/api/organizations/${organizationId}/projects/${id}/api-keys`;
+
+      const key = await call(keys, owner, {
+        method: "POST",
+        body: JSON.stringify({ kind: "public", name: "Site" }),
+      });
+      const { id: keyId } = (await key.json()) as { id: string };
+
+      const blocked = await call(
+        `/api/organizations/${organizationId}/projects/${id}`,
+        owner,
+        { method: "DELETE" },
+      );
+      assert.equal(blocked.status, 409);
+      assert.equal(
+        ((await blocked.json()) as { reason: string }).reason,
+        "has_active_keys",
+      );
+
+      // Revoked keys do not block: they open nothing, and they stay as a trail.
+      await call(`${keys}/${keyId}/revoke`, owner, { method: "POST" });
+      assert.equal(
+        (
+          await call(`/api/organizations/${organizationId}/projects/${id}`, owner, {
+            method: "DELETE",
+          })
+        ).status,
+        204,
+      );
+    });
+
+    it("empties an organization before deleting it", async () => {
+      const solo = await signUp("solo");
+      sessions.push(solo);
+      const created = await call("/api/organizations", solo, {
+        method: "POST",
+        body: JSON.stringify({ name: "À supprimer" }),
+      });
+      const { id: orgId } = (await created.json()) as { id: string };
+
+      const project = await call(`/api/organizations/${orgId}/projects`, solo, {
+        method: "POST",
+        body: JSON.stringify({ name: "Encore là" }),
+      });
+      const { id: projectId } = (await project.json()) as { id: string };
+
+      const held = await call(`/api/organizations/${orgId}`, solo, {
+        method: "DELETE",
+      });
+      assert.equal(held.status, 409);
+      assert.equal(((await held.json()) as { reason: string }).reason, "has_projects");
+
+      await call(`/api/organizations/${orgId}/projects/${projectId}`, solo, {
+        method: "DELETE",
+      });
+      assert.equal(
+        (await call(`/api/organizations/${orgId}`, solo, { method: "DELETE" })).status,
+        204,
+      );
+      assert.equal(
+        (await call(`/api/organizations/${orgId}/me`, solo)).status,
+        404,
+        "elle n'existe plus, donc elle est indiscernable d'inexistante",
+      );
+    });
+  });
+
   describe("rôles personnalisés", () => {
     const rolesUrl = () => `/api/organizations/${organizationId}/roles`;
 

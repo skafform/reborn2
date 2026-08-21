@@ -86,6 +86,77 @@ export const PostApiOrganizationsOrganizationIdProjectsResponse =
   });
 
 /**
+ * @summary Renommer une organization
+ */
+export const PutApiOrganizationsOrganizationIdParams = /*#__PURE__*/ zod.object({
+  organizationId: /*#__PURE__*/ zod.uuid(),
+});
+
+export const putApiOrganizationsOrganizationIdBodyNameMax = 200;
+
+export const PutApiOrganizationsOrganizationIdBody = /*#__PURE__*/ zod.object({
+  name: /*#__PURE__*/ zod
+    .string()
+    .check(/*#__PURE__*/ zod.minLength(1))
+    .check(/*#__PURE__*/ zod.maxLength(putApiOrganizationsOrganizationIdBodyNameMax)),
+});
+
+export const PutApiOrganizationsOrganizationIdResponse = /*#__PURE__*/ zod.object({
+  id: /*#__PURE__*/ zod.uuid(),
+  name: /*#__PURE__*/ zod.string(),
+});
+
+/**
+ * @summary Supprimer une organization vidée
+ */
+export const DeleteApiOrganizationsOrganizationIdParams = /*#__PURE__*/ zod.object({
+  organizationId: /*#__PURE__*/ zod.uuid(),
+});
+
+export const DeleteApiOrganizationsOrganizationIdResponse = /*#__PURE__*/ zod.void();
+
+/**
+ * @summary Renommer un projet
+ */
+export const PutApiOrganizationsOrganizationIdProjectsProjectIdParams =
+  /*#__PURE__*/ zod.object({
+    organizationId: /*#__PURE__*/ zod.uuid(),
+    projectId: /*#__PURE__*/ zod.uuid(),
+  });
+
+export const putApiOrganizationsOrganizationIdProjectsProjectIdBodyNameMax = 200;
+
+export const PutApiOrganizationsOrganizationIdProjectsProjectIdBody =
+  /*#__PURE__*/ zod.object({
+    name: /*#__PURE__*/ zod
+      .string()
+      .check(/*#__PURE__*/ zod.minLength(1))
+      .check(
+        /*#__PURE__*/ zod.maxLength(
+          putApiOrganizationsOrganizationIdProjectsProjectIdBodyNameMax,
+        ),
+      ),
+  });
+
+export const PutApiOrganizationsOrganizationIdProjectsProjectIdResponse =
+  /*#__PURE__*/ zod.object({
+    id: /*#__PURE__*/ zod.uuid(),
+    name: /*#__PURE__*/ zod.string(),
+  });
+
+/**
+ * @summary Supprimer un projet vidé
+ */
+export const DeleteApiOrganizationsOrganizationIdProjectsProjectIdParams =
+  /*#__PURE__*/ zod.object({
+    organizationId: /*#__PURE__*/ zod.uuid(),
+    projectId: /*#__PURE__*/ zod.uuid(),
+  });
+
+export const DeleteApiOrganizationsOrganizationIdProjectsProjectIdResponse =
+  /*#__PURE__*/ zod.void();
+
+/**
  * @summary Un projet
  */
 export const GetApiOrganizationsOrganizationIdProjectsProjectIdParams =

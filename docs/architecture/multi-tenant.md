@@ -90,11 +90,27 @@ déclenchée par un seul clic.
   plus **aucun projet** et **aucun membre** autre que l'`owner` qui effectue
   la suppression
 - Un **projet** ne peut être supprimé que lorsqu'il ne reste plus de membre
-  de projet rattaché
+  de projet rattaché, **ni aucune clé API active**
+
+⚠️ La clause sur les clés a été ajoutée en construisant la route : supprimer un
+projet emporte ses environnements, donc ses clés. Une clé encore en circulation
+mourrait **dans le site de production de quelqu'un**, sans un mot. C'est
+exactement ce que « révoquer avant de supprimer » empêche pour une clé seule —
+un projet qui en porte est la même situation, en plus grand.
+
+Une clé **révoquée** ne bloque pas : elle n'ouvre déjà rien, et elle reste comme
+trace de ce qui a circulé.
 
 Cela force à retirer explicitement les accès avant de détruire quoi que ce
 soit, et évite qu'une suppression accidentelle emporte le travail de
-plusieurs personnes.
+plusieurs personnes. Chaque refus **compte ce qui reste**, pour que la réponse
+dise quoi faire ensuite plutôt que seulement que ça a échoué.
+
+⚠️ **`org.transfer` et `org.billing` restent sans route, délibérément.**
+Transférer la propriété, c'est promouvoir quelqu'un `owner` puis se retirer —
+deux opérations qui existent déjà, et une organization peut compter plusieurs
+propriétaires. La facturation n'a pas encore de sujet. Ce sont les deux seules
+permissions du catalogue qu'aucun code ne vérifie.
 
 Voir [roles-permissions.md](./roles-permissions.md) pour le détail des rôles à
 chaque niveau (organization et projet), et [database.md](./database.md) pour

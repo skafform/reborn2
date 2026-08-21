@@ -25,6 +25,12 @@ import {
   listReceivedInvitations,
 } from "../services/invitations.ts";
 import {
+  deleteOrganization,
+  deleteProject,
+  renameOrganization,
+  renameProject,
+} from "../services/lifecycle.ts";
+import {
   changeOrganizationMemberRole,
   changeProjectMemberRole,
   removeOrganizationMember,
@@ -195,7 +201,95 @@ managementRoutes.openapi(
   },
 );
 
+/**
+ * Renaming and deleting — the two ends of a life nothing could end until now.
+ *
+ * ⚠️ Nothing is deleted while it still holds something, and the refusal counts
+ * what remains (architecture/multi-tenant.md). The guards live in the service,
+ * with the counting they explain.
+ */
+managementRoutes.openapi(
+  createRoute({
+    method: "put",
+    path: "/organizations/{organizationId}",
+    summary: "Renommer une organization",
+    middleware: [requireSession, requireOrganization] as const,
+    request: {
+      params: z.object({ organizationId: z.uuid() }),
+      body: { content: { "application/json": { schema: NameInput } } },
+    },
+    responses: { 200: json(OrganizationSchema, "Renommée") },
+  }),
+  async (c) => {
+    const { organizationId } = c.req.valid("param");
+    return c.json(
+      await renameOrganization({
+        actor: c.get("actor"),
+        organizationId,
+        name: c.req.valid("json").name,
+      }),
+    );
+  },
+);
+
+managementRoutes.openapi(
+  createRoute({
+    method: "delete",
+    path: "/organizations/{organizationId}",
+    summary: "Supprimer une organization vidée",
+    middleware: [requireSession, requireOrganization] as const,
+    request: { params: z.object({ organizationId: z.uuid() }) },
+    responses: { 204: { description: "Supprimée" } },
+  }),
+  async (c) => {
+    const { organizationId } = c.req.valid("param");
+    await deleteOrganization({ actor: c.get("actor"), organizationId });
+    return c.body(null, 204);
+  },
+);
+
 const projectParams = z.object({ organizationId: z.uuid(), projectId: z.uuid() });
+
+managementRoutes.openapi(
+  createRoute({
+    method: "put",
+    path: "/organizations/{organizationId}/projects/{projectId}",
+    summary: "Renommer un projet",
+    middleware: [requireSession, requireOrganization] as const,
+    request: {
+      params: projectParams,
+      body: { content: { "application/json": { schema: NameInput } } },
+    },
+    responses: { 200: json(ProjectSchema, "Renommé") },
+  }),
+  async (c) => {
+    const { organizationId, projectId } = c.req.valid("param");
+    return c.json(
+      await renameProject({
+        actor: c.get("actor"),
+        organizationId,
+        projectId,
+        name: c.req.valid("json").name,
+      }),
+    );
+  },
+);
+
+managementRoutes.openapi(
+  createRoute({
+    method: "delete",
+    path: "/organizations/{organizationId}/projects/{projectId}",
+    summary: "Supprimer un projet vidé",
+    middleware: [requireSession, requireOrganization] as const,
+    request: { params: projectParams },
+    responses: { 204: { description: "Supprimé" } },
+  }),
+  async (c) => {
+    const { organizationId, projectId } = c.req.valid("param");
+    await deleteProject({ actor: c.get("actor"), organizationId, projectId });
+    return c.body(null, 204);
+  },
+);
 
 /**
  * Un projet précis — la page de projet s'ouvre dessus.
