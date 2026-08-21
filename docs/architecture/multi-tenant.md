@@ -48,10 +48,37 @@ portée.** Aucun contenu, projet ou environnement ne doit exister hors
 imposerait ses propres policies pour un gain qu'aucun besoin réel ne justifie
 aujourd'hui.
 
-**Reste ouvert** — les invitations de *projet* ne créent aucune adhésion
-d'organization : la personne qui en accepte une appartient à un projet sans
-appartenir à l'organization qui le porte. La console navigue par organization
-et ne sait pas encore présenter ce cas.
+## Un membre de projet n'a pas d'organization — et ça ne se voit pas
+
+Une invitation de *projet* ne crée aucune adhésion d'organization : la personne
+appartient à un projet sans appartenir à l'organization qui le porte.
+
+Ça aurait pu poser un problème d'atterrissage — où va quelqu'un qui n'a aucune
+organization ? — mais **il n'existe pas** : tout compte reçoit la sienne à
+l'inscription. La personne a donc toujours un chez-soi, et l'organization hôte
+s'ajoute à côté.
+
+Le parcours, de bout en bout :
+
+1. Quelqu'un d'habilité l'invite depuis la **Team du projet** — jamais depuis
+   celle de l'organization, qui ne recrute que pour l'organization
+2. Elle crée son compte si elle n'en a pas ; **son organization personnelle
+   naît là**, comme pour tout le monde
+3. Elle se connecte, et trouve l'invitation dans son **Inbox**
+4. À l'acceptation, l'organization hôte apparaît **dans le sélecteur**, au même
+   titre que la sienne — aucune distinction visuelle
+5. Le projet hôte apparaît dans sa liste de projets. Elle clique, elle y est
+
+⚠️ **Elle ne voit que les projets où elle est membre.** Pas le nom des autres,
+pas la liste des membres de l'organization, pas ses paramètres. Voir le nom de
+l'organization n'est pas y appartenir — détail dans
+[roles-permissions.md](./roles-permissions.md#ce-quun-membre-de-projet-voit).
+
+⚠️ **Ce filtrage n'est pas une policy RLS.** Une fois le contexte posé sur
+l'organization, toutes ses lignes `projects` franchissent la frontière de
+locataire — c'est son rôle, et rien de plus. Restreindre à ses projets est une
+décision applicative, au même titre que la matrice RBAC
+([securite.md](./securite.md#décision--rls-pour-la-frontière-typescript-pour-les-rôles)).
 
 ## Suppression
 

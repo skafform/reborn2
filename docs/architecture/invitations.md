@@ -151,3 +151,41 @@ que pour le doublon d'invitation ci-dessus.
 - **Organization, rôle `viewer`** : `owner` ou `admin`
 - **Projet** (`editor`/`contributor`/`guest`) : `owner` ou `admin` de
   l'organization — voir [roles-permissions.md](./roles-permissions.md)
+
+Les rôles de projet n'ont aucune permission de membre : un `editor` ne recrute
+pas, et ne voit pas non plus l'équipe. C'est le modèle de Contentful — l'admin
+d'espace gère, les membres travaillent. Y ajouter un rôle de projet habilité à
+recruter attendra un besoin réel.
+
+## Où se crée une invitation
+
+| Écran | Invite à | Rôles offerts | `project_id` |
+|---|---|---|---|
+| Team de l'**organization** | l'organization | portée organization | `null` |
+| Team du **projet** | ce projet | portée projet | celui de l'URL |
+
+Le projet n'est donc **jamais un choix dans un formulaire** : il vient de
+l'endroit où l'on se trouve. Pas de sélecteur de projet dans une modale
+d'invitation, et pas de combinaison incohérente à composer.
+
+⚠️ Ça ne dispense pas le serveur de vérifier l'accord entre la portée du rôle et
+la présence d'un `project_id` — voir
+[roles-permissions.md](./roles-permissions.md#ce-quun-membre-de-projet-voit).
+
+## Ce que l'Inbox doit dire d'une invitation de projet
+
+L'organization et le rôle ne suffisent pas : « Ideatrove — editor » ne dit pas
+*sur quoi*. Une invitation de projet doit nommer son projet.
+
+⚠️ **Joindre `projects` va filtrer la ligne**, silencieusement. La policy
+`projects_read` n'admet que trois cas — organization courante, membre de
+l'organization, membre du projet — et un invité n'est aucun des trois.
+L'invitation disparaît de l'Inbox.
+
+C'est le **troisième** exemplaire du même piège : la migration 0011 l'a corrigé
+pour le jeton sur `organizations` et `roles`, la 0021 pour l'adresse sur les
+mêmes tables. Il faut une quatrième branche, sur `projects` cette fois.
+
+Écrit d'avance plutôt que redécouvert : dès qu'une lecture montre une ligne à
+quelqu'un qui n'appartient à rien, **chaque table jointe** derrière doit la
+montrer aussi.

@@ -137,16 +137,38 @@ projet).
 Les invitations `editor`/`contributor`/`guest` sont gérées par les `owner`/
 `admin` de l'organization (voir [invitations.md](./invitations.md)).
 
-### Contexte d'affichage de l'organization
+### Ce qu'un membre de projet voit
 
-Un membre de projet **n'appartient pas** à l'organization (aucune ligne
-`organization_members`) — mais l'UI lui affiche quand même le **nom** de
-l'organization propriétaire du projet, comme fil d'Ariane
-(« Acme Corp › Site Client A »), lu via `projects.organization_id`.
+Il **n'appartient pas** à l'organization (aucune ligne `organization_members`).
+Elle lui apparaît quand même : dans le sélecteur, à côté de la sienne, sans
+distinction visuelle — et son projet dans la liste des projets. Il clique, il
+y entre. Le parcours complet est dans
+[multi-tenant.md](./multi-tenant.md#un-membre-de-projet-na-pas-dorganization--et-ça-ne-se-voit-pas).
 
-Il voit donc le nom de l'organization, mais **jamais** sa liste de membres,
-ses paramètres, sa facturation, ni ses autres projets. Voir le nom ≠ être
-membre : c'est du contexte d'affichage, pas une appartenance.
+Il voit donc le **nom** de l'organization, mais jamais sa liste de membres, ses
+paramètres, sa facturation, ni ses autres projets. Voir le nom ≠ être membre.
+
+**La règle tient en une phrase : on voit les projets que sa portée atteint.**
+
+| Portée de l'acteur | Projets visibles |
+|---|---|
+| `organization` | tous ceux de l'organization |
+| `project` | ceux de `grant.projectIds`, et rien d'autre |
+
+Le `Grant` porte déjà les deux informations — rien à charger de plus.
+
+⚠️ **La portée d'un rôle et l'endroit où on l'attribue doivent s'accorder**, et
+c'est le **serveur** qui le vérifie : un rôle de portée projet exige un projet,
+un rôle d'organization en refuse un. Sans ce contrôle, un rôle de projet
+attribué sans projet devient une adhésion d'organization — et ses permissions
+valent alors sur *tous* les projets. Une escalade de **portée**, que le
+garde-fou d'escalade de privilèges ne voit pas : il compare des permissions, pas
+leur étendue.
+
+⚠️ Deux formulaires envoient ces invitations — celui de l'organization et celui
+du projet. Raison de plus pour que la règle vive côté serveur : deux copies dans
+deux écrans, c'est une règle métier hors de sa source de vérité, et *« la console
+masque, elle n'autorise pas »*.
 
 ## Retrait d'un membre
 

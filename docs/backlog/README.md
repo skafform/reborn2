@@ -45,3 +45,4 @@ n'est jamais réattribué.
 | [0010](0010-suppression-d-organization-bloquee.md) | Une organization ne peut pas être supprimée | 🔴 | **fait** (migration 0019) |
 | [0011](0011-nettoyage-des-tests-avale-ses-erreurs.md) | Le nettoyage des tests avale ses erreurs | 🟠 | **fait** |
 | [0012](0012-la-console-n-a-aucun-test.md) | La console n'a aucun test | 🟠 Avec la CI | ouvert |
+| [0013](0013-portee-de-role-non-verifiee.md) | La portée d'un rôle n'est pas vérifiée à l'invitation | 🔴 Avant la Team de projet | ouvert |

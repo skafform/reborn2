@@ -187,16 +187,48 @@ backend inchangé réécrit les fichiers **à l'identique** (sans quoi la CI ser
 rouge en permanence), et resserrer une borne de validation côté serveur la fait
 échouer en nommant le champ.
 
-### Par quoi continuer
+### En cours : la page de projet
 
-**1. Les clés API** — les services existent tous (`listApiKeys`,
-`createApiKey`, `revokeApiKey`, `deleteApiKey`), seules les routes HTTP
-manquent. C'est là que le **bloc `.env`** de la console de référence prend son
-sens : trois clés à recopier dans le fichier d'un frontend.
+La section Projects est un contenant vide — une table à une seule colonne, dont
+les lignes ne mènent nulle part. Deux routes seulement existent : lister,
+créer.
 
-**2. Compléter l'API au fil de l'eau**, quand un écran révèle un manque.
+**Décidé** : cliquer un projet y entre, et la barre latérale devient
+**contextuelle** — on quitte `Inbox / Projects / Team` de l'organization pour
+`Project overview / Team` du projet. Un fil d'Ariane ramène en arrière.
 
-**3. La vérification en CI** du contrat généré (voir plus haut).
+Et l'invitation à un projet se fait **depuis la Team du projet**, jamais depuis
+celle de l'organization : le `project_id` vient de l'URL, pas d'un menu.
+
+Le parcours d'un membre de projet est décrit dans
+[architecture/multi-tenant.md](architecture/multi-tenant.md#un-membre-de-projet-na-pas-dorganization--et-ça-ne-se-voit-pas).
+Le backend le porte déjà en grande partie — `project_members`, les rôles de
+portée projet, les invitations avec `project_id`, et `resolveActor` qui bascule
+sur une portée projet. Ce qui manque est du **listage**, pas du modèle.
+
+⚠️ **Un défaut bloque ce travail** : la portée d'un rôle n'est pas vérifiée à
+l'invitation ([backlog 0013](backlog/0013-portee-de-role-non-verifiee.md)).
+Aujourd'hui seule la console empêche la combinaison dangereuse — ce que le
+projet interdit explicitement. La Team de projet repose entièrement sur cette
+distinction de portée : la corriger vient d'abord.
+
+Trois pièges déjà identifiés, à ne pas redécouvrir :
+
+- **L'organization hôte n'apparaîtra pas** — `listOrganizationsForUser` ne
+  joint que `organization_members`, et `app_is_member_of` ne regarde qu'elle
+- ⚠️ **Ne jamais élargir `app_is_member_of`** : elle sert 11 fois dans 6
+  migrations. Une branche par policy concernée, comme l'ont fait 0011 et 0021
+- **403 sur la liste des projets** — la garde exige `content.read` sans projet
+  cible, ce que `can()` refuse par construction pour une portée projet
+
+### Ensuite
+
+**Les clés API** — les services existent tous (`listApiKeys`, `createApiKey`,
+`revokeApiKey`, `deleteApiKey`), seules les routes HTTP manquent. Leur place
+est dans la page de projet, et c'est là que le **bloc `.env`** de la console de
+référence prend son sens : trois clés à recopier dans le fichier d'un frontend.
+
+**Compléter l'API au fil de l'eau**, quand un écran révèle un manque.
 
 ## Étape 6b — là où le CMS commence
 
@@ -219,6 +251,7 @@ Rappels structurants :
 | [0004](backlog/0004-cors-admin-ui.md) | CORS pour l'admin UI | En production seulement — le proxy le règle en développement |
 | [0008](backlog/0008-resolution-des-projets-d-un-membre.md) | Résolution des projets d'un membre | À mesurer avant d'agir |
 | [0012](backlog/0012-la-console-n-a-aucun-test.md) | La console n'a aucun test | Avec la CI — les deux se décident ensemble |
+| [0013](backlog/0013-portee-de-role-non-verifiee.md) | La portée d'un rôle n'est pas vérifiée à l'invitation | 🔴 Avant la Team de projet |
 
 Neuf items clos.
 

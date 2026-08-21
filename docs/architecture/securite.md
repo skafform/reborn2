@@ -137,6 +137,28 @@ Se tromper de modèle produit une route qui fonctionne — mais faussement.
   L'identité vient **toujours** de la session vérifiée, jamais d'un `user_id`
   ou `organization_id` envoyé par l'appelant
 
+## Une permission a une étendue, pas seulement un nom
+
+Le garde-fou d'escalade compare des **permissions** : on n'accorde pas ce qu'on
+ne détient pas. Il ne regarde pas leur **étendue**. Deux acteurs peuvent donc
+détenir `content.write` et ne pas pouvoir écrire aux mêmes endroits — c'est la
+portée du `Grant` qui tranche, pas le catalogue.
+
+D'où une seconde vérification, distincte et tout aussi serveur : **la portée du
+rôle et l'endroit où on l'attribue doivent s'accorder.** Un rôle de portée
+projet exige un projet ; un rôle d'organization en refuse un.
+
+⚠️ Sans ce contrôle, un rôle de projet attribué **sans** projet devient une
+adhésion d'organization, et ses permissions valent sur *tous* les projets. Le
+garde-fou d'escalade laisse passer, puisque aucune permission nouvelle n'est
+accordée — seulement plus loin. Cas réel, relevé dans ce code et suivi au
+[backlog 0013](../backlog/0013-portee-de-role-non-verifiee.md).
+
+**Ce n'est pas RLS qui protège de ça.** RLS cadre le locataire ; à l'intérieur,
+tous les projets d'une organization sont de son côté de la frontière. Le
+filtrage par projet est applicatif — même partage des rôles qu'entre RLS et la
+matrice RBAC.
+
 ## Exceptions et contraintes
 
 **Pas de RLS sur les tables de Better-Auth.** Il gère `user`, `session`,
