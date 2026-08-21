@@ -1,5 +1,6 @@
 import { Form, Link, useNavigation, useSearchParams } from "react-router";
 import { authClient, authErrorMessage, callbackURL } from "../lib/auth";
+import { Banner, Button } from "../ui/controls";
 import type { Route } from "./+types/verify-email";
 
 /**
@@ -28,36 +29,28 @@ export default function VerifyEmail({ actionData }: Route.ComponentProps) {
   return (
     <div className="console console-centered">
       <div className="console-panel">
-        <h1>Confirmez votre adresse</h1>
+        <h1>Confirm your email</h1>
 
         <p>
-          Un lien vient d'être envoyé{email ? " à " : ""}
-          {email && <strong>{email}</strong>}. Il ouvre la session — inutile de retaper
-          le mot de passe.
+          A link was just sent{email ? " to " : ""}
+          {email && <strong>{email}</strong>}. It signs you in — no need to type your
+          password again.
         </p>
 
         {actionData && "error" in actionData && (
-          <p className="console-banner console-banner--error">{actionData.error}</p>
+          <Banner tone="error">{actionData.error}</Banner>
         )}
-        {actionData && "sent" in actionData && (
-          <p className="console-banner">Lien renvoyé.</p>
-        )}
+        {actionData && "sent" in actionData && <Banner>Link resent.</Banner>}
 
         <Form method="post">
           <input type="hidden" name="email" value={email} />
-          <button
-            className="console-button console-button--block"
-            type="submit"
-            disabled={busy || !email}
-          >
-            {busy ? "Envoi…" : "Renvoyer le lien"}
-          </button>
+          <Button type="submit" block disabled={busy || !email}>
+            {busy ? "Sending…" : "Resend link"}
+          </Button>
         </Form>
 
         <p className="console-form-footer">
-          <Link className="console-text-link" to="/login">
-            Retour à la connexion
-          </Link>
+          <Link to="/login">Back to sign in</Link>
         </p>
       </div>
     </div>

@@ -29,13 +29,13 @@ export const callbackURL = () => `${window.location.origin}/`;
 /** Ce que Better-Auth renvoie en cas de refus, ramené à une phrase affichable. */
 export function authErrorMessage(error: { message?: string; code?: string }): string {
   if (error.code === "INVALID_EMAIL_OR_PASSWORD") {
-    return "Adresse ou mot de passe incorrect.";
+    return "Incorrect email or password.";
   }
   if (error.code === "EMAIL_NOT_VERIFIED") {
-    return "Adresse non confirmée. Le lien de confirmation est dans vos courriels.";
+    return "Email not confirmed yet. Check your inbox for the confirmation link.";
   }
   if (error.code === "USER_ALREADY_EXISTS") {
-    return "Un compte existe déjà pour cette adresse.";
+    return "An account already exists for that email.";
   }
-  return error.message ?? "La demande a été refusée.";
+  return error.message ?? "The request was refused.";
 }

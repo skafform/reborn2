@@ -33,6 +33,13 @@ export type QueryContext = {
    */
   invitationTokenHash?: string;
   /**
+   * Adresse de la session vérifiée — jamais une valeur fournie par le
+   * client. Rend visibles les invitations adressées à cette adresse, pour
+   * l'Inbox : retrouver une invitation sans le jeton, que seul l'email
+   * original a porté.
+   */
+  userEmail?: string;
+  /**
    * Clé API présentée, en clair et hachée. Une clé publique ou preview est
    * stockée en clair, une clé secrète sous forme de hachage : les deux
    * comparaisons sont donc nécessaires. Comme le jeton d'invitation, la clé
@@ -69,6 +76,9 @@ export function withContext<T>(
     );
     await tx.execute(
       sql`select set_config('app.invitation_token_hash', ${context.invitationTokenHash ?? ""}, true)`,
+    );
+    await tx.execute(
+      sql`select set_config('app.current_user_email', ${context.userEmail ?? ""}, true)`,
     );
     await tx.execute(
       sql`select set_config('app.api_key_token', ${context.apiKeyToken ?? ""}, true)`,

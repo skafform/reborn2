@@ -253,10 +253,36 @@ export function describeInvitation(token: string) {
     if (row.acceptedAt || row.cancelledAt || row.expiresAt <= new Date()) {
       throw new InvitationError(410, "expired", "invitation expirée");
     }
+
+    /**
+     * L'adresse a-t-elle déjà un compte ? L'écran d'acceptation propose alors
+     * *soit* la connexion, *soit* l'inscription, au lieu de faire deviner.
+     *
+     * Ce n'est pas une fuite d'énumération de comptes : la règle d'OWASP vise
+     * le formulaire de connexion public, où l'attaquant choisit librement
+     * l'adresse à tester. Ici elle est fixée par l'invitation, et il faut le
+     * jeton — un secret, déjà validé ci-dessus — pour arriver jusqu'ici. Le
+     * porteur du jeton connaît de toute façon l'adresse visée. Clerk va plus
+     * loin en mettant ce statut dans l'URL du courriel elle-même.
+     *
+     * `lower()` des deux côtés : `invitations.email` est normalisé à la
+     * création, `"user".email` ne l'est pas — même précaution que dans les
+     * policies RLS.
+     *
+     * `"user"` appartient à Better-Auth, hors du schéma Drizzle (ADR 0002) :
+     * d'où le SQL, avec une valeur paramétrée.
+     */
+    const account = await tx.execute(
+      sql`select 1 from "user" where lower(email) = ${row.email} limit 1`,
+    );
+
     return {
       email: row.email,
       organizationName: row.organizationName,
       roleName: row.roleName,
+      // `tx.execute` renvoie le résultat pg complet, pas un tableau de lignes :
+      // le destructurer donnerait toujours `undefined`, silencieusement.
+      hasAccount: (account.rowCount ?? 0) > 0,
     };
   });
 }
@@ -298,12 +324,89 @@ export async function acceptInvitation(input: {
     );
   }
 
-  return withContext(
-    {
-      userId: input.userId,
-      organizationId: invitation.organizationId,
-      invitationTokenHash: tokenHash,
+  return finalizeAcceptance(invitation, input.userId);
+}
+
+/**
+ * Les invitations en attente adressées à une adresse, tous locataires
+ * confondus — l'Inbox. La visibilité vient de la policy RLS `email =
+ * app_current_user_email()` (migration 0020) : cette adresse est celle de la
+ * session vérifiée, jamais une valeur fournie par le client.
+ */
+export function listReceivedInvitations(userId: string, email: string) {
+  return withContext({ userId, userEmail: email }, (tx) =>
+    tx
+      .select({
+        id: invitations.id,
+        organizationName: organizations.name,
+        roleName: roles.name,
+        expiresAt: invitations.expiresAt,
+      })
+      .from(invitations)
+      .innerJoin(organizations, eq(organizations.id, invitations.organizationId))
+      .innerJoin(roles, eq(roles.id, invitations.roleId))
+      .where(
+        and(
+          isNull(invitations.acceptedAt),
+          isNull(invitations.cancelledAt),
+          sql`${invitations.expiresAt} > now()`,
+        ),
+      ),
+  );
+}
+
+/**
+ * Accepte une invitation retrouvée dans l'Inbox — sans jeton, puisque seul son
+ * hachage est stocké ; l'Inbox ne l'a jamais eu en main, contrairement au lien
+ * reçu par email.
+ *
+ * Pas de second contrôle d'adresse en JavaScript ici : la policy RLS
+ * `email = app_current_user_email()` **est** le contrôle. Si la ligne n'est
+ * pas visible, elle n'existe pas pour cette personne (ADR 0012).
+ */
+export async function acceptReceivedInvitation(input: {
+  invitationId: string;
+  userId: string;
+  userEmail: string;
+}): Promise<{ organizationId: string; projectId: string | null }> {
+  const invitation = await withContext(
+    { userId: input.userId, userEmail: input.userEmail },
+    async (tx) => {
+      const [row] = await tx
+        .select()
+        .from(invitations)
+        .where(eq(invitations.id, input.invitationId));
+      if (!row) {
+        throw new InvitationError(404, "unknown_token", "invitation introuvable");
+      }
+      return row;
     },
+  );
+
+  return finalizeAcceptance(invitation, input.userId);
+}
+
+/**
+ * Le cœur commun aux deux chemins d'acceptation — par jeton ou depuis
+ * l'Inbox. Ce qui diffère entre les deux, c'est uniquement *comment* la ligne
+ * a été retrouvée ; une fois retrouvée, la consommer est la même opération.
+ *
+ * `organizationId` dans le contexte suffit à satisfaire la policy de mise à
+ * jour (`organization_id = app_current_organization_id()`), donc le jeton
+ * n'a pas à reparaître ici — il ne servait déjà plus qu'à ça dans l'ancienne
+ * version à un seul chemin.
+ */
+async function finalizeAcceptance(
+  invitation: {
+    id: string;
+    organizationId: string;
+    projectId: string | null;
+    roleId: string;
+  },
+  userId: string,
+): Promise<{ organizationId: string; projectId: string | null }> {
+  return withContext(
+    { userId, organizationId: invitation.organizationId },
     async (tx) => {
       const consumed = await tx
         .update(invitations)
@@ -349,7 +452,7 @@ export async function acceptInvitation(input: {
           .values({
             projectId: invitation.projectId,
             organizationId: invitation.organizationId,
-            userId: input.userId,
+            userId,
             roleId: invitation.roleId,
           })
           .catch(alreadyMember);
@@ -358,7 +461,7 @@ export async function acceptInvitation(input: {
           .insert(organizationMembers)
           .values({
             organizationId: invitation.organizationId,
-            userId: input.userId,
+            userId,
             roleId: invitation.roleId,
           })
           .catch(alreadyMember);

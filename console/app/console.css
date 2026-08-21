@@ -1,21 +1,32 @@
 /* Feuille de style de la console.
  *
- * Le langage visuel est repris de la console de référence
- * (skafform-reborn/Console) — même palette, même échelle, même retenue — et
- * réécrit ici plutôt qu'importé : cette console-là parle à une autre pile.
+ * Le langage visuel vient de `skafform-monday-server/console`, réécrit ici
+ * plutôt qu'importé : ces consoles-là parlent à d'autres piles, et les trois
+ * divergeront.
  *
- * Deux règles tenues d'un bout à l'autre :
+ * Trois règles tenues d'un bout à l'autre :
  *
  * - **Les jetons vivent sur `.console`, pas sur `:root`.** Un jeton sur
  *   `:root` s'applique au document entier — une promesse que ce fichier n'a
  *   pas à faire.
  * - **Seulement ce qui existe aujourd'hui.** Chaque règle sert un élément
- *   rendu par un écran présent. Le reste viendra avec les écrans.
- *
- * Pas de framework CSS, et pas de police embarquée : la pile système est ce
- * que ces machines résolvent de toute façon, et passer à Inter plus tard tient
- * dans un `@font-face`.
+ *   rendu par un écran présent.
+ * - **Aucun lien externe.** La police est servie depuis `public/`, jamais d'un
+ *   CDN : la console doit pouvoir tourner sur un réseau fermé, et un tiers
+ *   dans le chemin de rendu est une dépendance de plus.
  */
+
+/* Une seule ressource binaire, 48 Ko, à graisse variable de 100 à 900 — donc
+   pas un fichier par graisse. Sans elle, `system-ui` donnerait Segoe UI sur
+   Windows, SF Pro sur Mac et autre chose ailleurs : la console changerait
+   d'allure selon la machine, ce qu'on ne peut pas contrôler. */
+@font-face {
+  font-family: "Inter";
+  font-style: normal;
+  font-display: swap;
+  font-weight: 100 900;
+  src: url("/fonts/inter-latin-wght-normal.woff2") format("woff2-variations");
+}
 
 .console {
   --console-background: #f4f4f5;
@@ -27,22 +38,31 @@
   --console-accent: #b45309;
   --console-accent-muted: rgb(180 83 9 / 15%);
   --console-danger: #b91c1c;
+  --console-danger-hover: #991b1b;
 
+  --console-chrome-background: #fafafa;
+  --console-chrome-foreground: #3f3f46;
+  --console-chrome-active-foreground: #18181b;
   --console-foreground-muted: #6b7280;
+
+  --console-topbar-height: 48px;
+  --console-sidebar-width: 200px;
+  /* Les formulaires ne s'étirent pas à la largeur du panneau : une ligne de
+     saisie trop longue est plus difficile à relire qu'à remplir. */
+  --console-form-width: 480px;
 
   --console-radius-sm: 4px;
   --console-radius: 6px;
   --console-radius-lg: 10px;
 
   --console-font-sans:
-    ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    "Inter", ui-sans-serif, system-ui, sans-serif, "Apple Color Emoji", "Segoe UI Emoji";
   --console-font-mono: ui-monospace, SFMono-Regular, Menlo, monospace;
 
+  --console-font-size-2xs: 11px;
   --console-font-size-xs: 12px;
   --console-font-size-sm: 13px;
   --console-font-size-base: 14px;
-  --console-font-size-2xl: 24px;
-  --console-font-size-3xl: 28px;
   --console-tracking-tight: -0.02em;
 
   font-family: var(--console-font-sans);
@@ -60,7 +80,11 @@
     --console-accent: #f59e0b;
     --console-accent-muted: rgb(245 158 11 / 20%);
     --console-danger: #ef4444;
+    --console-danger-hover: #dc2626;
 
+    --console-chrome-background: #060709;
+    --console-chrome-foreground: #d4d4d8;
+    --console-chrome-active-foreground: #fafafa;
     --console-foreground-muted: #9ca3af;
 
     color-scheme: dark;
@@ -78,10 +102,207 @@ body {
   margin: 0;
 }
 
+/* --- Coque --- */
+
+/* L'organization en haut, ses sections à gauche : la répartition dit ce qui
+   change avec quoi. Basculer d'organization en haut remplace tout ce qui est
+   en dessous. */
+.console-shell {
+  display: flex;
+  min-height: 100vh;
+  flex-direction: column;
+  background: var(--console-background);
+  color: var(--console-foreground);
+}
+
+.console-topbar {
+  display: flex;
+  height: var(--console-topbar-height);
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 0 16px;
+  background: var(--console-chrome-background);
+  font-size: var(--console-font-size-sm);
+  color: var(--console-chrome-foreground);
+}
+
+.console-topbar-left,
+.console-topbar-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.console-brand {
+  font-weight: 600;
+  color: var(--console-accent);
+  text-decoration: none;
+}
+
+.console-topbar-divider {
+  color: var(--console-border);
+}
+
+.console-body {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+}
+
+.console-sidebar {
+  width: var(--console-sidebar-width);
+  flex-shrink: 0;
+  padding: 12px 0;
+  background: var(--console-chrome-background);
+}
+
+.console-sidebar ul {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+/* Mêmes jetons que « + New Project » (`.console-link-button--plain`), pas une
+   paire équivalente : `--console-foreground-muted` au repos,
+   `--console-foreground` au survol. Un trait à gauche marque l'état actif —
+   seul lui passe à l'ambre ; le texte ne vire jamais orange.
+   Qualifié par `.console-sidebar` : NavLink rend un `<a>`, et `.console a`
+   (plus bas, pour les liens de contenu) l'emporterait sinon par spécificité —
+   classe+type bat classe seule. */
+.console-sidebar .console-nav-link {
+  display: block;
+  padding: 8px 12px;
+  font-size: var(--console-font-size-base);
+  font-weight: 500;
+  color: var(--console-foreground-muted);
+  text-decoration: none;
+  border-left: 3px solid transparent;
+  border-radius: 0 var(--console-radius-sm) var(--console-radius-sm) 0;
+  transition:
+    color 0.15s,
+    border-color 0.15s;
+}
+
+/* `text-decoration: none` explicite, sinon `.console a:hover` (plus bas, pour
+   les liens de contenu) impose son soulignement : cette règle-ci gagne en
+   spécificité sur `color`, mais un survol n'hérite d'aucun override si la
+   propriété n'est pas répétée ici. */
+.console-sidebar .console-nav-link:hover {
+  color: var(--console-foreground);
+  border-left-color: var(--console-border);
+  text-decoration: none;
+}
+
+.console-sidebar .console-nav-link--active,
+.console-sidebar .console-nav-link--active:hover {
+  color: var(--console-foreground);
+  font-weight: 600;
+  border-left-color: var(--console-accent);
+  text-decoration: none;
+}
+
+/* Le panneau flotte sur le fond plutôt que de coller aux bords : c'est ce qui
+   sépare le contenu de la chrome sans avoir à tracer de bordure. */
+.console-main {
+  flex: 1;
+  min-width: 0;
+  margin: 12px;
+  padding: 24px;
+  background: var(--console-panel-background);
+  border-radius: var(--console-radius-lg);
+}
+
+/* --- Sélecteur d'organization --- */
+
+/* Collé à la marque, séparé d'un `/` : il se lit comme une adresse, pas comme
+   un réglage qu'on irait chercher. */
+.console-switcher {
+  position: relative;
+}
+
+.console-switcher-trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 8px;
+  font-family: inherit;
+  font-size: var(--console-font-size-sm);
+  font-weight: 500;
+  color: var(--console-foreground);
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: var(--console-radius-sm);
+  cursor: pointer;
+  transition:
+    background-color 0.15s,
+    border-color 0.15s;
+}
+
+.console-switcher-trigger:hover,
+.console-switcher-trigger[aria-expanded="true"] {
+  background: var(--console-panel-background);
+  border-color: var(--console-border);
+}
+
+.console-switcher-chevron {
+  font-size: var(--console-font-size-xs);
+  color: var(--console-foreground-muted);
+  /* Le glyphe est bas dans sa boîte ; le remonter le centre sur le libellé. */
+  transform: translateY(-2px);
+}
+
+.console-menu {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  z-index: 10;
+  min-width: 240px;
+  padding: 4px;
+  background: var(--console-panel-background);
+  border: 1px solid var(--console-border);
+  border-radius: var(--console-radius);
+  box-shadow: 0 8px 24px rgb(0 0 0 / 12%);
+}
+
+.console-menu-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  width: 100%;
+  padding: 7px 10px;
+  font-family: inherit;
+  font-size: var(--console-font-size-sm);
+  text-align: left;
+  color: var(--console-foreground);
+  background: transparent;
+  border: none;
+  border-radius: var(--console-radius-sm);
+  cursor: pointer;
+}
+
+.console-menu-item:hover {
+  background: var(--console-border-subtle);
+}
+
+.console-menu-check {
+  color: var(--console-accent);
+}
+
+.console-menu-separator {
+  height: 1px;
+  margin: 4px 0;
+  background: var(--console-border-subtle);
+}
+
 /* --- Panneau centré --- */
 
-/* La disposition des écrans qui existent avant qu'il y ait une coque où les
-   poser : s'inscrire, se connecter, et l'instant où la session se lit encore. */
+/* Pour ce qui existe avant qu'il y ait une coque à remplir : se connecter,
+   s'inscrire, créer la première organization, et l'instant où la session se
+   lit encore. */
 .console-centered {
   display: flex;
   min-height: 100vh;
@@ -101,24 +322,35 @@ body {
   border-radius: var(--console-radius-lg);
 }
 
-/* Les écrans qui portent une liste ou un tableau : la largeur d'un formulaire
-   y écraserait les colonnes. */
-.console-panel--wide {
-  max-width: 640px;
+/* --- Modal ---
+   Le `<dialog>` natif porte lui-même la carte visible — pas de superposition
+   séparée. Ses propriétés par défaut (fond, bordure, `color: CanvasText`) sont
+   réécrites pour rejoindre les jetons de la console ; `::backdrop` reste en
+   dehors de l'arbre `.console`, donc en couleur directe plutôt qu'en jeton. */
+.console-modal {
+  width: 100%;
+  max-width: var(--console-form-width);
+  padding: 28px;
+  background: var(--console-panel-background);
+  color: var(--console-foreground);
+  border: 1px solid var(--console-border-subtle);
+  border-radius: var(--console-radius-lg);
+  box-shadow: 0 16px 48px rgb(0 0 0 / 20%);
 }
 
-.console-page-header {
+.console-modal::backdrop {
+  background: rgb(0 0 0 / 50%);
+}
+
+.console-modal h2 {
+  margin: 0 0 0.625rem;
+}
+
+.console-modal-actions {
   display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 16px;
-  margin-bottom: 20px;
-}
-
-/* Le titre porte sa marge basse pour les pages de texte ; dans la rangée d'en-
-   tête c'est l'alignement flex qui fait ce travail, donc on la retire. */
-.console-page-header h1 {
-  margin: 0;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 4px;
 }
 
 /* --- Contrôles --- */
@@ -135,10 +367,12 @@ body {
   border-radius: var(--console-radius-sm);
   background: transparent;
   color: var(--console-foreground);
+  text-decoration: none;
   cursor: pointer;
   transition:
     border-color 0.15s,
     color 0.15s,
+    background-color 0.15s,
     opacity 0.15s;
 }
 
@@ -163,22 +397,72 @@ body {
   color: #fff;
 }
 
+.console-button--danger {
+  border-color: var(--console-danger);
+  color: var(--console-danger);
+}
+
+.console-button--danger:hover:not(:disabled) {
+  background: var(--console-danger-hover);
+  border-color: var(--console-danger-hover);
+  color: #fff;
+}
+
 .console-button--block {
   width: 100%;
   justify-content: center;
 }
 
-/* Un lien qui doit se lire comme une action — quitter l'écran d'invitation.
-   C'est un lien parce qu'il navigue ; on lui emprunte les règles du bouton
-   plutôt que de troquer l'élément. */
-a.console-button {
-  justify-content: center;
+/* Un bouton qui ne doit pas peser dans une ligne de tableau : du texte, pas
+   une boîte. Une rangée en porte une par colonne d'actions, et autant de
+   rectangles bordés transformerait le tableau en grille de boutons. */
+.console-link-button {
+  padding: 0;
+  font: inherit;
+  font-size: var(--console-font-size-sm);
+  color: var(--console-foreground-muted);
+  background: none;
+  border: none;
+  cursor: pointer;
+  transition: color 0.15s;
+}
+
+.console-link-button:hover:not(:disabled) {
+  color: var(--console-foreground);
+  text-decoration: underline;
+}
+
+.console-link-button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.console-link-button--danger {
+  color: var(--console-danger);
+}
+
+.console-link-button--danger:hover:not(:disabled) {
+  color: var(--console-danger-hover);
+}
+
+/* Une action de haut de page — « + New Project ». Même stratégie que le lien
+   de tableau : du texte, pas une boîte, jamais l'accent. Mais sans le
+   soulignement au survol, qui conviendrait à une phrase, pas à une commande
+   à côté d'un titre. Taille et poids alignés sur le libellé actif de la
+   barre latérale plutôt que sur une ligne de tableau. */
+.console-link-button--plain {
+  font-size: var(--console-font-size-base);
+  font-weight: 500;
+}
+
+.console-link-button--plain:hover:not(:disabled) {
   text-decoration: none;
 }
 
 .console-input {
   display: block;
   width: 100%;
+  max-width: var(--console-form-width);
   padding: 8px 10px;
   font-family: inherit;
   font-size: var(--console-font-size-base);
@@ -209,6 +493,10 @@ a.console-button {
   font-weight: 500;
 }
 
+.console-form {
+  max-width: var(--console-form-width);
+}
+
 /* Les sorties d'un formulaire — créer un compte, revenir à la connexion.
    Assez discrètes pour ne jamais être prises pour l'action attendue. */
 .console-form-footer {
@@ -217,30 +505,23 @@ a.console-button {
   font-size: var(--console-font-size-sm);
 }
 
-.console-inline-form {
-  padding: 16px;
-  margin-bottom: 20px;
-  border: 1px solid var(--console-border);
-  border-radius: var(--console-radius);
-  background: var(--console-background);
-}
+/* --- Mobilier de page --- */
 
-/* --- Listes et tableaux --- */
-
-.console-list {
-  list-style: none;
-  padding: 0;
-  margin: 0 0 20px;
-}
-
-.console-list li {
+.console-page-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 12px;
-  padding: 10px 0;
-  border-bottom: 1px solid var(--console-border-subtle);
+  gap: 16px;
+  margin-bottom: 20px;
 }
+
+/* Le titre porte sa marge basse pour les pages de texte ; dans la rangée
+   d'en-tête c'est l'alignement flex qui fait ce travail. */
+.console-page-header h1 {
+  margin: 0;
+}
+
+/* --- Tableaux --- */
 
 .console-table {
   width: 100%;
@@ -252,8 +533,6 @@ a.console-button {
   text-align: left;
   font-size: var(--console-font-size-xs);
   font-weight: 500;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
   color: var(--console-foreground-muted);
   border-bottom: 1px solid var(--console-border);
 }
@@ -262,14 +541,30 @@ a.console-button {
   padding: 10px 8px;
   font-size: var(--console-font-size-base);
   vertical-align: middle;
-  border-bottom: 1px solid var(--console-border-subtle);
+  transition: background-color 0.15s;
 }
 
-/* Alignées à droite : l'œil lit les adresses le long de la gauche et retrouve
+/* Le survol porte sur la rangée entière : c'est elle qu'on suit du regard
+   jusqu'à sa colonne d'actions, à droite. */
+.console-table tbody tr:hover td {
+  background: var(--console-border-subtle);
+}
+
+.console-table tbody tr:hover td:first-child {
+  border-top-left-radius: var(--console-radius-sm);
+  border-bottom-left-radius: var(--console-radius-sm);
+}
+
+.console-table tbody tr:hover td:last-child {
+  border-top-right-radius: var(--console-radius-sm);
+  border-bottom-right-radius: var(--console-radius-sm);
+}
+
+/* Alignées à droite : l'œil lit les noms le long de la gauche et retrouve
    toutes les actions dans une seule colonne. */
 .console-row-actions {
   display: flex;
-  gap: 8px;
+  gap: 12px;
   justify-content: flex-end;
 }
 
@@ -278,13 +573,21 @@ a.console-button {
   padding: 2px 8px;
   border: 1px solid var(--console-border);
   border-radius: 999px;
-  font-size: var(--console-font-size-xs);
+  font-size: var(--console-font-size-2xs);
   font-weight: 500;
   color: var(--console-foreground-muted);
 }
 
+.console-badge--accent {
+  border-color: var(--console-accent);
+  color: var(--console-accent);
+}
+
 /* --- Retours --- */
 
+/* Une bannière, jamais un éphémère : ce qui mérite d'interrompre ici est ce
+   qu'on ne pourra pas retrouver, et une minuterie serait le mauvais
+   contenant. */
 .console-banner {
   padding: 12px 14px;
   margin-bottom: 20px;
@@ -317,18 +620,33 @@ a.console-button {
   background: var(--console-background);
 }
 
-/* --- Contenu de base --- */
+/* --- Contenu de base ---
+   L'échelle est délibérément resserrée, sur le modèle de Linear : un titre de
+   page s'y distingue par le poids, pas par une taille démesurée par rapport au
+   reste de l'interface — la barre latérale et le panneau parlent la même
+   langue. */
 
+/* Même taille et même poids que le libellé actif de la barre latérale
+   (`.console-nav-link--active` : `font-size-base`, `font-weight: 600`) — un
+   titre de page n'est rien d'autre que la section courante, répétée en haut du
+   panneau. */
 .console h1 {
   margin: 0 0 0.75rem;
-  font-size: var(--console-font-size-3xl);
-  font-weight: 700;
+  font-size: var(--console-font-size-base);
+  font-weight: 600;
   letter-spacing: var(--console-tracking-tight);
 }
 
 .console h2 {
   margin: 0 0 0.625rem;
-  font-size: var(--console-font-size-2xl);
+  font-size: var(--console-font-size-sm);
+  font-weight: 600;
+  letter-spacing: var(--console-tracking-tight);
+}
+
+.console h3 {
+  margin: 0 0 0.5rem;
+  font-size: var(--console-font-size-xs);
   font-weight: 600;
   letter-spacing: var(--console-tracking-tight);
 }
@@ -339,24 +657,19 @@ a.console-button {
   line-height: 1.6;
 }
 
-.console p:last-child {
-  margin-bottom: 0;
-}
-
-.console-text-link {
+.console a {
   color: var(--console-accent);
   text-decoration: none;
 }
 
-.console-text-link:hover {
+.console a:hover {
   text-decoration: underline;
 }
 
-.console-status {
-  font-size: var(--console-font-size-xs);
-  color: var(--console-foreground-muted);
-}
-
-.console-status--error {
-  color: var(--console-danger);
+/* Ce qui sépare deux sections d'une page. Une règle, pas une marge : elle dit
+   que ce qui suit est un autre sujet, pas la suite du précédent. */
+.console hr {
+  margin: 2rem 0;
+  border: none;
+  border-top: 1px solid var(--console-border);
 }

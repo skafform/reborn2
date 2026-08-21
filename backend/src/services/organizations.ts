@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { and, eq } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import { SYSTEM_ROLES } from "../config/permissions.ts";
 import { type Transaction, withContext } from "../db/client.ts";
 import {
@@ -125,6 +125,35 @@ export function listRoles(userId: string, organizationId: string) {
       })
       .from(roles)
       .where(eq(roles.organizationId, organizationId)),
+  );
+}
+
+/**
+ * Les membres d'une organization, avec leur rôle.
+ *
+ * L'adresse et le nom viennent de `"user"`, qui appartient à Better-Auth et
+ * n'est pas déclarée dans le schéma Drizzle (ADR 0002) — d'où la jointure en
+ * SQL. `user` est un mot réservé, d'où les guillemets.
+ *
+ * Les membres de projet ne sont **pas** inclus : ils n'appartiennent pas à
+ * l'organization (architecture/invitations.md), et les confondre ici ferait
+ * croire l'inverse.
+ */
+export function listMembers(userId: string, organizationId: string) {
+  return withContext({ userId, organizationId }, (tx) =>
+    tx
+      .select({
+        userId: organizationMembers.userId,
+        roleId: organizationMembers.roleId,
+        roleName: roles.name,
+        name: sql<string>`u.name`,
+        email: sql<string>`u.email`,
+        joinedAt: organizationMembers.createdAt,
+      })
+      .from(organizationMembers)
+      .innerJoin(roles, eq(roles.id, organizationMembers.roleId))
+      .innerJoin(sql`"user" u`, sql`u.id = ${organizationMembers.userId}`)
+      .where(eq(organizationMembers.organizationId, organizationId)),
   );
 }
 

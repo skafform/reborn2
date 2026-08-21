@@ -1,17 +1,21 @@
 import { createRoute, OpenAPIHono, z } from "@hono/zod-openapi";
 import { HTTPException } from "hono/http-exception";
+import { heldPermissions } from "../auth/authorization.ts";
 import { requirePermission } from "../auth/escalation.ts";
 import { auth } from "../auth.ts";
 import {
   acceptInvitation,
+  acceptReceivedInvitation,
   cancelInvitation,
   createInvitation,
   describeInvitation,
   listPendingInvitations,
+  listReceivedInvitations,
 } from "../services/invitations.ts";
 import {
   createOrganization,
   createProject,
+  listMembers,
   listOrganizationsForUser,
   listProjects,
   listRoles,
@@ -113,6 +117,74 @@ managementRoutes.openapi(
   },
 );
 
+/**
+ * Ce que l'acteur peut faire dans cette organization.
+ *
+ * L'interface a besoin de le savoir pour ne pas proposer une porte fermée.
+ * Le **nom du rôle ne suffit pas** : les rôles sont personnalisables par
+ * organization (ADR 0011), donc « viewer » ne garantit rien — et déduire les
+ * permissions d'un nom côté client recopierait la matrice RBAC hors de son
+ * unique source de vérité.
+ *
+ * ⚠️ Masquer une entrée d'interface est un **confort, jamais le garde-fou** :
+ * chaque route reste gardée par `can()`, seule autorité.
+ */
+managementRoutes.openapi(
+  createRoute({
+    method: "get",
+    path: "/organizations/{organizationId}/me",
+    summary: "Le rôle et les permissions de l'acteur",
+    middleware: [requireSession, requireOrganization] as const,
+    request: { params: z.object({ organizationId: z.uuid() }) },
+    responses: {
+      200: json(
+        z.object({ permissions: z.array(z.string()) }).openapi("CurrentMembership"),
+        "Permissions",
+      ),
+    },
+  }),
+  (c) => c.json({ permissions: [...heldPermissions(c.get("actor"))] }),
+);
+
+const MemberSchema = z
+  .object({
+    userId: z.string(),
+    roleId: z.uuid(),
+    roleName: z.string(),
+    name: z.string(),
+    email: z.email(),
+    joinedAt: z.date(),
+  })
+  .openapi("Member");
+
+/**
+ * Les membres d'une organization.
+ *
+ * Gardée par `member.read` et non `member.manage` : voir l'équipe et pouvoir
+ * la modifier sont deux choses. Un `viewer` — « un admin sans écriture » — a
+ * la première, pas la seconde. Les rôles de projet (`guest`, `contributor`,
+ * `editor`) n'ont ni l'une ni l'autre : un pigiste n'a pas à voir l'annuaire
+ * de l'organization.
+ *
+ * `member.read` s'arrête à l'annuaire : les invitations en attente relèvent du
+ * recrutement, donc de `member.manage`.
+ */
+managementRoutes.openapi(
+  createRoute({
+    method: "get",
+    path: "/organizations/{organizationId}/members",
+    summary: "Les membres d'une organization",
+    middleware: [requireSession, requireOrganization] as const,
+    request: { params: z.object({ organizationId: z.uuid() }) },
+    responses: { 200: json(z.array(MemberSchema), "Liste") },
+  }),
+  async (c) => {
+    const { organizationId } = c.req.valid("param");
+    requirePermission(c.get("actor"), "member.read");
+    return c.json(await listMembers(c.get("userId"), organizationId));
+  },
+);
+
 const RoleSchema = z
   .object({
     id: z.uuid(),
@@ -169,6 +241,9 @@ managementRoutes.openapi(
   }),
   async (c) => {
     const { organizationId } = c.req.valid("param");
+    // `member.manage`, pas `member.read` : une invitation en attente relève du
+    // recrutement, pas de l'annuaire. Un `viewer` voit qui est dans l'équipe,
+    // pas qui est en train d'y être admis.
     requirePermission(c.get("actor"), "member.manage");
     return c.json(await listPendingInvitations(c.get("userId"), organizationId));
   },
@@ -231,6 +306,21 @@ managementRoutes.openapi(
   },
 );
 
+const InvitationDescriptionSchema = z
+  .object({
+    email: z.email(),
+    organizationName: z.string(),
+    roleName: z.string(),
+    /**
+     * L'adresse visée a-t-elle déjà un compte ? L'écran d'acceptation propose
+     * alors *soit* la connexion, *soit* l'inscription — plutôt que les deux,
+     * en laissant deviner. Gardé par le jeton, donc sans énumération possible
+     * (voir `describeInvitation`).
+     */
+    hasAccount: z.boolean(),
+  })
+  .openapi("InvitationDescription");
+
 /**
  * Consulter une invitation depuis son jeton. **Sans session** : le
  * destinataire n'a pas encore de compte le plus souvent, et le jeton fait
@@ -242,7 +332,7 @@ managementRoutes.openapi(
     path: "/invitations/{token}",
     summary: "Décrire une invitation",
     request: { params: z.object({ token: z.string().min(1) }) },
-    responses: { 200: json(z.any(), "Détail") },
+    responses: { 200: json(InvitationDescriptionSchema, "Détail") },
   }),
   async (c) => c.json(await describeInvitation(c.req.valid("param").token)),
 );
@@ -256,15 +346,61 @@ managementRoutes.openapi(
     request: { params: z.object({ token: z.string().min(1) }) },
     responses: { 200: json(z.any(), "Acceptée") },
   }),
-  async (c) => {
-    const session = await auth.api.getSession({ headers: c.req.raw.headers });
-    if (!session) throw new HTTPException(401);
-    return c.json(
+  async (c) =>
+    c.json(
       await acceptInvitation({
         token: c.req.valid("param").token,
-        userId: session.user.id,
-        userEmail: session.user.email,
+        userId: c.get("userId"),
+        userEmail: c.get("userEmail"),
       }),
-    );
-  },
+    ),
+);
+
+// ---------------------------------------------------------------------------
+// Inbox
+// ---------------------------------------------------------------------------
+
+const ReceivedInvitationSchema = z
+  .object({
+    id: z.uuid(),
+    organizationName: z.string(),
+    roleName: z.string(),
+    expiresAt: z.date(),
+  })
+  .openapi("ReceivedInvitation");
+
+/**
+ * Les invitations en attente adressées à la session vérifiée, tous
+ * locataires confondus — jamais un `organizationId` en paramètre, cette
+ * route existe justement pour qui n'en a encore aucune.
+ */
+managementRoutes.openapi(
+  createRoute({
+    method: "get",
+    path: "/inbox",
+    summary: "Les invitations reçues",
+    middleware: [requireSession] as const,
+    responses: { 200: json(z.array(ReceivedInvitationSchema), "Liste") },
+  }),
+  async (c) =>
+    c.json(await listReceivedInvitations(c.get("userId"), c.get("userEmail"))),
+);
+
+managementRoutes.openapi(
+  createRoute({
+    method: "post",
+    path: "/inbox/{invitationId}/accept",
+    summary: "Accepter une invitation reçue",
+    middleware: [requireSession] as const,
+    request: { params: z.object({ invitationId: z.uuid() }) },
+    responses: { 200: json(z.any(), "Acceptée") },
+  }),
+  async (c) =>
+    c.json(
+      await acceptReceivedInvitation({
+        invitationId: c.req.valid("param").invitationId,
+        userId: c.get("userId"),
+        userEmail: c.get("userEmail"),
+      }),
+    ),
 );

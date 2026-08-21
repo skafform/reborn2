@@ -23,6 +23,7 @@ export const PERMISSIONS = {
   "schema.read": "Lire les définitions de types de contenu",
   "schema.write": "Créer et modifier les types de contenu",
 
+  "member.read": "Voir les membres de l'organization",
   "member.manage": "Inviter, retirer et changer le rôle d'un membre non privilégié",
   "member.manage_admin": "Accorder ou retirer les rôles owner et admin",
 
@@ -78,6 +79,7 @@ export const SYSTEM_ROLES: readonly SystemRole[] = [
       "content.write",
       "content.publish",
       "schema.write",
+      "member.read",
       "member.manage",
       "role.manage",
       "apikey.manage",
@@ -88,7 +90,11 @@ export const SYSTEM_ROLES: readonly SystemRole[] = [
   {
     name: "viewer",
     scope: "organization",
-    permissions: [...CONTENT_READ],
+    // Un `viewer` est « un admin sans écriture » : il voit l'équipe sans
+    // pouvoir la modifier. C'est ce qui distingue `member.read` de
+    // `member.manage` — sans cette colonne, les deux n'en feraient qu'une
+    // (ADR 0004).
+    permissions: [...CONTENT_READ, "member.read"],
   },
   {
     name: "editor",

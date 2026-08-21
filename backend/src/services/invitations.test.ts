@@ -11,11 +11,13 @@ import { invitations, organizationMembers, roles } from "../db/schema.ts";
 import { destroyOrganization, destroyUsers } from "../test-support/cleanup.ts";
 import {
   acceptInvitation,
+  acceptReceivedInvitation,
   cancelInvitation,
   createInvitation,
   describeInvitation,
   InvitationError,
   listPendingInvitations,
+  listReceivedInvitations,
 } from "./invitations.ts";
 import { createOrganization, createProject } from "./organizations.ts";
 
@@ -115,6 +117,23 @@ describe("invitations", () => {
     assert.equal(described.email, guest.email);
     assert.equal(described.organizationName, "Acme");
     assert.equal(described.roleName, "viewer");
+  });
+
+  /**
+   * L'écran d'acceptation propose *soit* la connexion, *soit* l'inscription.
+   * Sans ce booléen, il affichait les deux et laissait deviner — au prix
+   * d'une erreur incompréhensible en cas de mauvais choix.
+   */
+  it("dit si l'adresse invitée a déjà un compte", async () => {
+    const existant = await makeUser("avec-compte");
+    const { token } = await invite(existant.email, viewerRoleId);
+    assert.equal((await describeInvitation(token)).hasAccount, true);
+  });
+
+  it("dit qu'une adresse sans compte n'en a pas", async () => {
+    const inconnue = `jamais-inscrit-${randomUUID()}@skafform.test`;
+    const { token } = await invite(inconnue, viewerRoleId);
+    assert.equal((await describeInvitation(token)).hasAccount, false);
   });
 
   it("un jeton inconnu ne révèle rien", async () => {
@@ -388,6 +407,94 @@ describe("invitations", () => {
             userEmail: rapide.email,
           }),
         refusal,
+      );
+    });
+  });
+
+  /**
+   * L'Inbox : retrouver une invitation par adresse plutôt que par jeton.
+   * Régression du cas rencontré en éprouvant la console — se connecter
+   * directement, sans passer par le lien de l'email, laissait l'invitation
+   * invisible.
+   */
+  describe("Inbox", () => {
+    it("montre une invitation en attente à l'adresse concernée", async () => {
+      const guest = await makeUser("inbox");
+      await invite(guest.email, viewerRoleId);
+
+      const received = await listReceivedInvitations(guest.id, guest.email);
+      assert.equal(received.length, 1);
+      assert.equal(received[0]?.organizationName, "Acme");
+      assert.equal(received[0]?.roleName, "viewer");
+    });
+
+    it("ne montre rien à une adresse non concernée", async () => {
+      const guest = await makeUser("inbox-cible");
+      const stranger = await makeUser("inbox-etranger");
+      await invite(guest.email, viewerRoleId);
+
+      const received = await listReceivedInvitations(stranger.id, stranger.email);
+      assert.equal(received.length, 0);
+    });
+
+    it("accepte une invitation par identifiant, sans jeton", async () => {
+      const guest = await makeUser("inbox-accept");
+      await invite(guest.email, viewerRoleId);
+
+      const [received] = await listReceivedInvitations(guest.id, guest.email);
+      assert.ok(received);
+
+      const result = await acceptReceivedInvitation({
+        invitationId: received.id,
+        userId: guest.id,
+        userEmail: guest.email,
+      });
+      assert.equal(result.organizationId, organizationId);
+
+      const actor = await resolveActor(guest.id, organizationId);
+      assert.equal(actor.grant?.scope, "organization");
+    });
+
+    it("disparaît de l'Inbox une fois acceptée", async () => {
+      const guest = await makeUser("inbox-disparait");
+      await invite(guest.email, viewerRoleId);
+
+      const [received] = await listReceivedInvitations(guest.id, guest.email);
+      assert.ok(received);
+      await acceptReceivedInvitation({
+        invitationId: received.id,
+        userId: guest.id,
+        userEmail: guest.email,
+      });
+
+      const after = await listReceivedInvitations(guest.id, guest.email);
+      assert.equal(after.length, 0);
+    });
+
+    it("refuse d'accepter par identifiant une invitation d'une autre adresse", async () => {
+      const guest = await makeUser("inbox-visee");
+      const stranger = await makeUser("inbox-usurpateur");
+      await invite(guest.email, viewerRoleId);
+
+      const [received] = await listReceivedInvitations(guest.id, guest.email);
+      assert.ok(received);
+
+      await assert.rejects(
+        () =>
+          acceptReceivedInvitation({
+            invitationId: received.id,
+            userId: stranger.id,
+            userEmail: stranger.email,
+          }),
+        (error: unknown) => {
+          // Invisible pour cette adresse : RLS ne renvoie aucune ligne, donc
+          // le même 404 qu'un identifiant inexistant — pas de 403, rien à
+          // confirmer (ADR 0012).
+          assert.ok(error instanceof InvitationError);
+          assert.equal(error.status, 404);
+          assert.equal(error.reason, "unknown_token");
+          return true;
+        },
       );
     });
   });

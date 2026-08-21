@@ -1,5 +1,6 @@
-import { Form, Link, redirect, useNavigation } from "react-router";
+import { Form, Link, redirect, useNavigation, useSearchParams } from "react-router";
 import { authClient, authErrorMessage } from "../lib/auth";
+import { Banner, Button, Field } from "../ui/controls";
 import type { Route } from "./+types/login";
 
 export async function clientAction({ request }: Route.ClientActionArgs) {
@@ -16,30 +17,30 @@ export async function clientAction({ request }: Route.ClientActionArgs) {
 
 export default function Login({ actionData }: Route.ComponentProps) {
   const busy = useNavigation().state !== "idle";
+  // Rempli par le lien d'une invitation, jamais imposé : l'adresse reste
+  // modifiable, pour la personne qui préfère se connecter avec une autre.
+  const prefilledEmail = useSearchParams()[0].get("email") ?? undefined;
 
   return (
     <div className="console console-centered">
       <div className="console-panel">
-        <h1>Se connecter</h1>
+        <h1>Sign in</h1>
 
-        {actionData?.error && (
-          <p className="console-banner console-banner--error">{actionData.error}</p>
-        )}
+        {actionData?.error && <Banner tone="error">{actionData.error}</Banner>}
 
         <Form method="post">
-          <label className="console-field">
-            <span className="console-label">Adresse</span>
+          <Field label="Email">
             <input
               className="console-input"
               name="email"
               type="email"
               required
               autoComplete="email"
+              defaultValue={prefilledEmail}
             />
-          </label>
+          </Field>
 
-          <label className="console-field">
-            <span className="console-label">Mot de passe</span>
+          <Field label="Password">
             <input
               className="console-input"
               name="password"
@@ -47,21 +48,15 @@ export default function Login({ actionData }: Route.ComponentProps) {
               required
               autoComplete="current-password"
             />
-          </label>
+          </Field>
 
-          <button
-            className="console-button console-button--primary console-button--block"
-            type="submit"
-            disabled={busy}
-          >
-            {busy ? "Connexion…" : "Se connecter"}
-          </button>
+          <Button type="submit" variant="primary" block disabled={busy}>
+            {busy ? "Signing in…" : "Sign in"}
+          </Button>
         </Form>
 
         <p className="console-form-footer">
-          <Link className="console-text-link" to="/signup">
-            Créer un compte
-          </Link>
+          <Link to="/signup">Create an account</Link>
         </p>
       </div>
     </div>

@@ -12,6 +12,7 @@ import { auth } from "../auth.ts";
 
 export type Variables = {
   userId: string;
+  userEmail: string;
   actor: Actor;
 };
 
@@ -23,6 +24,9 @@ export const requireSession = createMiddleware<{ Variables: Variables }>(
       throw new HTTPException(401, { message: "authentification requise" });
     }
     c.set("userId", session.user.id);
+    // Vérifiée par la session, jamais fournie par le client — c'est ce qui
+    // rend l'Inbox sûre (services/invitations.ts, listReceivedInvitations).
+    c.set("userEmail", session.user.email);
     await next();
   },
 );

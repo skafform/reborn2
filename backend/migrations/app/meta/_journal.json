@@ -141,6 +141,27 @@
       "when": 1787243713534,
       "tag": "0019_delete_organization_cascade",
       "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "7",
+      "when": 1787243714534,
+      "tag": "0020_invitations_by_email",
+      "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "7",
+      "when": 1787243715534,
+      "tag": "0021_invitation_email_reveals",
+      "breakpoints": true
+    },
+    {
+      "idx": 22,
+      "version": "7",
+      "when": 1787243716534,
+      "tag": "0022_member_read_permission",
+      "breakpoints": true
     }
   ]
 }

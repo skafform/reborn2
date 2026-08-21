@@ -1,5 +1,6 @@
-import { Form, Link, redirect, useNavigation } from "react-router";
+import { Form, Link, redirect, useNavigation, useSearchParams } from "react-router";
 import { authClient, authErrorMessage, callbackURL } from "../lib/auth";
+import { Banner, Button, Field } from "../ui/controls";
 import type { Route } from "./+types/signup";
 
 /**
@@ -27,35 +28,34 @@ export async function clientAction({ request }: Route.ClientActionArgs) {
 
 export default function Signup({ actionData }: Route.ComponentProps) {
   const busy = useNavigation().state !== "idle";
+  // Rempli par le lien d'une invitation, jamais imposé : l'adresse reste
+  // modifiable, pour la personne qui préfère s'inscrire avec une autre.
+  const prefilledEmail = useSearchParams()[0].get("email") ?? undefined;
 
   return (
     <div className="console console-centered">
       <div className="console-panel">
-        <h1>Créer un compte</h1>
+        <h1>Create an account</h1>
 
-        {actionData?.error && (
-          <p className="console-banner console-banner--error">{actionData.error}</p>
-        )}
+        {actionData?.error && <Banner tone="error">{actionData.error}</Banner>}
 
         <Form method="post">
-          <label className="console-field">
-            <span className="console-label">Nom</span>
+          <Field label="Name">
             <input className="console-input" name="name" required autoComplete="name" />
-          </label>
+          </Field>
 
-          <label className="console-field">
-            <span className="console-label">Adresse</span>
+          <Field label="Email">
             <input
               className="console-input"
               name="email"
               type="email"
               required
               autoComplete="email"
+              defaultValue={prefilledEmail}
             />
-          </label>
+          </Field>
 
-          <label className="console-field">
-            <span className="console-label">Mot de passe</span>
+          <Field label="Password">
             <input
               className="console-input"
               name="password"
@@ -64,21 +64,15 @@ export default function Signup({ actionData }: Route.ComponentProps) {
               minLength={8}
               autoComplete="new-password"
             />
-          </label>
+          </Field>
 
-          <button
-            className="console-button console-button--primary console-button--block"
-            type="submit"
-            disabled={busy}
-          >
-            {busy ? "Création…" : "Créer le compte"}
-          </button>
+          <Button type="submit" variant="primary" block disabled={busy}>
+            {busy ? "Creating…" : "Create account"}
+          </Button>
         </Form>
 
         <p className="console-form-footer">
-          <Link className="console-text-link" to="/login">
-            J'ai déjà un compte
-          </Link>
+          <Link to="/login">I already have an account</Link>
         </p>
       </div>
     </div>
