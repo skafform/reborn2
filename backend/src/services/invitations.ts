@@ -285,6 +285,9 @@ export function describeInvitation(token: string) {
       .select({
         email: invitations.email,
         organizationName: organizations.name,
+        // `null` pour une invitation d'organization — d'où la jointure
+        // gauche, et non interne comme les deux autres.
+        projectName: projects.name,
         roleName: roles.name,
         expiresAt: invitations.expiresAt,
         acceptedAt: invitations.acceptedAt,
@@ -293,6 +296,7 @@ export function describeInvitation(token: string) {
       .from(invitations)
       .innerJoin(roles, eq(roles.id, invitations.roleId))
       .innerJoin(organizations, eq(organizations.id, invitations.organizationId))
+      .leftJoin(projects, eq(projects.id, invitations.projectId))
       .where(eq(invitations.tokenHash, hashToken(token)));
 
     if (!row) {
@@ -327,6 +331,7 @@ export function describeInvitation(token: string) {
     return {
       email: row.email,
       organizationName: row.organizationName,
+      projectName: row.projectName,
       roleName: row.roleName,
       // `tx.execute` renvoie le résultat pg complet, pas un tableau de lignes :
       // le destructurer donnerait toujours `undefined`, silencieusement.
@@ -387,12 +392,16 @@ export function listReceivedInvitations(userId: string, email: string) {
       .select({
         id: invitations.id,
         organizationName: organizations.name,
+        // « Ideatrove — editor » ne dit pas *sur quoi*. `null` pour une
+        // invitation d'organization, d'où la jointure gauche.
+        projectName: projects.name,
         roleName: roles.name,
         expiresAt: invitations.expiresAt,
       })
       .from(invitations)
       .innerJoin(organizations, eq(organizations.id, invitations.organizationId))
       .innerJoin(roles, eq(roles.id, invitations.roleId))
+      .leftJoin(projects, eq(projects.id, invitations.projectId))
       .where(
         and(
           isNull(invitations.acceptedAt),

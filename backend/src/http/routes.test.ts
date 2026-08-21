@@ -4,7 +4,7 @@ import { after, before, describe, it } from "node:test";
 import { and, eq } from "drizzle-orm";
 import { app } from "../app.ts";
 import { closePool, withContext } from "../db/client.ts";
-import { organizationMembers, roles } from "../db/schema.ts";
+import { organizationMembers, projectMembers, roles } from "../db/schema.ts";
 import { destroyOrganization, destroyUsers } from "../test-support/cleanup.ts";
 import { createVerifiedUser } from "../test-support/users.ts";
 
@@ -37,11 +37,14 @@ describe("routes de gestion", () => {
   let viewer: Session;
   let outsider: Session;
   let organizationId = "";
+  /** Tous les comptes créés par la suite, y compris par ses sous-suites. */
+  const sessions: Session[] = [];
 
   before(async () => {
     owner = await signUp("owner");
     viewer = await signUp("viewer");
     outsider = await signUp("outsider");
+    sessions.push(owner, viewer, outsider);
 
     const response = await call("/api/organizations", owner, {
       method: "POST",
@@ -66,7 +69,7 @@ describe("routes de gestion", () => {
 
   after(async () => {
     await destroyOrganization(owner.userId, organizationId);
-    await destroyUsers([owner.userId, viewer.userId, outsider.userId]);
+    await destroyUsers(sessions.map((s) => s.userId));
     await closePool();
   });
 
@@ -77,9 +80,8 @@ describe("routes de gestion", () => {
 
   it("ne liste que les organizations de l'utilisateur", async () => {
     const mine = await call("/api/organizations", owner);
-    const list = (await mine.json()) as { id: string; role: string }[];
+    const list = (await mine.json()) as { id: string; name: string }[];
     assert.ok(list.some((o) => o.id === organizationId));
-    assert.equal(list.find((o) => o.id === organizationId)?.role, "owner");
 
     const theirs = await call("/api/organizations", outsider);
     const empty = (await theirs.json()) as { id: string }[];
@@ -347,6 +349,134 @@ describe("routes de gestion", () => {
       404,
       "indiscernable d'une organization existante mais inaccessible",
     );
+  });
+
+  /**
+   * Un membre de projet est extérieur à l'organization : aucune ligne dans
+   * `organization_members`. Il doit malgré tout la voir dans son sélecteur et
+   * atteindre son projet — sans rien voir des autres
+   * (architecture/multi-tenant.md).
+   */
+  describe("membre de projet", () => {
+    let pigiste: Session;
+    let sien = "";
+    let autre = "";
+
+    before(async () => {
+      pigiste = await signUp("pigiste");
+      sessions.push(pigiste);
+
+      const create = async (name: string) => {
+        const response = await call(
+          `/api/organizations/${organizationId}/projects`,
+          owner,
+          { method: "POST", body: JSON.stringify({ name }) },
+        );
+        return ((await response.json()) as { id: string }).id;
+      };
+      sien = await create("Le sien");
+      autre = await create("Pas le sien");
+
+      await withContext({ userId: owner.userId, organizationId }, async (tx) => {
+        const [role] = await tx
+          .select()
+          .from(roles)
+          .where(
+            and(eq(roles.organizationId, organizationId), eq(roles.name, "editor")),
+          );
+        assert.ok(role);
+        await tx.insert(projectMembers).values({
+          projectId: sien,
+          organizationId,
+          userId: pigiste.userId,
+          roleId: role.id,
+        });
+      });
+    });
+
+    it("voit l'organization hôte, sans en être membre", async () => {
+      const response = await call("/api/organizations", pigiste);
+      assert.equal(response.status, 200);
+      const list = (await response.json()) as { id: string }[];
+      assert.ok(
+        list.some((o) => o.id === organizationId),
+        "sans elle, son projet serait inatteignable",
+      );
+    });
+
+    it("ne voit que le projet dont il est membre", async () => {
+      const response = await call(
+        `/api/organizations/${organizationId}/projects`,
+        pigiste,
+      );
+      assert.equal(response.status, 200);
+      const list = (await response.json()) as { id: string }[];
+      assert.deepEqual(
+        list.map((p) => p.id),
+        [sien],
+        "le nom des autres projets ne le regarde pas",
+      );
+    });
+
+    /**
+     * Ses permissions existent, mais aucune ne vaut sans projet cible. Les
+     * rendre telles quelles ferait croire à la console qu'il peut agir sur
+     * l'organization.
+     */
+    it("ne peut rien faire au niveau de l'organization", async () => {
+      const response = await call(`/api/organizations/${organizationId}/me`, pigiste);
+      assert.equal(response.status, 200);
+      const { permissions } = (await response.json()) as { permissions: string[] };
+      assert.deepEqual(permissions, []);
+    });
+
+    it("détient ses permissions dans son projet", async () => {
+      const response = await call(
+        `/api/organizations/${organizationId}/projects/${sien}/me`,
+        pigiste,
+      );
+      assert.equal(response.status, 200);
+      const { permissions } = (await response.json()) as { permissions: string[] };
+      assert.ok(permissions.includes("content.write"));
+      assert.ok(!permissions.includes("member.read"), "un pigiste ne recrute pas");
+    });
+
+    it("répond 404 sur un projet qui n'est pas le sien", async () => {
+      for (const path of [
+        `/api/organizations/${organizationId}/projects/${autre}`,
+        `/api/organizations/${organizationId}/projects/${autre}/me`,
+        `/api/organizations/${organizationId}/projects/${autre}/members`,
+      ]) {
+        const response = await call(path, pigiste);
+        assert.equal(response.status, 404, `${path} ne doit rien révéler`);
+      }
+    });
+
+    it("ne voit pas l'équipe de son propre projet", async () => {
+      const response = await call(
+        `/api/organizations/${organizationId}/projects/${sien}/members`,
+        pigiste,
+      );
+      assert.equal(
+        response.status,
+        403,
+        "il voit le projet : il n'y a plus rien à cacher, seulement à refuser",
+      );
+    });
+
+    it("le owner, lui, voit l'équipe du projet", async () => {
+      const response = await call(
+        `/api/organizations/${organizationId}/projects/${sien}/members`,
+        owner,
+      );
+      assert.equal(response.status, 200);
+      const members = (await response.json()) as { userId: string; roleName: string }[];
+      assert.deepEqual(
+        members.map((m) => m.userId),
+        [pigiste.userId],
+      );
+      assert.equal(members[0]?.roleName, "editor");
+    });
   });
 
   it("expose les routes dans la spec OpenAPI", async () => {

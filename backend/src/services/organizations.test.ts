@@ -6,6 +6,7 @@ import { and, eq } from "drizzle-orm";
  * Ces tests créent de vrais utilisateurs Better-Auth : `organization_members`
  * porte une clé étrangère vers sa table `user`.
  */
+import { heldPermissions, resolveActor } from "../auth/authorization.ts";
 import { auth } from "../auth.ts";
 import { PERMISSION_KEYS } from "../config/permissions.ts";
 import { closePool, withContext } from "../db/client.ts";
@@ -16,11 +17,7 @@ import {
   roles,
 } from "../db/schema.ts";
 import { destroyOrganization, destroyUsers } from "../test-support/cleanup.ts";
-import {
-  createOrganization,
-  listOrganizationsForUser,
-  permissionsForMember,
-} from "./organizations.ts";
+import { createOrganization, listOrganizationsForUser } from "./organizations.ts";
 
 const created: { id: string; ownerId: string }[] = [];
 
@@ -83,9 +80,9 @@ describe("createOrganization", () => {
     const org = await createOrganization({ userId: alice, name: "Perms" });
     created.push({ id: org.id, ownerId: alice });
 
-    const held = await permissionsForMember(alice, org.id);
+    const actor = await resolveActor(alice, org.id);
     assert.deepEqual(
-      held.map((p) => p.key).sort(),
+      [...heldPermissions(actor)].sort(),
       [...PERMISSION_KEYS].sort(),
       "sans quoi un owner ne pourrait pas accorder ce qu'il ne détient pas",
     );
@@ -102,7 +99,7 @@ describe("createOrganization", () => {
       !forAlice.some((o) => o.id === globex.id),
       "Alice ne doit pas voir l'organization de Bob",
     );
-    assert.equal(forAlice.find((o) => o.id === acme.id)?.role, "owner");
+    assert.equal(forAlice.find((o) => o.id === acme.id)?.name, "Chez Alice");
   });
 
   it("refuse d'assigner à un membre le rôle d'une autre organization", async () => {

@@ -1,11 +1,14 @@
 import { randomUUID } from "node:crypto";
 import { and, eq, sql } from "drizzle-orm";
+import { union } from "drizzle-orm/pg-core";
+import { type Actor, can } from "../auth/authorization.ts";
 import { type Permission, SYSTEM_ROLES } from "../config/permissions.ts";
 import { type Transaction, withContext } from "../db/client.ts";
 import {
   environments,
   organizationMembers,
   organizations,
+  projectMembers,
   projects,
   rolePermissions,
   roles,
@@ -87,22 +90,41 @@ async function seedSystemRoles(
   return ownerRoleId;
 }
 
-/** Les organizations dont l'utilisateur est membre, avec son rôle. */
+/**
+ * Les organizations de quelqu'un — la sienne, et celles qui l'hébergent.
+ *
+ * **Deux appartenances, pas une.** Sans le nom du rôle : il n'aurait pas de
+ * sens pour un membre de projet, dont le rôle vit sur le projet et peut
+ * différer de l'un à l'autre. Ce qu'on peut faire se demande à `/me`.
+ */
 export function listOrganizationsForUser(userId: string) {
   return withContext({ userId }, (tx) =>
-    tx
-      .select({
-        id: organizations.id,
-        name: organizations.name,
-        role: roles.name,
-      })
-      .from(organizationMembers)
-      .innerJoin(
-        organizations,
-        eq(organizations.id, organizationMembers.organizationId),
-      )
-      .innerJoin(roles, eq(roles.id, organizationMembers.roleId))
-      .where(eq(organizationMembers.userId, userId)),
+    union(
+      tx
+        .select({ id: organizations.id, name: organizations.name })
+        .from(organizationMembers)
+        .innerJoin(
+          organizations,
+          eq(organizations.id, organizationMembers.organizationId),
+        )
+        .where(eq(organizationMembers.userId, userId)),
+      // Un membre de projet n'a aucune ligne dans `organization_members` — il
+      // reste extérieur à l'organization. Elle doit pourtant apparaître dans
+      // son sélecteur, sans quoi son projet est inatteignable
+      // (architecture/multi-tenant.md).
+      tx
+        .select({ id: organizations.id, name: organizations.name })
+        .from(projectMembers)
+        .innerJoin(organizations, eq(organizations.id, projectMembers.organizationId))
+        .where(eq(projectMembers.userId, userId)),
+    )
+      // `union` dédoublonne : trois projets dans la même organization n'y
+      // font qu'une entrée.
+      //
+      // L'ordre est explicite parce que la racine de la console entre dans la
+      // **première** — sans `order by`, une union ne promet aucun ordre, et
+      // l'organization d'arrivée pourrait changer d'une visite à l'autre.
+      .orderBy(sql`name`),
   );
 }
 
@@ -189,23 +211,6 @@ export function listMembers(userId: string, organizationId: string) {
   );
 }
 
-/** Les permissions détenues par un utilisateur dans une organization. */
-export function permissionsForMember(userId: string, organizationId: string) {
-  return withContext({ userId, organizationId }, (tx) =>
-    tx
-      .select({ key: rolePermissions.permissionKey })
-      .from(organizationMembers)
-      .innerJoin(roles, eq(roles.id, organizationMembers.roleId))
-      .innerJoin(rolePermissions, eq(rolePermissions.roleId, roles.id))
-      .where(
-        and(
-          eq(organizationMembers.userId, userId),
-          eq(organizationMembers.organizationId, organizationId),
-        ),
-      ),
-  );
-}
-
 /** Crée un projet et son environnement `master`, dans la même transaction. */
 export async function createProject(input: {
   userId: string;
@@ -233,12 +238,72 @@ export async function createProject(input: {
   );
 }
 
-/** Les projets visibles dans une organization. */
-export function listProjects(userId: string, organizationId: string) {
-  return withContext({ userId, organizationId }, (tx) =>
+/**
+ * Les projets qu'un acteur peut lire dans une organization.
+ *
+ * **On voit les projets que sa portée atteint** — une seule règle, exprimée par
+ * `can()`, l'unique autorité d'autorisation. Une portée organization les
+ * atteint tous ; une portée projet, ceux où l'on est membre.
+ *
+ * ⚠️ Le filtrage n'est **pas** une policy RLS. Une fois le contexte posé sur
+ * l'organization, toutes ses lignes franchissent la frontière de locataire —
+ * c'est le rôle de RLS et rien de plus. Restreindre à ses projets est une
+ * décision de rôles, donc applicative ([securite.md](../../../docs/architecture/securite.md)).
+ */
+export async function listProjects(actor: Actor, organizationId: string) {
+  const rows = await withContext({ userId: actor.userId, organizationId }, (tx) =>
     tx
       .select({ id: projects.id, name: projects.name })
       .from(projects)
       .where(eq(projects.organizationId, organizationId)),
+  );
+  return rows.filter((project) => can(actor, "content.read", project.id));
+}
+
+/**
+ * Un projet précis, si l'acteur peut le lire. `null` sinon — l'appelant en
+ * fait un 404 : un projet qu'on ne peut pas voir est indiscernable d'un projet
+ * qui n'existe pas (ADR 0012).
+ */
+export async function findProject(
+  actor: Actor,
+  organizationId: string,
+  projectId: string,
+) {
+  const [project] = await withContext({ userId: actor.userId, organizationId }, (tx) =>
+    tx
+      .select({ id: projects.id, name: projects.name, createdAt: projects.createdAt })
+      .from(projects)
+      .where(
+        and(eq(projects.organizationId, organizationId), eq(projects.id, projectId)),
+      ),
+  );
+  if (!project) return null;
+  return can(actor, "content.read", project.id) ? project : null;
+}
+
+/**
+ * Les membres d'un projet. Même forme que `listMembers`, et même raison de
+ * passer par du SQL pour `"user"` : la table appartient à Better-Auth.
+ */
+export function listProjectMembers(
+  userId: string,
+  organizationId: string,
+  projectId: string,
+) {
+  return withContext({ userId, organizationId }, (tx) =>
+    tx
+      .select({
+        userId: projectMembers.userId,
+        roleId: projectMembers.roleId,
+        roleName: roles.name,
+        name: sql<string>`u.name`,
+        email: sql<string>`u.email`,
+        joinedAt: projectMembers.createdAt,
+      })
+      .from(projectMembers)
+      .innerJoin(roles, eq(roles.id, projectMembers.roleId))
+      .innerJoin(sql`"user" u`, sql`u.id = ${projectMembers.userId}`)
+      .where(eq(projectMembers.projectId, projectId)),
   );
 }

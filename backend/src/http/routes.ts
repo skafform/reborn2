@@ -1,8 +1,9 @@
 import { createRoute, OpenAPIHono, z } from "@hono/zod-openapi";
 import { HTTPException } from "hono/http-exception";
-import { heldPermissions } from "../auth/authorization.ts";
+import { can } from "../auth/authorization.ts";
 import { canAssignRole, requirePermission } from "../auth/escalation.ts";
 import { auth } from "../auth.ts";
+import { PERMISSION_KEYS } from "../config/permissions.ts";
 import {
   acceptInvitation,
   acceptReceivedInvitation,
@@ -15,8 +16,10 @@ import {
 import {
   createOrganization,
   createProject,
+  findProject,
   listMembers,
   listOrganizationsForUser,
+  listProjectMembers,
   listProjects,
   listRoles,
 } from "../services/organizations.ts";
@@ -37,6 +40,18 @@ const ProjectSchema = z.object({ id: z.uuid(), name: z.string() }).openapi("Proj
 
 const NameInput = z.object({ name: z.string().min(1).max(200) }).openapi("NameInput");
 
+/** Même forme pour les membres d'une organization et ceux d'un projet. */
+const MemberSchema = z
+  .object({
+    userId: z.string(),
+    roleId: z.uuid(),
+    roleName: z.string(),
+    name: z.string(),
+    email: z.email(),
+    joinedAt: z.date(),
+  })
+  .openapi("Member");
+
 const json = <T extends z.ZodType>(schema: T, description: string) => ({
   description,
   content: { "application/json": { schema } },
@@ -48,9 +63,10 @@ managementRoutes.openapi(
     path: "/organizations",
     summary: "Les organizations de l'utilisateur",
     middleware: [requireSession] as const,
-    responses: {
-      200: json(z.array(OrganizationSchema.extend({ role: z.string() })), "Liste"),
-    },
+    // Sans le nom du rôle : il ne servait à rien, et n'aurait aucun sens pour
+    // un membre de projet — trois projets, trois rôles possibles, aucun au
+    // niveau de l'organization. Ce qu'on peut y faire se demande à `/me`.
+    responses: { 200: json(z.array(OrganizationSchema), "Liste") },
   }),
   async (c) => c.json(await listOrganizationsForUser(c.get("userId"))),
 );
@@ -85,10 +101,17 @@ managementRoutes.openapi(
     request: { params: z.object({ organizationId: z.uuid() }) },
     responses: { 200: json(z.array(ProjectSchema), "Liste") },
   }),
+  // Aucune garde en tête : la liste **est** le filtre. `listProjects` ne rend
+  // que ce que la portée de l'acteur atteint, donc un membre de projet y voit
+  // les siens et un membre d'organization les voit tous.
+  //
+  // Un membre d'organization sans `content.read` obtient une liste vide là où
+  // il obtenait un 403. C'est délibéré : sur une collection cadrée par ses
+  // propres adhésions, « rien à montrer » est la réponse juste, et c'est déjà
+  // ce que fait `GET /organizations`.
   async (c) => {
     const { organizationId } = c.req.valid("param");
-    requirePermission(c.get("actor"), "content.read");
-    return c.json(await listProjects(c.get("userId"), organizationId));
+    return c.json(await listProjects(c.get("actor"), organizationId));
   },
 );
 
@@ -114,6 +137,102 @@ managementRoutes.openapi(
       name,
     });
     return c.json(project, 201);
+  },
+);
+
+const projectParams = z.object({ organizationId: z.uuid(), projectId: z.uuid() });
+
+/**
+ * Un projet précis — la page de projet s'ouvre dessus.
+ *
+ * **404 et non 403** quand l'acteur ne l'atteint pas : un projet invisible est
+ * indiscernable d'un projet inexistant, ici comme dans RLS (ADR 0012).
+ */
+managementRoutes.openapi(
+  createRoute({
+    method: "get",
+    path: "/organizations/{organizationId}/projects/{projectId}",
+    summary: "Un projet",
+    middleware: [requireSession, requireOrganization] as const,
+    request: { params: projectParams },
+    responses: {
+      200: json(
+        ProjectSchema.extend({ createdAt: z.date() }).openapi("ProjectDetail"),
+        "Le projet",
+      ),
+    },
+  }),
+  async (c) => {
+    const { organizationId, projectId } = c.req.valid("param");
+    const project = await findProject(c.get("actor"), organizationId, projectId);
+    if (!project) throw new HTTPException(404, { message: "introuvable" });
+    return c.json(project);
+  },
+);
+
+/**
+ * Ce que l'acteur peut faire **dans ce projet**.
+ *
+ * Jumeau de `/organizations/{id}/me`, et nécessaire pour la même raison : le
+ * nom du rôle ne dit rien, les rôles étant personnalisables par organization.
+ * Mais la réponse dépend ici du projet regardé — `can()` exige la cible pour
+ * une portée projet, et l'ignore pour une portée organization.
+ */
+managementRoutes.openapi(
+  createRoute({
+    method: "get",
+    path: "/organizations/{organizationId}/projects/{projectId}/me",
+    summary: "Les permissions de l'acteur dans un projet",
+    middleware: [requireSession, requireOrganization] as const,
+    request: { params: projectParams },
+    responses: {
+      200: json(
+        z.object({ permissions: z.array(z.string()) }).openapi("ProjectMembership"),
+        "Permissions",
+      ),
+    },
+  }),
+  async (c) => {
+    const { organizationId, projectId } = c.req.valid("param");
+    const actor = c.get("actor");
+    // Le projet d'abord : sans ça, on répondrait des permissions pour un
+    // projet qu'on ne peut pas voir, ou qui n'existe pas.
+    const project = await findProject(actor, organizationId, projectId);
+    if (!project) throw new HTTPException(404, { message: "introuvable" });
+
+    return c.json({
+      permissions: PERMISSION_KEYS.filter((key) => can(actor, key, projectId)),
+    });
+  },
+);
+
+/**
+ * Les membres d'un projet.
+ *
+ * Gardée par `member.read`, comme l'annuaire de l'organization — et donc
+ * ⚠️ **invisible aux membres du projet eux-mêmes** : `editor`, `contributor`
+ * et `guest` n'ont aucune permission de membre. C'est le modèle de Contentful,
+ * où l'admin d'espace gère et les membres travaillent
+ * (architecture/invitations.md). Un rôle de projet habilité à recruter
+ * attendra un besoin réel.
+ */
+managementRoutes.openapi(
+  createRoute({
+    method: "get",
+    path: "/organizations/{organizationId}/projects/{projectId}/members",
+    summary: "Les membres d'un projet",
+    middleware: [requireSession, requireOrganization] as const,
+    request: { params: projectParams },
+    responses: { 200: json(z.array(MemberSchema), "Liste") },
+  }),
+  async (c) => {
+    const { organizationId, projectId } = c.req.valid("param");
+    const actor = c.get("actor");
+    const project = await findProject(actor, organizationId, projectId);
+    if (!project) throw new HTTPException(404, { message: "introuvable" });
+
+    requirePermission(actor, "member.read", projectId);
+    return c.json(await listProjectMembers(c.get("userId"), organizationId, projectId));
   },
 );
 
@@ -143,19 +262,17 @@ managementRoutes.openapi(
       ),
     },
   }),
-  (c) => c.json({ permissions: [...heldPermissions(c.get("actor"))] }),
+  // Ce qu'on peut faire **au niveau de l'organization**, pas ce qu'on détient.
+  //
+  // La nuance compte depuis qu'un membre de projet peut arriver ici : ses
+  // permissions existent, mais aucune ne vaut sans projet cible. Les rendre
+  // telles quelles ferait croire à la console qu'il peut agir sur
+  // l'organization. `can()` répond exactement ça, et reste seul juge.
+  (c) => {
+    const actor = c.get("actor");
+    return c.json({ permissions: PERMISSION_KEYS.filter((key) => can(actor, key)) });
+  },
 );
-
-const MemberSchema = z
-  .object({
-    userId: z.string(),
-    roleId: z.uuid(),
-    roleName: z.string(),
-    name: z.string(),
-    email: z.email(),
-    joinedAt: z.date(),
-  })
-  .openapi("Member");
 
 /**
  * Les membres d'une organization.
@@ -350,6 +467,8 @@ const InvitationDescriptionSchema = z
   .object({
     email: z.email(),
     organizationName: z.string(),
+    /** Le projet visé, ou `null` pour une invitation d'organization. */
+    projectName: z.string().nullable(),
     roleName: z.string(),
     /**
      * L'adresse visée a-t-elle déjà un compte ? L'écran d'acceptation propose
@@ -404,6 +523,8 @@ const ReceivedInvitationSchema = z
   .object({
     id: z.uuid(),
     organizationName: z.string(),
+    /** Le projet visé, ou `null` pour une invitation d'organization. */
+    projectName: z.string().nullable(),
     roleName: z.string(),
     expiresAt: z.date(),
   })

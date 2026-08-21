@@ -94,11 +94,22 @@ planter.
 | `GET /organizations/{id}/members` | `member.read` |
 | `GET /organizations/{id}/roles` | `member.manage` — sert à *attribuer*, pas à définir |
 | `GET /inbox`, `POST /inbox/{id}/accept` | session — par adresse, tous locataires confondus |
+| `GET …/projects/{pid}` | visibilité du projet — 404 sinon |
+| `GET …/projects/{pid}/me` | jumeau de `/me`, mais **dans ce projet** |
+| `GET …/projects/{pid}/members` | `member.read` — donc pas les membres du projet eux-mêmes |
 
 `/me` existe parce que **le nom du rôle ne suffit pas** : les rôles sont
 personnalisables par organization, donc « viewer » ne garantit rien — et
 déduire les permissions d'un nom côté client recopierait la matrice RBAC hors
 de son unique source de vérité.
+
+Son jumeau par projet existe pour une raison de plus : `can()` **exige la
+cible** pour une portée projet. La réponse dépend donc du projet regardé, ce
+qu'une seule route au niveau de l'organization ne peut pas dire.
+
+⚠️ `GET /organizations` ne renvoie plus le nom du rôle. Il ne servait à rien, et
+n'aurait aucun sens pour un membre de projet — trois projets, trois rôles
+possibles, aucun au niveau de l'organization.
 
 ### Deux mécanismes vérifiés plutôt que supposés
 
@@ -213,14 +224,21 @@ permissions valant sur *tous* les projets. Reproduit, puis fermé par trois
 tests écrits avant la correction. Refus en **422** : bien formée, mais
 incohérente — Zod occupe déjà le 400.
 
-Trois pièges déjà identifiés, à ne pas redécouvrir :
+✅ **Le backend est fait** (migration 0023). Les trois pièges annoncés se sont
+tous produits, et sont fermés :
 
-- **L'organization hôte n'apparaîtra pas** — `listOrganizationsForUser` ne
-  joint que `organization_members`, et `app_is_member_of` ne regarde qu'elle
-- ⚠️ **Ne jamais élargir `app_is_member_of`** : elle sert 11 fois dans 6
-  migrations. Une branche par policy concernée, comme l'ont fait 0011 et 0021
-- **403 sur la liste des projets** — la garde exige `content.read` sans projet
-  cible, ce que `can()` refuse par construction pour une portée projet
+- **L'organization hôte n'apparaissait pas** — `listOrganizationsForUser` ne
+  joignait que `organization_members`. Elle fait maintenant l'union des deux
+  appartenances, avec un `order by` explicite : la racine de la console entre
+  dans la *première*, et une union ne promet aucun ordre
+- ⚠️ **`app_is_member_of` n'a pas été élargie** — 11 usages, 6 migrations. Une
+  fonction distincte, `app_is_project_member_of_org`, et une branche par policy
+- **La liste des projets répondait 403** — la garde exigeait `content.read`
+  sans projet cible. Il n'y a plus de garde en tête : **la liste est le
+  filtre**, `can(actor, "content.read", projet)` appliqué par projet
+
+Reste `GET /organizations/{id}/projects/{pid}/invitations` et son `POST` — le
+recrutement depuis la Team du projet, à faire avec l'écran.
 
 ### Ensuite
 

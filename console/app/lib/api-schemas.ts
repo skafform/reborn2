@@ -16,15 +16,10 @@ export const GetHealthResponse = /*#__PURE__*/ zod.object({
 /**
  * @summary Les organizations de l'utilisateur
  */
-export const GetApiOrganizationsResponseItem = /*#__PURE__*/ zod.intersection(
-  /*#__PURE__*/ zod.object({
-    id: /*#__PURE__*/ zod.uuid(),
-    name: /*#__PURE__*/ zod.string(),
-  }),
-  /*#__PURE__*/ zod.object({
-    role: /*#__PURE__*/ zod.string(),
-  }),
-);
+export const GetApiOrganizationsResponseItem = /*#__PURE__*/ zod.object({
+  id: /*#__PURE__*/ zod.uuid(),
+  name: /*#__PURE__*/ zod.string(),
+});
 export const GetApiOrganizationsResponse = /*#__PURE__*/ zod.array(
   GetApiOrganizationsResponseItem,
 );
@@ -89,6 +84,63 @@ export const PostApiOrganizationsOrganizationIdProjectsResponse =
     id: /*#__PURE__*/ zod.uuid(),
     name: /*#__PURE__*/ zod.string(),
   });
+
+/**
+ * @summary Un projet
+ */
+export const GetApiOrganizationsOrganizationIdProjectsProjectIdParams =
+  /*#__PURE__*/ zod.object({
+    organizationId: /*#__PURE__*/ zod.uuid(),
+    projectId: /*#__PURE__*/ zod.uuid(),
+  });
+
+export const GetApiOrganizationsOrganizationIdProjectsProjectIdResponse =
+  /*#__PURE__*/ zod.intersection(
+    /*#__PURE__*/ zod.object({
+      id: /*#__PURE__*/ zod.uuid(),
+      name: /*#__PURE__*/ zod.string(),
+    }),
+    /*#__PURE__*/ zod.object({
+      createdAt: /*#__PURE__*/ zod.iso.datetime({ offset: true }),
+    }),
+  );
+
+/**
+ * @summary Les permissions de l'acteur dans un projet
+ */
+export const GetApiOrganizationsOrganizationIdProjectsProjectIdMeParams =
+  /*#__PURE__*/ zod.object({
+    organizationId: /*#__PURE__*/ zod.uuid(),
+    projectId: /*#__PURE__*/ zod.uuid(),
+  });
+
+export const GetApiOrganizationsOrganizationIdProjectsProjectIdMeResponse =
+  /*#__PURE__*/ zod.object({
+    permissions: /*#__PURE__*/ zod.array(/*#__PURE__*/ zod.string()),
+  });
+
+/**
+ * @summary Les membres d'un projet
+ */
+export const GetApiOrganizationsOrganizationIdProjectsProjectIdMembersParams =
+  /*#__PURE__*/ zod.object({
+    organizationId: /*#__PURE__*/ zod.uuid(),
+    projectId: /*#__PURE__*/ zod.uuid(),
+  });
+
+export const GetApiOrganizationsOrganizationIdProjectsProjectIdMembersResponseItem =
+  /*#__PURE__*/ zod.object({
+    userId: /*#__PURE__*/ zod.string(),
+    roleId: /*#__PURE__*/ zod.uuid(),
+    roleName: /*#__PURE__*/ zod.string(),
+    name: /*#__PURE__*/ zod.string(),
+    email: /*#__PURE__*/ zod.email(),
+    joinedAt: /*#__PURE__*/ zod.iso.datetime({ offset: true }),
+  });
+export const GetApiOrganizationsOrganizationIdProjectsProjectIdMembersResponse =
+  /*#__PURE__*/ zod.array(
+    GetApiOrganizationsOrganizationIdProjectsProjectIdMembersResponseItem,
+  );
 
 /**
  * @summary Le rôle et les permissions de l'acteur
@@ -202,6 +254,7 @@ export const GetApiInvitationsTokenParams = /*#__PURE__*/ zod.object({
 export const GetApiInvitationsTokenResponse = /*#__PURE__*/ zod.object({
   email: /*#__PURE__*/ zod.email(),
   organizationName: /*#__PURE__*/ zod.string(),
+  projectName: /*#__PURE__*/ zod.nullable(/*#__PURE__*/ zod.string()),
   roleName: /*#__PURE__*/ zod.string(),
   hasAccount: /*#__PURE__*/ zod.boolean(),
 });
@@ -225,6 +278,7 @@ export const PostApiInvitationsTokenAcceptResponse = /*#__PURE__*/ zod.object({
 export const GetApiInboxResponseItem = /*#__PURE__*/ zod.object({
   id: /*#__PURE__*/ zod.uuid(),
   organizationName: /*#__PURE__*/ zod.string(),
+  projectName: /*#__PURE__*/ zod.nullable(/*#__PURE__*/ zod.string()),
   roleName: /*#__PURE__*/ zod.string(),
   expiresAt: /*#__PURE__*/ zod.iso.datetime({ offset: true }),
 });
