@@ -8,6 +8,8 @@ import {
   GetApiOrganizationsOrganizationIdMembersResponse,
   type GetApiOrganizationsOrganizationIdMembersResponseItem,
   GetApiOrganizationsOrganizationIdMeResponse,
+  GetApiOrganizationsOrganizationIdProjectsProjectIdApiKeysResponse,
+  type GetApiOrganizationsOrganizationIdProjectsProjectIdApiKeysResponseItem,
   GetApiOrganizationsOrganizationIdProjectsProjectIdInvitationsResponse,
   GetApiOrganizationsOrganizationIdProjectsProjectIdMembersResponse,
   GetApiOrganizationsOrganizationIdProjectsProjectIdMeResponse,
@@ -24,6 +26,8 @@ import {
   PostApiOrganizationsOrganizationIdInvitationsBody,
   PostApiOrganizationsOrganizationIdInvitationsResponse,
   PostApiOrganizationsOrganizationIdProjectsBody,
+  PostApiOrganizationsOrganizationIdProjectsProjectIdApiKeysBody,
+  PostApiOrganizationsOrganizationIdProjectsProjectIdApiKeysResponse,
   PostApiOrganizationsOrganizationIdProjectsProjectIdInvitationsBody,
   PostApiOrganizationsOrganizationIdProjectsProjectIdInvitationsResponse,
   PostApiOrganizationsOrganizationIdProjectsResponse,
@@ -85,6 +89,19 @@ export const NewProjectInvitationSchema =
 
 export const SentProjectInvitationSchema =
   PostApiOrganizationsOrganizationIdProjectsProjectIdInvitationsResponse;
+
+export const ApiKeysSchema =
+  GetApiOrganizationsOrganizationIdProjectsProjectIdApiKeysResponse;
+export type ApiKey = z.infer<
+  typeof GetApiOrganizationsOrganizationIdProjectsProjectIdApiKeysResponseItem
+>;
+
+export const NewApiKeySchema =
+  PostApiOrganizationsOrganizationIdProjectsProjectIdApiKeysBody;
+
+/** Le jeton en clair — la seule fois qu'on le voit, pour une clé secrète. */
+export const CreatedApiKeySchema =
+  PostApiOrganizationsOrganizationIdProjectsProjectIdApiKeysResponse;
 
 export const MembershipSchema = GetApiOrganizationsOrganizationIdMeResponse;
 export type Membership = z.infer<typeof GetApiOrganizationsOrganizationIdMeResponse>;

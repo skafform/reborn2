@@ -98,6 +98,8 @@ planter.
 | `GET …/projects/{pid}/me` | jumeau de `/me`, mais **dans ce projet** |
 | `GET …/projects/{pid}/members` | `member.read` — donc pas les membres du projet eux-mêmes |
 | `GET`/`POST …/projects/{pid}/invitations` | `member.manage` — le `projectId` vient de l'URL |
+| `GET`/`POST …/projects/{pid}/api-keys` | `apikey.manage`, vérifié par le service |
+| `POST …/api-keys/{id}/revoke`, `DELETE …/api-keys/{id}` | idem — et la suppression exige la révocation |
 
 `/me` existe parce que **le nom du rôle ne suffit pas** : les rôles sont
 personnalisables par organization, donc « viewer » ne garantit rien — et
@@ -257,13 +259,12 @@ Les deux listes d'invitations en attente sont **séparées** — celles d'un pro
 n'apparaissent plus dans l'équipe de l'organization, où personne ne les a
 envoyées.
 
-### En cours : les clés API
+### Les clés API — fait
 
-Les services existent tous et sont testés (`createApiKey`, `listApiKeys`,
-`revokeApiKey`, `deleteApiKey`, `masterEnvironment`) — seules les **routes HTTP
-et l'écran** manquent. Leur place est dans la page de projet.
+Quatre routes sous `…/projects/{pid}/api-keys` et une section dans la page de
+projet. Les services existaient déjà tous et n'avaient jamais servi.
 
-**Décidé** : une **liste nommée** par type, pas un triplet figé. La raison est
+**Une liste nommée** par type, pas un triplet figé. La raison est
 la rotation sans coupure — avec un seul emplacement, remplacer une clé impose
 de révoquer puis créer, et le site est cassé entre les deux. Détail et
 correction de la documentation dans
@@ -280,6 +281,14 @@ donc de quoi créer et révoquer des clés qui n'ouvrent encore rien.
 ⚠️ **Pas de lecture seule** sur cette page : les clés publique et preview sont
 stockées en clair, donc les voir c'est les avoir. `apikey.manage` gouverne la
 section entière — `owner` et `admin` seulement, aucun rôle de projet.
+
+Trouvé en chemin : `onError` ne connaissait que deux des trois classes
+d'erreur, donc **toute `ApiKeyError` remontait en 500** — le 409 « révoquer
+avant de supprimer » compris. Corrigé, et couvert par un test.
+
+Et `listApiKeys` ne sélectionne plus `last_used_at` : rien ne l'écrit avant
+l'étape 7, et le renvoyer aurait mis dans la spec un champ qui ne peut dire
+qu'une seule chose.
 
 ### Ensuite
 

@@ -47,6 +47,10 @@ export default function ProjectLayout({ loaderData }: Route.ComponentProps) {
   const sections = [
     { to: base, label: "Overview", end: true, needs: null },
     { to: `${base}/team`, label: "Team", end: false, needs: "member.read" },
+    // ⚠️ Tout ou rien : les clés publique et preview sont stockées en clair,
+    // donc les voir c'est les avoir. Il n'existe pas de lecture seule ici, et
+    // `listApiKeys` exige la même permission côté serveur.
+    { to: `${base}/api-keys`, label: "API keys", end: false, needs: "apikey.manage" },
   ].filter((section) => section.needs === null || permissions.includes(section.needs));
 
   return (

@@ -230,6 +230,87 @@ export const PostApiOrganizationsOrganizationIdInvitationsResponse =
   });
 
 /**
+ * @summary Les clés API d'un projet
+ */
+export const GetApiOrganizationsOrganizationIdProjectsProjectIdApiKeysParams =
+  /*#__PURE__*/ zod.object({
+    organizationId: /*#__PURE__*/ zod.uuid(),
+    projectId: /*#__PURE__*/ zod.uuid(),
+  });
+
+export const GetApiOrganizationsOrganizationIdProjectsProjectIdApiKeysResponseItem =
+  /*#__PURE__*/ zod.object({
+    id: /*#__PURE__*/ zod.uuid(),
+    kind: /*#__PURE__*/ zod.enum(["public", "preview", "secret"]),
+    name: /*#__PURE__*/ zod.string(),
+    token: /*#__PURE__*/ zod.nullable(/*#__PURE__*/ zod.string()),
+    hint: /*#__PURE__*/ zod.string(),
+    revokedAt: /*#__PURE__*/ zod.nullable(
+      /*#__PURE__*/ zod.iso.datetime({ offset: true }),
+    ),
+  });
+export const GetApiOrganizationsOrganizationIdProjectsProjectIdApiKeysResponse =
+  /*#__PURE__*/ zod.array(
+    GetApiOrganizationsOrganizationIdProjectsProjectIdApiKeysResponseItem,
+  );
+
+/**
+ * @summary Créer une clé API
+ */
+export const PostApiOrganizationsOrganizationIdProjectsProjectIdApiKeysParams =
+  /*#__PURE__*/ zod.object({
+    organizationId: /*#__PURE__*/ zod.uuid(),
+    projectId: /*#__PURE__*/ zod.uuid(),
+  });
+
+export const postApiOrganizationsOrganizationIdProjectsProjectIdApiKeysBodyNameMax = 200;
+
+export const PostApiOrganizationsOrganizationIdProjectsProjectIdApiKeysBody =
+  /*#__PURE__*/ zod.object({
+    kind: /*#__PURE__*/ zod.enum(["public", "preview", "secret"]),
+    name: /*#__PURE__*/ zod
+      .string()
+      .check(/*#__PURE__*/ zod.minLength(1))
+      .check(
+        /*#__PURE__*/ zod.maxLength(
+          postApiOrganizationsOrganizationIdProjectsProjectIdApiKeysBodyNameMax,
+        ),
+      ),
+  });
+
+export const PostApiOrganizationsOrganizationIdProjectsProjectIdApiKeysResponse =
+  /*#__PURE__*/ zod.object({
+    id: /*#__PURE__*/ zod.uuid(),
+    token: /*#__PURE__*/ zod.string(),
+  });
+
+/**
+ * @summary Révoquer une clé API
+ */
+export const PostApiOrganizationsOrganizationIdProjectsProjectIdApiKeysApiKeyIdRevokeParams =
+  /*#__PURE__*/ zod.object({
+    organizationId: /*#__PURE__*/ zod.uuid(),
+    projectId: /*#__PURE__*/ zod.uuid(),
+    apiKeyId: /*#__PURE__*/ zod.uuid(),
+  });
+
+export const PostApiOrganizationsOrganizationIdProjectsProjectIdApiKeysApiKeyIdRevokeResponse =
+  /*#__PURE__*/ zod.void();
+
+/**
+ * @summary Supprimer une clé API révoquée
+ */
+export const DeleteApiOrganizationsOrganizationIdProjectsProjectIdApiKeysApiKeyIdParams =
+  /*#__PURE__*/ zod.object({
+    organizationId: /*#__PURE__*/ zod.uuid(),
+    projectId: /*#__PURE__*/ zod.uuid(),
+    apiKeyId: /*#__PURE__*/ zod.uuid(),
+  });
+
+export const DeleteApiOrganizationsOrganizationIdProjectsProjectIdApiKeysApiKeyIdResponse =
+  /*#__PURE__*/ zod.void();
+
+/**
  * @summary Les invitations en attente sur un projet
  */
 export const GetApiOrganizationsOrganizationIdProjectsProjectIdInvitationsParams =

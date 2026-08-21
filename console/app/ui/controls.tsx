@@ -174,18 +174,24 @@ export function Section({
   title,
   description,
   first = false,
+  action,
   children,
 }: {
   title: string;
   description?: string;
   first?: boolean;
+  /** Une action qui porte sur cette section seule, pas sur la page. */
+  action?: ReactNode;
   children: ReactNode;
 }) {
   return (
     <>
       {!first && <hr />}
       <section>
-        <h3>{title}</h3>
+        <div className="console-section-header">
+          <h3>{title}</h3>
+          {action}
+        </div>
         {description && <p className="console-muted">{description}</p>}
         {children}
       </section>

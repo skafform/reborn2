@@ -46,6 +46,7 @@ export default [
     route("projects/:projectId", "routes/project.tsx", [
       index("routes/project-overview.tsx"),
       route("team", "routes/project-team.tsx"),
+      route("api-keys", "routes/project-api-keys.tsx"),
     ]),
   ]),
 ] satisfies RouteConfig;

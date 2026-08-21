@@ -179,6 +179,63 @@
         },
         "required": ["email", "roleId"]
       },
+      "ApiKey": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "kind": {
+            "type": "string",
+            "enum": ["public", "preview", "secret"]
+          },
+          "name": {
+            "type": "string"
+          },
+          "token": {
+            "type": "string",
+            "nullable": true
+          },
+          "hint": {
+            "type": "string"
+          },
+          "revokedAt": {
+            "type": "string",
+            "nullable": true,
+            "format": "date-time"
+          }
+        },
+        "required": ["id", "kind", "name", "token", "hint", "revokedAt"]
+      },
+      "CreatedApiKey": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "token": {
+            "type": "string"
+          }
+        },
+        "required": ["id", "token"]
+      },
+      "NewApiKey": {
+        "type": "object",
+        "properties": {
+          "kind": {
+            "type": "string",
+            "enum": ["public", "preview", "secret"]
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          }
+        },
+        "required": ["kind", "name"]
+      },
       "InvitationDescription": {
         "type": "object",
         "properties": {
@@ -651,6 +708,168 @@
                 }
               }
             }
+          }
+        }
+      }
+    },
+    "/api/organizations/{organizationId}/projects/{projectId}/api-keys": {
+      "get": {
+        "summary": "Les clés API d'un projet",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "organizationId",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "projectId",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Liste",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ApiKey"
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "summary": "Créer une clé API",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "organizationId",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "projectId",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NewApiKey"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Créée",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CreatedApiKey"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/organizations/{organizationId}/projects/{projectId}/api-keys/{apiKeyId}/revoke": {
+      "post": {
+        "summary": "Révoquer une clé API",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "organizationId",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "projectId",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "apiKeyId",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Révoquée"
+          }
+        }
+      }
+    },
+    "/api/organizations/{organizationId}/projects/{projectId}/api-keys/{apiKeyId}": {
+      "delete": {
+        "summary": "Supprimer une clé API révoquée",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "organizationId",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "projectId",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "apiKeyId",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Supprimée"
           }
         }
       }

@@ -5,6 +5,13 @@ import { canAssignRole, requirePermission } from "../auth/escalation.ts";
 import { auth } from "../auth.ts";
 import { PERMISSION_KEYS } from "../config/permissions.ts";
 import {
+  createApiKey,
+  deleteApiKey,
+  listApiKeys,
+  masterEnvironment,
+  revokeApiKey,
+} from "../services/api-keys.ts";
+import {
   acceptInvitation,
   acceptReceivedInvitation,
   cancelInvitation,
@@ -444,6 +451,155 @@ managementRoutes.openapi(
     return c.json({ id }, 201);
   },
 );
+
+// ---------------------------------------------------------------------------
+
+/**
+ * Les clés API d'un projet.
+ *
+ * **Adressées par projet, pas par environnement**, alors qu'une clé appartient
+ * à un environnement ([ADR 0013](../../../docs/adr/0013-cles-api-rattachees-a-un-environnement.md)).
+ * `master` est le seul qui existe et aucun écran ne prononce le mot : le
+ * serveur le résout, la console n'a pas à trouver une valeur qu'elle ne
+ * saurait expliquer.
+ *
+ * ⚠️ Aucune garde ici : les quatre services vérifient `apikey.manage`
+ * eux-mêmes. Les routes n'ont qu'à résoudre le projet — un projet inatteignable
+ * répond 404, comme partout ailleurs.
+ */
+const ApiKeySchema = z
+  .object({
+    id: z.uuid(),
+    kind: z.enum(["public", "preview", "secret"]),
+    name: z.string(),
+    /** En clair pour publique et preview, `null` pour une secrète. */
+    token: z.string().nullable(),
+    /** `sk_a3f9…` — de quoi reconnaître une secrète sans la révéler. */
+    hint: z.string(),
+    /** Renseigné : la clé ne fonctionne plus, mais reste listée. */
+    revokedAt: z.date().nullable(),
+  })
+  .openapi("ApiKey");
+
+const NewApiKeyInput = z
+  .object({
+    kind: z.enum(["public", "preview", "secret"]),
+    // Obligatoire : sans lui, révoquer devient aveugle — on ne sait pas
+    // laquelle des trois clés publiques sert le site qu'on veut couper.
+    name: z.string().min(1).max(200),
+  })
+  .openapi("NewApiKey");
+
+managementRoutes.openapi(
+  createRoute({
+    method: "get",
+    path: "/organizations/{organizationId}/projects/{projectId}/api-keys",
+    summary: "Les clés API d'un projet",
+    middleware: [requireSession, requireOrganization] as const,
+    request: { params: projectParams },
+    responses: { 200: json(z.array(ApiKeySchema), "Liste") },
+  }),
+  async (c) => {
+    const { organizationId, projectId } = c.req.valid("param");
+    const actor = c.get("actor");
+    const environmentId = await masterEnvironment(
+      c.get("userId"),
+      organizationId,
+      projectId,
+    );
+    return c.json(await listApiKeys(actor, organizationId, environmentId));
+  },
+);
+
+/**
+ * Crée une clé, et renvoie son jeton **en clair**.
+ *
+ * ⚠️ Pour une clé secrète, c'est la **seule fois** : seul son hachage est
+ * conservé. L'écran doit donc s'arrêter dessus, pas l'afficher en passant.
+ */
+managementRoutes.openapi(
+  createRoute({
+    method: "post",
+    path: "/organizations/{organizationId}/projects/{projectId}/api-keys",
+    summary: "Créer une clé API",
+    middleware: [requireSession, requireOrganization] as const,
+    request: {
+      params: projectParams,
+      body: { content: { "application/json": { schema: NewApiKeyInput } } },
+    },
+    responses: {
+      201: json(
+        z.object({ id: z.uuid(), token: z.string() }).openapi("CreatedApiKey"),
+        "Créée",
+      ),
+    },
+  }),
+  async (c) => {
+    const { organizationId, projectId } = c.req.valid("param");
+    const { kind, name } = c.req.valid("json");
+    const environmentId = await masterEnvironment(
+      c.get("userId"),
+      organizationId,
+      projectId,
+    );
+
+    const created = await createApiKey({
+      actor: c.get("actor"),
+      organizationId,
+      environmentId,
+      kind,
+      name,
+    });
+    return c.json(created, 201);
+  },
+);
+
+/**
+ * Révoquer et supprimer sont **deux opérations**, dans cet ordre.
+ *
+ * Le service refuse la suppression d'une clé encore active : elle disparaîtrait
+ * sans qu'on sache si elle circulait, et le journal d'audit perdrait sa
+ * référence (architecture/api.md).
+ */
+managementRoutes.openapi(
+  createRoute({
+    method: "post",
+    path: "/organizations/{organizationId}/projects/{projectId}/api-keys/{apiKeyId}/revoke",
+    summary: "Révoquer une clé API",
+    middleware: [requireSession, requireOrganization] as const,
+    request: { params: projectParams.extend({ apiKeyId: z.uuid() }) },
+    responses: { 204: { description: "Révoquée" } },
+  }),
+  async (c) => {
+    const { organizationId, projectId, apiKeyId } = c.req.valid("param");
+    // Le projet d'abord : sans ça, une clé d'un autre projet de la même
+    // organization se révoquerait depuis une adresse qui ne la porte pas.
+    await masterEnvironment(c.get("userId"), organizationId, projectId);
+
+    await revokeApiKey({ actor: c.get("actor"), organizationId, apiKeyId });
+    return c.body(null, 204);
+  },
+);
+
+managementRoutes.openapi(
+  createRoute({
+    method: "delete",
+    path: "/organizations/{organizationId}/projects/{projectId}/api-keys/{apiKeyId}",
+    summary: "Supprimer une clé API révoquée",
+    middleware: [requireSession, requireOrganization] as const,
+    request: { params: projectParams.extend({ apiKeyId: z.uuid() }) },
+    responses: { 204: { description: "Supprimée" } },
+  }),
+  async (c) => {
+    const { organizationId, projectId, apiKeyId } = c.req.valid("param");
+    await masterEnvironment(c.get("userId"), organizationId, projectId);
+
+    await deleteApiKey({ actor: c.get("actor"), organizationId, apiKeyId });
+    return c.body(null, 204);
+  },
+);
+
+// ---------------------------------------------------------------------------
 
 /**
  * Le recrutement d'un projet — lister et inviter, depuis le projet lui-même.

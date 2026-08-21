@@ -721,6 +721,32 @@ body {
   text-decoration: underline;
 }
 
+/* Le titre d'une section et l'action qui ne porte que sur elle. Les clés API
+   en ont trois, une par type : un bouton unique en tête de page obligerait à
+   choisir le type dans un menu, alors que l'endroit du clic le dit déjà. */
+.console-section-header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+/* Un jeton se lit caractère par caractère quand il faut le vérifier, et se
+   copie le reste du temps. D'où la police à chasse fixe et le bouton à côté. */
+.console-token {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 16px 0;
+  padding: 12px;
+  background: var(--console-border-subtle);
+  border-radius: var(--console-radius);
+  font-size: var(--console-font-size-sm);
+  /* Une clé n'a pas d'espaces : sans ça elle déborde du panneau. */
+  overflow-wrap: anywhere;
+}
+
 /* Quelques faits sur une page, en deux colonnes. Pas un tableau : il n'y a
    qu'une seule chose décrite, et ses lignes n'ont pas d'en-tête commune. */
 .console-facts {

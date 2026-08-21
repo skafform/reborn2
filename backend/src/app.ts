@@ -5,6 +5,7 @@ import { auth } from "./auth.ts";
 import { env } from "./config/env.ts";
 import { managementRoutes } from "./http/routes.ts";
 import { previewRoutes } from "./mail/preview.ts";
+import { ApiKeyError } from "./services/api-keys.ts";
 import { InvitationError } from "./services/invitations.ts";
 
 export const app = new OpenAPIHono();
@@ -16,7 +17,11 @@ export const app = new OpenAPIHono();
  * (CWE-280, ADR 0012).
  */
 app.onError((error, c) => {
-  if (error instanceof AuthorizationError || error instanceof InvitationError) {
+  if (
+    error instanceof AuthorizationError ||
+    error instanceof InvitationError ||
+    error instanceof ApiKeyError
+  ) {
     return c.json({ error: error.message, reason: error.reason }, error.status);
   }
   // Définir `onError` retire à Hono le traitement par défaut : les

@@ -121,7 +121,10 @@ export function listApiKeys(
         token: apiKeys.token,
         hint: apiKeys.hint,
         revokedAt: apiKeys.revokedAt,
-        lastUsedAt: apiKeys.lastUsedAt,
+        // `last_used_at` n'est pas sélectionné : **rien ne l'écrit** tant
+        // qu'aucune route ne s'authentifie par clé (étape 7). Le renvoyer
+        // ferait apparaître dans la spec un champ qui ne peut dire qu'une
+        // seule chose, et que l'écran devrait ignorer.
       })
       .from(apiKeys)
       .where(eq(apiKeys.environmentId, environmentId)),

@@ -530,6 +530,121 @@ describe("routes de gestion", () => {
     });
   });
 
+  /**
+   * Les services vérifient déjà `apikey.manage` — ces tests éprouvent ce que
+   * les routes ajoutent : la résolution de l'environnement `master`, l'ordre
+   * révoquer-puis-supprimer, et le fait qu'une `ApiKeyError` ressorte avec son
+   * statut plutôt qu'en 500.
+   */
+  describe("clés API", () => {
+    let projectId = "";
+    const base = () =>
+      `/api/organizations/${organizationId}/projects/${projectId}/api-keys`;
+
+    before(async () => {
+      const response = await call(
+        `/api/organizations/${organizationId}/projects`,
+        owner,
+        { method: "POST", body: JSON.stringify({ name: "Porteur de clés" }) },
+      );
+      projectId = ((await response.json()) as { id: string }).id;
+    });
+
+    const create = (kind: string, name: string) =>
+      call(base(), owner, { method: "POST", body: JSON.stringify({ kind, name }) });
+
+    it("crée une clé sans que la console nomme d'environnement", async () => {
+      const response = await create("public", "Site web");
+      assert.equal(response.status, 201);
+
+      const { token } = (await response.json()) as { id: string; token: string };
+      assert.ok(token.startsWith("pk_"), "le préfixe dit le type");
+    });
+
+    /**
+     * Le cœur du choix de la liste nommée : plusieurs clés d'un même type,
+     * pour remplacer sans coupure — créer, déployer, puis révoquer.
+     */
+    it("accepte plusieurs clés du même type", async () => {
+      assert.equal((await create("public", "Deuxième site")).status, 201);
+
+      const list = (await (await call(base(), owner)).json()) as { name: string }[];
+      const publics = list.filter(
+        (k) => k.name.startsWith("Site") || k.name.startsWith("Deuxième"),
+      );
+      assert.equal(publics.length, 2);
+    });
+
+    it("ne renvoie en clair que ce qui est stocké en clair", async () => {
+      await create("secret", "Script de migration");
+      const list = (await (await call(base(), owner)).json()) as {
+        kind: string;
+        token: string | null;
+        hint: string;
+      }[];
+
+      const secret = list.find((k) => k.kind === "secret");
+      assert.ok(secret);
+      assert.equal(secret.token, null, "une secrète n'est jamais reconsultable");
+      assert.ok(secret.hint.startsWith("sk_"), "seul son préfixe reste");
+
+      assert.ok(list.find((k) => k.kind === "public")?.token?.startsWith("pk_"));
+    });
+
+    it("exige la révocation avant la suppression", async () => {
+      const { id } = (await (await create("preview", "Éphémère")).json()) as {
+        id: string;
+      };
+
+      const tooSoon = await call(`${base()}/${id}`, owner, { method: "DELETE" });
+      assert.equal(
+        tooSoon.status,
+        409,
+        "sans ce refus, une clé disparaîtrait sans qu'on sache si elle circulait",
+      );
+      assert.equal(
+        ((await tooSoon.json()) as { reason: string }).reason,
+        "not_revoked",
+      );
+
+      assert.equal(
+        (await call(`${base()}/${id}/revoke`, owner, { method: "POST" })).status,
+        204,
+      );
+
+      // Révoquée mais toujours listée : c'est la trace de ce qui a circulé.
+      const listed = (await (await call(base(), owner)).json()) as {
+        id: string;
+        revokedAt: string | null;
+      }[];
+      assert.ok(listed.find((k) => k.id === id)?.revokedAt);
+
+      assert.equal(
+        (await call(`${base()}/${id}`, owner, { method: "DELETE" })).status,
+        204,
+      );
+      const after = (await (await call(base(), owner)).json()) as { id: string }[];
+      assert.ok(!after.some((k) => k.id === id));
+    });
+
+    it("refuse un viewer, qui ne gère pas les clés", async () => {
+      const response = await call(base(), viewer);
+      assert.equal(response.status, 403, "il voit le projet : rien de plus à cacher");
+      assert.equal(
+        ((await response.json()) as { reason: string }).reason,
+        "missing_permission",
+      );
+    });
+
+    it("répond 404 sur un projet d'une autre organization", async () => {
+      const response = await call(
+        `/api/organizations/${organizationId}/projects/${randomUUID()}/api-keys`,
+        owner,
+      );
+      assert.equal(response.status, 404);
+    });
+  });
+
   it("expose les routes dans la spec OpenAPI", async () => {
     const response = await app.request("/openapi.json");
     const spec = (await response.json()) as { paths: Record<string, unknown> };
