@@ -1,8 +1,8 @@
 # 0013 — La portée d'un rôle n'est pas vérifiée à l'invitation
 
-**État** : ouvert
+**État** : **fait**
 **Priorité** : 🔴 Avant la Team de projet, qui repose entièrement dessus
-**Ouvert le** : 2026-08-21
+**Ouvert le** : 2026-08-21 · **Clos le** : 2026-08-21
 
 ## Le constat
 
@@ -66,11 +66,34 @@ Même vérification partout où un rôle s'attribue — l'assignation directe co
 autant que l'invitation, exactement comme pour l'escalade de privilèges
 ([ADR 0011](../adr/0011-roles-personnalises-par-organization.md)).
 
-## À écrire d'abord
+## Ce qui a été fait
 
-Un test qui reproduit le défaut : inviter avec un rôle `editor` sans projet,
-accepter, puis constater que le `Grant` obtenu a la portée `organization`. Il
-doit échouer avant la correction, passer après.
+Le défaut a d'abord été **reproduit**, pas déduit : invitation `editor` sans
+projet, acceptée sans broncher, puis
+
+```
+portée obtenue : organization
+projets couverts : []
+permissions : content.publish, content.read, content.read_draft,
+              content.write, schema.read
+```
+
+Puis trois tests, écrits avant la correction et rouges à ce moment-là — un par
+combinaison refusée. `createInvitation` porte maintenant les deux contrôles,
+juste après le garde-fou d'escalade.
+
+**Le refus est un `422`, pas un `400`.** La requête est bien formée ; c'est sa
+combinaison qui ne tient pas. Zod occupe déjà le 400 à la frontière des routes,
+et les confondre empêcherait un client de distinguer un corps mal formé d'un
+refus de fond. Le service n'émettait aucun 400 jusque-là.
+
+Le commentaire de `console/app/routes/team.tsx` — *« le service refuserait la
+combinaison »* — est devenu vrai. Il décrivait une garantie absente ; il décrit
+maintenant celle qui existe.
+
+Les deux codes stables `scope_mismatch` et `unknown_project` sont traduits dans
+`apiErrorMessage`. Le contrat OpenAPI est **inchangé** : aucune forme de
+requête ni de réponse n'a bougé, seulement les refus possibles.
 
 ## Lié
 

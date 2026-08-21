@@ -16,6 +16,7 @@ import {
   organizationMembers,
   organizations,
   projectMembers,
+  projects,
   rolePermissions,
   roles,
 } from "../db/schema.ts";
@@ -31,11 +32,17 @@ import { invitationEmail } from "../mail/templates/invitation.ts";
  * inutilisables — même raisonnement que pour la clé API secrète.
  */
 
+/**
+ * `422` et non `400` : la requête est bien formée, c'est sa *combinaison* qui
+ * ne tient pas. Zod occupe déjà le 400 à la frontière des routes — les
+ * confondre empêcherait un client de distinguer un corps mal formé d'un refus
+ * de fond.
+ */
 export class InvitationError extends Error {
-  readonly status: 404 | 409 | 410 | 429;
+  readonly status: 404 | 409 | 410 | 422 | 429;
   readonly reason: string;
 
-  constructor(status: 404 | 409 | 410 | 429, reason: string, message: string) {
+  constructor(status: 404 | 409 | 410 | 422 | 429, reason: string, message: string) {
     super(message);
     this.name = "InvitationError";
     this.status = status;
@@ -166,6 +173,47 @@ export async function createInvitation(input: {
       isSystem: role.isSystem,
       permissions: granted.map((g) => g.key as Permission),
     });
+
+    // La portée du rôle et l'endroit où on l'attribue doivent s'accorder.
+    //
+    // Le garde-fou ci-dessus ne le voit pas : il compare des **permissions**,
+    // pas leur étendue. Un rôle de projet invité sans projet devenait une
+    // adhésion d'organization, et ses permissions valaient alors sur *tous*
+    // les projets — une escalade de portée, sans escalade de privilèges.
+    if (role.scope === "project" && !input.projectId) {
+      throw new InvitationError(
+        422,
+        "scope_mismatch",
+        "un rôle de projet s'attribue toujours avec un projet",
+      );
+    }
+    if (role.scope === "organization" && input.projectId) {
+      throw new InvitationError(
+        422,
+        "scope_mismatch",
+        "un rôle d'organization ne s'attribue pas sur un projet",
+      );
+    }
+
+    // Le projet doit être un projet de cette organization. `invitations` ne
+    // porte pas la clé étrangère composite qui le garantit sur
+    // `project_members` : sans ce contrôle l'invitation partait, puis devenait
+    // **inacceptable** — la contrainte ne se réveillait qu'à l'insertion de
+    // l'adhésion.
+    if (input.projectId) {
+      const [project] = await tx
+        .select({ id: projects.id })
+        .from(projects)
+        .where(
+          and(
+            eq(projects.organizationId, organizationId),
+            eq(projects.id, input.projectId),
+          ),
+        );
+      if (!project) {
+        throw new InvitationError(404, "unknown_project", "projet introuvable");
+      }
+    }
 
     await assertAlreadyNotMember(tx, {
       organizationId,

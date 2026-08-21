@@ -206,11 +206,12 @@ Le backend le porte déjà en grande partie — `project_members`, les rôles de
 portée projet, les invitations avec `project_id`, et `resolveActor` qui bascule
 sur une portée projet. Ce qui manque est du **listage**, pas du modèle.
 
-⚠️ **Un défaut bloque ce travail** : la portée d'un rôle n'est pas vérifiée à
-l'invitation ([backlog 0013](backlog/0013-portee-de-role-non-verifiee.md)).
-Aujourd'hui seule la console empêche la combinaison dangereuse — ce que le
-projet interdit explicitement. La Team de projet repose entièrement sur cette
-distinction de portée : la corriger vient d'abord.
+✅ **Le défaut qui bloquait est corrigé** — la portée d'un rôle n'était pas
+vérifiée à l'invitation ([backlog 0013](backlog/0013-portee-de-role-non-verifiee.md)).
+Un rôle de projet invité sans projet devenait une adhésion d'organization, ses
+permissions valant sur *tous* les projets. Reproduit, puis fermé par trois
+tests écrits avant la correction. Refus en **422** : bien formée, mais
+incohérente — Zod occupe déjà le 400.
 
 Trois pièges déjà identifiés, à ne pas redécouvrir :
 
@@ -251,9 +252,8 @@ Rappels structurants :
 | [0004](backlog/0004-cors-admin-ui.md) | CORS pour l'admin UI | En production seulement — le proxy le règle en développement |
 | [0008](backlog/0008-resolution-des-projets-d-un-membre.md) | Résolution des projets d'un membre | À mesurer avant d'agir |
 | [0012](backlog/0012-la-console-n-a-aucun-test.md) | La console n'a aucun test | Avec la CI — les deux se décident ensemble |
-| [0013](backlog/0013-portee-de-role-non-verifiee.md) | La portée d'un rôle n'est pas vérifiée à l'invitation | 🔴 Avant la Team de projet |
 
-Neuf items clos.
+Dix items clos.
 
 ## Pièges à ne pas redécouvrir
 

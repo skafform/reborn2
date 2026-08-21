@@ -55,6 +55,9 @@ describe("invitations", () => {
   let viewerRoleId = "";
   let ownerRoleId = "";
   let guestRoleId = "";
+  /** Une seconde organization, pour éprouver un projet qui n'est pas le sien. */
+  let foreignOrganizationId = "";
+  let foreignProjectId = "";
 
   before(async () => {
     owner = await makeUser("owner");
@@ -73,10 +76,21 @@ describe("invitations", () => {
     viewerRoleId = await roleIdFor(organizationId, owner.id, "viewer");
     ownerRoleId = await roleIdFor(organizationId, owner.id, "owner");
     guestRoleId = await roleIdFor(organizationId, owner.id, "guest");
+
+    const foreign = await createOrganization({ userId: owner.id, name: "Ailleurs" });
+    foreignOrganizationId = foreign.id;
+    foreignProjectId = (
+      await createProject({
+        userId: owner.id,
+        organizationId: foreignOrganizationId,
+        name: "Site d'ailleurs",
+      })
+    ).id;
   });
 
   after(async () => {
     await destroyOrganization(owner.id, organizationId);
+    await destroyOrganization(owner.id, foreignOrganizationId);
     await destroyUsers(createdUsers);
     await closePool();
   });
@@ -225,6 +239,62 @@ describe("invitations", () => {
     const actor = await resolveActor(guest.id, organizationId);
     assert.equal(actor.grant?.scope, "project", "il reste extérieur à l'organization");
     assert.deepEqual(actor.grant?.projectIds, [projectId]);
+  });
+
+  /**
+   * La portée d'un rôle et l'endroit où on l'attribue doivent s'accorder.
+   *
+   * Le garde-fou d'escalade ne suffit pas : il compare des permissions, pas
+   * leur **étendue**. Un rôle de projet invité sans projet passait donc, et
+   * l'acceptation en faisait une adhésion d'organization — les permissions
+   * d'un `editor` valant alors sur *tous* les projets. Vérifié avant la
+   * correction (docs/backlog #0013).
+   */
+  describe("portée du rôle", () => {
+    it("refuse un rôle de projet sans projet", async () => {
+      const invité = await makeUser("sans-projet");
+      const editorRoleId = await roleIdFor(organizationId, owner.id, "editor");
+
+      await assert.rejects(
+        () => invite(invité.email, editorRoleId),
+        (error: InvitationError) => {
+          assert.equal(error.reason, "scope_mismatch");
+          assert.equal(error.status, 422, "bien formée, mais incohérente");
+          return true;
+        },
+      );
+    });
+
+    it("refuse un rôle d'organization avec un projet", async () => {
+      const invité = await makeUser("avec-projet");
+
+      await assert.rejects(
+        () => invite(invité.email, viewerRoleId, projectId),
+        (error: InvitationError) => {
+          assert.equal(error.reason, "scope_mismatch");
+          return true;
+        },
+      );
+    });
+
+    /**
+     * `invitations` ne porte pas la clé étrangère composite qui garantit sur
+     * `project_members` qu'un projet appartient bien à l'organization. Sans ce
+     * contrôle, l'invitation partait et devenait **inacceptable** : c'est à
+     * l'insertion dans `project_members` que la contrainte se réveillait.
+     */
+    it("refuse un projet d'une autre organization", async () => {
+      const invité = await makeUser("projet-etranger");
+
+      await assert.rejects(
+        () => invite(invité.email, guestRoleId, foreignProjectId),
+        (error: InvitationError) => {
+          assert.equal(error.reason, "unknown_project");
+          assert.equal(error.status, 404);
+          return true;
+        },
+      );
+    });
   });
 
   it("empêche d'inviter à un rôle plus puissant que soi", async () => {

@@ -186,6 +186,9 @@ function apiErrorMessage(error: ApiError): string {
     missing_permission: "You don't have permission to do that.",
     escalation: "You can't grant a permission you don't hold yourself.",
     unknown_role: "That role could not be found.",
+    unknown_project: "That project could not be found.",
+    scope_mismatch:
+      "That role doesn't apply here — project roles are granted from a project, organization roles from the organization.",
     already_invited: "There's already a pending invitation for that address.",
     already_member: "That address is already a member.",
     expired: "This invitation has expired.",
