@@ -1,10 +1,7 @@
 import { useOutletContext } from "react-router";
+import { day } from "../lib/format";
 import { Empty } from "../ui/controls";
 import type { ProjectContext } from "./project";
-
-/** Une date fixe, jamais celle du navigateur : deux personnes doivent lire la
- *  même chose. */
-const day = (iso: string) => new Date(iso).toLocaleDateString("en-CA");
 
 /**
  * L'accueil d'un projet.

@@ -16,6 +16,18 @@
         },
         "required": ["status"]
       },
+      "AuthProviders": {
+        "type": "object",
+        "properties": {
+          "providers": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": ["providers"]
+      },
       "Organization": {
         "type": "object",
         "properties": {
@@ -419,6 +431,23 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/HealthResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/auth-providers": {
+      "get": {
+        "summary": "Les fournisseurs OAuth configurés",
+        "responses": {
+          "200": {
+            "description": "Liste, éventuellement vide",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuthProviders"
                 }
               }
             }

@@ -42,5 +42,43 @@ export function authErrorMessage(error: { message?: string; code?: string }): st
   if (error.code === "INVALID_PASSWORD") {
     return "Your current password is incorrect.";
   }
+  // Unlinking demands a session younger than `freshAge` — a day by default.
+  // Their wording says the session isn't fresh, which names a concept nobody
+  // outside this file has met.
+  if (error.code === "SESSION_NOT_FRESH") {
+    return "For this, sign out and back in first — it needs a recent sign-in.";
+  }
+  // Better-Auth refuses to remove the last way into an account. The console
+  // hides the action in that case; this covers the tab left open while the
+  // other one was removed elsewhere.
+  if (error.code === "FAILED_TO_UNLINK_LAST_ACCOUNT") {
+    return "That's the only way into this account. Add another before removing it.";
+  }
   return error.message ?? "The request was refused.";
+}
+
+/**
+ * What an OAuth refusal means, from the `?error=` the browser comes back with.
+ *
+ * These codes arrive in an **address**, not in a response: signing in with a
+ * provider leaves the console, and the refusal happens while it has no hand in
+ * it. The code is stable; the wording is ours.
+ */
+export function oauthErrorMessage(code: string): string {
+  // The `disableImplicitLinking` refusal — deliberate, and the only one whose
+  // way out is a specific act. Left unsaid, one retries the same button
+  // forever.
+  if (code === "account_not_linked") {
+    return "An account already exists for that address. Sign in with your password, then link the provider from your account settings.";
+  }
+  if (code === "email_not_verified") {
+    return "That address isn't verified with the provider. Verify it there, or check your inbox — we've sent a confirmation link.";
+  }
+  if (code === "email_not_found") {
+    return "The provider didn't share an email address, and an account needs one.";
+  }
+  // The remaining codes describe protocol failures — lost state, invalid code,
+  // unreachable provider. Translating them one by one would produce sentences
+  // nobody can act on.
+  return "Sign-in with that provider failed. Try again.";
 }

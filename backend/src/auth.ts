@@ -16,6 +16,39 @@ import { resetPasswordEmail, verifyEmail } from "./mail/templates/auth.ts";
  */
 const pool = new Pool({ connectionString: env.DATABASE_URL });
 
+/**
+ * Registered only when the credentials are there. They are optional — CI has
+ * no OAuth application — so the set is computed rather than declared, and
+ * `GET /api/auth-providers` reads it back from `auth.options` so no client
+ * ever has to assume which providers exist.
+ */
+const socialProviders =
+  env.GITHUB_CLIENT_ID && env.GITHUB_CLIENT_SECRET
+    ? {
+        github: {
+          clientId: env.GITHUB_CLIENT_ID,
+          clientSecret: env.GITHUB_CLIENT_SECRET,
+
+          /**
+           * ⚠️ **Without this, OAuth walks around the rule email/password
+           * obeys.** `requireEmailVerification` above covers credentials only;
+           * a GitHub account whose address GitHub has *not* verified would
+           * still open a session here — and that is exactly the person the
+           * rule exists to stop, since invitations are matched on the address
+           * alone.
+           *
+           * Better-Auth then creates no session and answers
+           * `EMAIL_NOT_VERIFIED`. The confirmation email still goes out, since
+           * `sendOnSignUp` is set below.
+           *
+           * The provider's default scopes — `read:user`, `user:email` — are
+           * what let it read GitHub's own verified flag.
+           */
+          requireEmailVerification: true,
+        },
+      }
+    : {};
+
 export const auth = betterAuth({
   database: pool,
   secret: env.BETTER_AUTH_SECRET,
@@ -33,6 +66,8 @@ export const auth = betterAuth({
    * Le serveur ne nomme aucun client : il lit des adresses de confiance.
    */
   trustedOrigins: env.TRUSTED_ORIGINS,
+
+  socialProviders,
 
   emailAndPassword: {
     enabled: true,

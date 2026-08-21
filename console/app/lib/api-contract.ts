@@ -1,5 +1,6 @@
 import type * as z from "zod/mini";
 import {
+  GetApiAuthProvidersResponse,
   GetApiInboxResponse,
   type GetApiInboxResponseItem,
   GetApiInvitationsTokenResponse,
@@ -59,6 +60,14 @@ import {
  * Les schémas en `New…` décrivent ce qu'on **envoie**. Ils viennent du même
  * contrat que les réponses, et ferment la dérive dans l'autre sens.
  */
+
+/**
+ * Quels boutons de connexion afficher. Le serveur le dit ; la console ne le
+ * suppose pas — les identifiants OAuth sont facultatifs par déploiement, et
+ * deviner produirait soit un bouton qui échoue, soit un bouton absent qui
+ * marcherait.
+ */
+export const AuthProvidersSchema = GetApiAuthProvidersResponse;
 
 export const OrganizationsSchema = GetApiOrganizationsResponse;
 export type Organization = z.infer<typeof GetApiOrganizationsResponseItem>;

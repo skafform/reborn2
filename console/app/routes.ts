@@ -11,6 +11,11 @@ import { index, layout, type RouteConfig, route } from "@react-router/dev/routes
 export default [
   route("signup", "routes/signup.tsx"),
   route("login", "routes/login.tsx"),
+  // Les deux moitiés du même geste : demander le lien, puis choisir le mot de
+  // passe une fois revenu par le courriel. Le backend y renvoie avec `?token=`
+  // ou `?error=INVALID_TOKEN` — l'adresse est donc son `redirectTo`, et ne
+  // peut pas changer sans casser les liens déjà envoyés.
+  route("reset-password", "routes/reset-password.tsx"),
   // Après l'inscription. Écran d'attente : le compte existe, la confirmation
   // d'adresse est ce qui manque pour s'en servir.
   route("verify-email", "routes/verify-email.tsx"),

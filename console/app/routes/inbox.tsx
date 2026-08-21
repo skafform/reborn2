@@ -4,6 +4,7 @@ import {
   AcceptedFromInboxSchema,
   ReceivedInvitationsSchema,
 } from "../lib/api-contract";
+import { day } from "../lib/format";
 import { Banner, Empty, RowAction } from "../ui/controls";
 import type { Route } from "./+types/inbox";
 
@@ -37,10 +38,6 @@ export async function clientAction({ request }: Route.ClientActionArgs) {
     throw error;
   }
 }
-
-/** Une date fixe, jamais celle du navigateur : deux personnes doivent lire la
- *  même chose. */
-const day = (iso: string) => new Date(iso).toLocaleDateString("en-CA");
 
 export default function Inbox({ loaderData, actionData }: Route.ComponentProps) {
   const busy = useNavigation().state !== "idle";

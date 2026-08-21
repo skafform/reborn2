@@ -32,6 +32,23 @@ const call = (path: string, session: Session, init: RequestInit = {}) =>
     },
   });
 
+describe("fournisseurs OAuth", () => {
+  it("répond sans session", async () => {
+    // C'est tout l'objet de la route : un client doit la lire **avant** d'avoir
+    // une session, pour savoir quels boutons de connexion afficher.
+    const response = await app.request("/api/auth-providers");
+    assert.equal(response.status, 200);
+  });
+
+  it("n'annonce rien sans identifiants configurés", async () => {
+    const response = await app.request("/api/auth-providers");
+    // L'environnement de test n'a pas d'application OAuth, et la liste est
+    // relue depuis la configuration de Better-Auth — elle ne peut donc pas
+    // annoncer un fournisseur qui n'existe pas.
+    assert.deepEqual(await response.json(), { providers: [] });
+  });
+});
+
 describe("routes de gestion", () => {
   let owner: Session;
   let viewer: Session;

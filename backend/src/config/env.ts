@@ -53,6 +53,18 @@ export const envSchema = z
      */
     RESEND_API_KEY: z.string().min(1).optional(),
     PLATFORM_MAIL_FROM: z.string().min(3),
+
+    /**
+     * GitHub OAuth application. Optional: CI has none, and a local setup can
+     * do without. The provider is only registered when both are present, and
+     * clients are told which providers exist (`GET /api/auth-providers`)
+     * rather than assuming any.
+     *
+     * ⚠️ The callback URL to declare at GitHub hangs off `BETTER_AUTH_URL`,
+     * not off the console — `${BETTER_AUTH_URL}/api/auth/callback/github`.
+     */
+    GITHUB_CLIENT_ID: z.string().min(1).optional(),
+    GITHUB_CLIENT_SECRET: z.string().min(1).optional(),
   })
   .superRefine((value, ctx) => {
     if (value.NODE_ENV === "production" && !value.RESEND_API_KEY) {
@@ -60,6 +72,17 @@ export const envSchema = z
         code: "custom",
         path: ["RESEND_API_KEY"],
         message: "requise en production",
+      });
+    }
+
+    // Half a configuration is worse than none: the provider would stay
+    // unregistered, and whoever set one of the two would find out at the first
+    // click rather than at startup.
+    if (Boolean(value.GITHUB_CLIENT_ID) !== Boolean(value.GITHUB_CLIENT_SECRET)) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["GITHUB_CLIENT_SECRET"],
+        message: "GITHUB_CLIENT_ID et GITHUB_CLIENT_SECRET vont ensemble : les deux, ou aucun",
       });
     }
   });

@@ -1,7 +1,15 @@
 import { Form, Link, redirect, useNavigation, useSearchParams } from "react-router";
+import { api } from "../lib/api";
+import { AuthProvidersSchema } from "../lib/api-contract";
 import { authClient, authErrorMessage, callbackURL } from "../lib/auth";
 import { Banner, Button, Field } from "../ui/controls";
+import { SocialSignIn } from "../ui/social-sign-in";
 import type { Route } from "./+types/signup";
+
+/** Voir `login.tsx` : le serveur dit quels fournisseurs il propose. */
+export async function clientLoader() {
+  return await api("/auth-providers", AuthProvidersSchema);
+}
 
 /**
  * Créer un compte.
@@ -26,7 +34,7 @@ export async function clientAction({ request }: Route.ClientActionArgs) {
   return redirect(`/verify-email?email=${encodeURIComponent(email)}`);
 }
 
-export default function Signup({ actionData }: Route.ComponentProps) {
+export default function Signup({ actionData, loaderData }: Route.ComponentProps) {
   const busy = useNavigation().state !== "idle";
   // Rempli par le lien d'une invitation, jamais imposé : l'adresse reste
   // modifiable, pour la personne qui préfère s'inscrire avec une autre.
@@ -70,6 +78,11 @@ export default function Signup({ actionData }: Route.ComponentProps) {
             {busy ? "Creating…" : "Create account"}
           </Button>
         </Form>
+
+        {/* Le même composant qu'à la connexion, et c'est fidèle : avec OAuth
+            les deux gestes ne se distinguent pas — le compte est créé à la
+            première arrivée et réutilisé ensuite. */}
+        <SocialSignIn providers={loaderData.providers} disabled={busy} />
 
         <p className="console-form-footer">
           <Link to="/login">I already have an account</Link>

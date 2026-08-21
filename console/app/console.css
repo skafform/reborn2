@@ -600,10 +600,33 @@ body {
 
 /* Les sorties d'un formulaire — créer un compte, revenir à la connexion.
    Assez discrètes pour ne jamais être prises pour l'action attendue. */
+/* Flex rather than centred text: the sign-in screen now carries two links, and
+   two centred lines would read as one wrapped sentence. */
 .console-form-footer {
+  display: flex;
+  justify-content: center;
+  gap: 16px;
   margin: 16px 0 0;
-  text-align: center;
   font-size: var(--console-font-size-sm);
+}
+
+/* A rule with a word in it — "or" — between two ways of doing one thing. A
+   plain gap would leave the second looking like a continuation of the first. */
+.console-separator {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 16px 0;
+  font-size: var(--console-font-size-xs);
+  color: var(--console-foreground-muted);
+}
+
+.console-separator::before,
+.console-separator::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: var(--console-border);
 }
 
 /* --- Mobilier de page --- */
@@ -683,6 +706,14 @@ body {
   display: flex;
   gap: 12px;
   justify-content: flex-end;
+}
+
+/* Des boutons sous une section, pas dans une ligne : ils commencent à gauche,
+   là où l'œil descend après avoir lu le tableau. */
+.console-actions {
+  display: flex;
+  gap: 12px;
+  margin-top: 16px;
 }
 
 .console-badge {

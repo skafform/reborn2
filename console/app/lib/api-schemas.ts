@@ -14,6 +14,13 @@ export const GetHealthResponse = /*#__PURE__*/ zod.object({
 });
 
 /**
+ * @summary Les fournisseurs OAuth configurés
+ */
+export const GetApiAuthProvidersResponse = /*#__PURE__*/ zod.object({
+  providers: /*#__PURE__*/ zod.array(/*#__PURE__*/ zod.string()),
+});
+
+/**
  * @summary Les organizations de l'utilisateur
  */
 export const GetApiOrganizationsResponseItem = /*#__PURE__*/ zod.object({

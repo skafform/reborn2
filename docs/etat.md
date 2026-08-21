@@ -74,7 +74,13 @@ description de la disposition a été corrigée.
 ### Ce que la console fait aujourd'hui
 
 **Écrans d'entrée**, hors coque — `signup`, `login`, `verify-email`,
-`invitations/accept` (où mène le lien du courriel), `new-organization`.
+`reset-password`, `invitations/accept` (où mène le lien du courriel),
+`new-organization`.
+
+**Connexion par GitHub.** Les identifiants sont **facultatifs mais appariés**
+par déploiement, d'où `GET /api/auth-providers` : la console demande au serveur
+quels boutons afficher plutôt que de le supposer. Détail et pièges dans
+[auth.md](architecture/auth.md#oauth--github-construit-google-prévu).
 
 **La coque**, sous `org/:organizationId` — barre du haut avec le sélecteur
 d'organization à gauche et le menu de compte à droite, barre latérale
@@ -83,9 +89,15 @@ d'organization à gauche et le menu de compte à droite, barre latérale
 chemin est bien une des siennes.
 
 **L'écran de compte**, `org/:organizationId/account` — nom modifiable, adresse
-en lecture seule, changement de mot de passe. ⚠️ **Aucune route du backend n'y
-participe** : Better-Auth sert déjà `/update-user` et `/change-password`, et son
-client publié *est* leur contrat.
+en lecture seule, mot de passe, et **comptes liés**. ⚠️ **Une seule route du
+backend y participe**, celle des fournisseurs : Better-Auth sert déjà
+`/update-user`, `/change-password`, `/list-accounts`, `/link-social` et
+`/unlink-account`, et son client publié *est* leur contrat.
+
+Sans mot de passe — un compte arrivé par GitHub seul — la section propose de
+s'en envoyer un par courriel plutôt qu'un formulaire : `setPassword` est
+`serverOnly` chez Better-Auth, et le lien de réinitialisation **crée** le
+compte credential absent.
 
 Le compte n'appartient à aucune organization, mais toute la coque vit sous
 `org/:id` — même compromis que l'Inbox. D'où **aucune entrée dans la barre
@@ -129,6 +141,7 @@ planter.
 
 | Route | Garde |
 |---|---|
+| `GET /auth-providers` | **aucune** — se lit avant d'avoir une session, c'est son objet |
 | `GET /organizations/{id}/me` | session — dit à la console ce que la personne peut faire |
 | `GET /organizations/{id}/members` | `member.read` |
 | `GET /organizations/{id}/roles` | `member.manage` — sert à *attribuer*, pas à définir |

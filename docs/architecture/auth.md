@@ -45,7 +45,16 @@ Better-Auth). À faire si le cas se présente.
 ## Réinitialisation de mot de passe
 
 Pour qui a **oublié** le sien, donc depuis l'écran de connexion. Implémentée
-par `sendResetPassword`.
+par `sendResetPassword`, et servie par un seul écran de console
+(`routes/reset-password.tsx`) : sans jeton il demande le lien, avec un jeton il
+demande le mot de passe. Deux formulaires, un seul sujet — et l'adresse ne
+bouge pas, puisque c'est le lien du courriel qui y ramène.
+
+⚠️ **Le formulaire de demande ne dit jamais si le compte existe** : il
+répondrait sinon à qui veut énumérer les comptes.
+
+⚠️ **C'est aussi le chemin de « définir un mot de passe »** pour un compte
+arrivé par OAuth seul — voir *Deux hypothèses* plus bas.
 
 - L'utilisateur demande une réinitialisation → email contenant un lien
 - Lien **valide 1 h**, à **usage unique**
@@ -100,14 +109,46 @@ l'organization, ou refuser — avant d'ouvrir le bouton.
   immédiate d'une session (utile pour exclure un membre d'une organization
   sur-le-champ) sans la complexité d'un système de refresh token
 
-## OAuth (Google, GitHub) — prévu, pas construit
+## OAuth — GitHub construit, Google prévu
 
-Pas au MVP, mais deux coutures sont posées pour que l'ajout n'impose aucun
-retour en arrière.
+**Aucune migration n'a été nécessaire** : la table `account` de Better-Auth
+porte déjà plusieurs fournisseurs par utilisateur — email/mot de passe et OAuth
+cohabitent nativement.
 
-**Aucune couture de base de données n'est nécessaire** : la table `account` de
-Better-Auth porte déjà plusieurs fournisseurs par utilisateur — email/mot de
-passe et OAuth cohabitent nativement.
+### Un fournisseur est facultatif, et c'est le serveur qui le dit
+
+`GITHUB_CLIENT_ID` et `GITHUB_CLIENT_SECRET` sont **facultatifs mais
+appariés** : la CI n'a pas d'application OAuth, et un identifiant sans son
+secret fait échouer le démarrage plutôt que le premier clic.
+
+D'où `GET /api/auth-providers`, sans session : un client doit savoir quels
+boutons afficher **avant** d'en avoir une, et deviner produirait soit un bouton
+qui échoue, soit un bouton absent qui marcherait. La liste est **relue depuis
+la configuration de Better-Auth**, jamais redéclarée — deux listes
+dériveraient, et celle-ci mentirait sans bruit.
+
+⚠️ **Pas sous `/api/auth/`** : `app.ts` y donne tout à Better-Auth, la route
+serait avalée.
+
+⚠️ **L'URL de retour à déclarer chez le fournisseur dérive de
+`BETTER_AUTH_URL`, pas de la console** — `${BETTER_AUTH_URL}/api/auth/callback/github`.
+Le navigateur quitte donc l'origine de la console le temps du retour. En
+développement ça marche quand même parce que **les cookies ignorent le port** :
+celui que le backend pose sur `localhost:3000` vaut sur `localhost:5173`.
+
+### ⚠️ La confirmation d'adresse ne suit pas toute seule
+
+`requireEmailVerification` ne couvre que l'email/mot de passe. Un compte GitHub
+dont l'adresse n'est **pas vérifiée chez GitHub** obtiendrait une session — et
+c'est exactement la personne que la règle existe pour arrêter, puisque les
+invitations sont appariées sur l'adresse seule.
+
+D'où `socialProviders.github.requireEmailVerification`, **par fournisseur** :
+Better-Auth ne crée alors aucune session et répond `email_not_verified`.
+L'email de confirmation part quand même, `sendOnSignUp` étant posé.
+
+Les portées par défaut du fournisseur — `read:user`, `user:email` — sont ce qui
+lui permet de lire le drapeau *verified* de GitHub.
 
 ### Politique de liaison de comptes : `disableImplicitLinking`
 
@@ -144,29 +185,43 @@ données personnelles mais **au contenu de clients tiers**, avec les
 permissions associées. Le coût — une liaison manuelle, une seule fois —
 est sans commune mesure avec le risque.
 
-### Deux hypothèses à ne jamais coder en dur
+### La section « comptes liés »
 
-1. **Le flux d'invitation ne doit pas supposer « mot de passe »** — un invité
-   devra pouvoir accepter son invitation en s'inscrivant via Google, l'email
-   du fournisseur devant correspondre exactement à celui de l'invitation
-   (voir [invitations.md](./invitations.md))
-2. **Tous les comptes n'auront pas de mot de passe** — un utilisateur arrivé
-   uniquement par OAuth n'en a aucun. La réinitialisation de mot de passe et
-   la révocation de sessions qui la suit ne le concernent pas ; l'UI doit lui
-   proposer « définir un mot de passe », pas « le changer ». ⚠️ L'écran de
-   compte de la console propose aujourd'hui « changer » sans condition
+⚠️ **Elle n'est pas un confort.** Sans elle, la liaison manuelle qu'impose
+`disableImplicitLinking` serait **impossible** : la politique deviendrait un
+cul-de-sac au lieu d'une friction. Elle est donc arrivée avec le premier
+fournisseur, pas après.
 
-### Ce qu'il restera à construire
+Elle liste le mot de passe et les fournisseurs sur le même pied — c'est ce qui
+rend lisible « il m'en reste une autre » avant de déconnecter. Better-Auth
+refuse de retirer la dernière (`FAILED_TO_UNLINK_LAST_ACCOUNT`) ; la console
+masque l'action dans ce cas, **par confort, jamais comme garde-fou**.
 
-- **Une section « comptes liés »** dans l'écran de compte. ⚠️ Sans elle, la
-  liaison manuelle qu'impose `disableImplicitLinking` est **impossible** :
-  la politique retenue deviendrait un cul-de-sac plutôt qu'une friction
-- **Les identifiants en environnement** — facultatifs, mais **appariés** :
-  un `CLIENT_ID` sans son `SECRET` doit faire échouer le démarrage. Le motif
-  existe déjà dans `config/env.ts` pour `RESEND_API_KEY`
-- **Une application OAuth par fournisseur *et par environnement***, les URI
-  de redirection différant. Google demande en plus un écran de consentement
-  renseigné, GitHub non — d'où l'ordre suggéré : GitHub d'abord
+⚠️ Déconnecter exige une session récente (`freshAge`, un jour par défaut).
+C'est le seul geste du compte qui puisse échouer pour une raison qui n'a rien à
+voir avec ce qu'on demande.
+
+### Les deux hypothèses, et ce qu'elles sont devenues
+
+1. **Le flux d'invitation ne suppose pas « mot de passe »** — un invité peut
+   accepter en s'inscrivant via un fournisseur, l'email de celui-ci devant
+   correspondre exactement à celui de l'invitation (voir
+   [invitations.md](./invitations.md))
+2. **Tous les comptes n'ont pas de mot de passe** — qui arrive par OAuth seul
+   n'en a aucun. ⚠️ Et **`setPassword` de Better-Auth est `serverOnly`**, donc
+   injoignable depuis la console. La réponse n'est pas une route de plus :
+   `resetPassword` **crée** le compte `credential` quand il n'y en a pas
+   (`api/routes/password.mjs`). « Définir un mot de passe » est donc le même
+   chemin que « je l'ai oublié » — et il prouve la possession de l'adresse au
+   passage, ce qu'un simple formulaire ne ferait pas
+
+### Ce qu'il reste
+
+- **Google.** Le seul travail supplémentaire est chez eux : un écran de
+  consentement renseigné, là où GitHub n'en demande pas. Côté code, un objet
+  de plus dans `socialProviders` et une entrée dans `ui/providers.tsx`
+- ⚠️ **Une application OAuth par fournisseur *et par environnement***, les URI
+  de redirection différant
 
 ## SSO d'entreprise — prévu, pas construit
 

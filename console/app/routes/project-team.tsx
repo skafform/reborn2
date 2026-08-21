@@ -9,6 +9,7 @@ import {
   RolesSchema,
   SentProjectInvitationSchema,
 } from "../lib/api-contract";
+import { day } from "../lib/format";
 import { applyMembershipChange } from "../lib/membership-actions";
 import { Avatar } from "../ui/avatar";
 import {
@@ -110,10 +111,6 @@ export async function clientAction({ params, request }: Route.ClientActionArgs) 
     throw error;
   }
 }
-
-/** Une date fixe, jamais celle du navigateur : deux personnes doivent lire la
- *  même chose. */
-const day = (iso: string) => new Date(iso).toLocaleDateString("en-CA");
 
 export default function ProjectTeam({ loaderData, actionData }: Route.ComponentProps) {
   const busy = useNavigation().state !== "idle";

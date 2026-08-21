@@ -52,6 +52,34 @@ describe("envSchema", () => {
     assert.equal(result.success, true, "un email perdu en local est sans conséquence");
   });
 
+  it("allows GitHub credentials to be absent", () => {
+    const result = envSchema.safeParse(valid);
+    assert.equal(result.success, true, "la CI n'a pas d'application OAuth");
+  });
+
+  it("accepts GitHub credentials as a pair", () => {
+    const result = envSchema.safeParse({
+      ...valid,
+      GITHUB_CLIENT_ID: "id",
+      GITHUB_CLIENT_SECRET: "secret",
+    });
+    assert.equal(result.success, true);
+  });
+
+  it("rejects a GitHub id without its secret", () => {
+    const result = envSchema.safeParse({ ...valid, GITHUB_CLIENT_ID: "id" });
+    assert.equal(
+      result.success,
+      false,
+      "une moitié de configuration se découvrirait au premier clic",
+    );
+  });
+
+  it("rejects a GitHub secret without its id", () => {
+    const result = envSchema.safeParse({ ...valid, GITHUB_CLIENT_SECRET: "secret" });
+    assert.equal(result.success, false);
+  });
+
   it("requires the Resend key in production", () => {
     const result = envSchema.safeParse({ ...valid, NODE_ENV: "production" });
     assert.equal(

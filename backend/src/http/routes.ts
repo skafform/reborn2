@@ -118,6 +118,33 @@ const json = <T extends z.ZodType>(schema: T, description: string) => ({
   content: { "application/json": { schema } },
 });
 
+const AuthProvidersSchema = z
+  .object({ providers: z.array(z.string()) })
+  .openapi("AuthProviders");
+
+/**
+ * Quels fournisseurs OAuth ce déploiement propose.
+ *
+ * Sans session : c'est ce qu'un client doit savoir **avant** d'en avoir une.
+ * Les identifiants étant facultatifs (`config/env.ts`), un client ne peut pas
+ * deviner — il afficherait un bouton qui échoue, ou en cacherait un qui marche.
+ *
+ * ⚠️ **Pas sous `/api/auth/`** : `app.ts` y donne tout à Better-Auth, la route
+ * serait avalée.
+ *
+ * La liste est **relue depuis la configuration de Better-Auth**, pas
+ * redéclarée : deux listes dériveraient, et celle-ci mentirait sans bruit.
+ */
+managementRoutes.openapi(
+  createRoute({
+    method: "get",
+    path: "/auth-providers",
+    summary: "Les fournisseurs OAuth configurés",
+    responses: { 200: json(AuthProvidersSchema, "Liste, éventuellement vide") },
+  }),
+  (c) => c.json({ providers: Object.keys(auth.options.socialProviders ?? {}) }),
+);
+
 managementRoutes.openapi(
   createRoute({
     method: "get",
