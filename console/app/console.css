@@ -191,9 +191,17 @@ body {
   text-decoration: none;
 }
 
+/* Plus petit et plus atténué que les entrées, pas plus gros.
+   ⚠️ C'était l'inverse : même taille qu'une entrée mais en 600, donc le seul
+   élément **non cliquable** de la barre en était le plus lourd, et l'œil le
+   lisait comme une entrée de menu. Le contexte s'efface, les cibles dominent —
+   c'est ce que fait Linear de ses en-têtes de section. */
 .console-sidebar-title {
-  font-size: var(--console-font-size-base);
-  font-weight: 600;
+  font-size: var(--console-font-size-xs);
+  font-weight: 500;
+  /* Pas `muted` : le lien de retour l'est déjà, et deux lignes de même taille
+     et de même gris seraient indiscernables. Trois niveaux, du plus discret au
+     plus présent — le retour, le nom, puis les entrées. */
   color: var(--console-foreground);
   overflow-wrap: anywhere;
 }
