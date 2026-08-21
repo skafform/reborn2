@@ -206,7 +206,12 @@ body {
    (plus bas, pour les liens de contenu) l'emporterait sinon par spécificité —
    classe+type bat classe seule. */
 .console-sidebar .console-nav-link {
-  display: block;
+  /* `flex` et non `block` depuis que les entrées portent une icône : elle se
+     rend en `currentColor`, donc elle suit les couleurs ci-dessous sans règle
+     propre — au repos, au survol et à l'état actif. */
+  display: flex;
+  align-items: center;
+  gap: 8px;
   padding: 8px 12px;
   font-size: var(--console-font-size-base);
   font-weight: 500;

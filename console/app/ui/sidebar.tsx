@@ -1,3 +1,4 @@
+import type { LucideIcon } from "lucide-react";
 import type { ReactNode } from "react";
 import { NavLink } from "react-router";
 
@@ -15,6 +16,12 @@ export type Section = {
   label: string;
   /** `true` pour l'entrée d'index, qui serait sinon active partout en dessous. */
   end: boolean;
+  /**
+   * L'icône se rend en `currentColor` : elle suit donc les règles de couleur du
+   * lien — atténuée au repos, plus claire au survol, marquée quand elle est
+   * active — sans une ligne de CSS de plus.
+   */
+  icon: LucideIcon;
 };
 
 export function Sidebar({
@@ -40,6 +47,9 @@ export function Sidebar({
                   : "console-nav-link"
               }
             >
+              {/* `aria-hidden` : le libellé dit déjà ce que l'icône montre, et
+                  l'annoncer deux fois n'aide personne. */}
+              <section.icon size={16} aria-hidden="true" />
               {section.label}
             </NavLink>
           </li>

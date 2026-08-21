@@ -1,3 +1,4 @@
+import { KeyRound, LayoutDashboard, Users } from "lucide-react";
 import { Link, Outlet, useOutletContext } from "react-router";
 import type * as z from "zod/mini";
 import { api } from "../lib/api";
@@ -49,12 +50,24 @@ export default function ProjectLayout({ loaderData }: Route.ComponentProps) {
   const base = `/org/${organizationId}/projects/${project.id}`;
 
   const sections = [
-    { to: base, label: "Overview", end: true, needs: null },
-    { to: `${base}/team`, label: "Team", end: false, needs: "member.read" },
+    { to: base, label: "Overview", end: true, needs: null, icon: LayoutDashboard },
+    {
+      to: `${base}/team`,
+      label: "Team",
+      end: false,
+      needs: "member.read",
+      icon: Users,
+    },
     // ⚠️ Tout ou rien : les clés publique et preview sont stockées en clair,
     // donc les voir c'est les avoir. Il n'existe pas de lecture seule ici, et
     // `listApiKeys` exige la même permission côté serveur.
-    { to: `${base}/api-keys`, label: "API keys", end: false, needs: "apikey.manage" },
+    {
+      to: `${base}/api-keys`,
+      label: "API keys",
+      end: false,
+      needs: "apikey.manage",
+      icon: KeyRound,
+    },
   ].filter((section) => section.needs === null || permissions.includes(section.needs));
 
   return (

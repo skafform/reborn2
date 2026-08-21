@@ -1,3 +1,4 @@
+import { Box, Inbox, ShieldCheck, Users } from "lucide-react";
 import { Outlet, useOutletContext } from "react-router";
 import { api } from "../lib/api";
 import { MembershipSchema } from "../lib/api-contract";
@@ -41,16 +42,29 @@ export default function OrganizationSections({ loaderData }: Route.ComponentProp
     // L'Inbox en premier : c'est ce qui attend une réponse, pas ce qu'on
     // consulte. Son contenu appartient à la personne, pas à l'organization
     // courante (voir routes.ts) — donc aucune permission ne la conditionne.
-    { to: `/org/${organizationId}/inbox`, label: "Inbox", end: false, needs: null },
+    {
+      to: `/org/${organizationId}/inbox`,
+      label: "Inbox",
+      end: false,
+      needs: null,
+      icon: Inbox,
+    },
     // Aucune permission non plus : la liste **est** le filtre côté serveur.
     // Quelqu'un qui n'atteint aucun projet y voit une page vide, ce qui est
     // plus honnête qu'une entrée absente.
-    { to: `/org/${organizationId}`, label: "Projects", end: true, needs: null },
+    {
+      to: `/org/${organizationId}`,
+      label: "Projects",
+      end: true,
+      needs: null,
+      icon: Box,
+    },
     {
       to: `/org/${organizationId}/team`,
       label: "Team",
       end: false,
       needs: "member.read",
+      icon: Users,
     },
     // `role.manage` is owner-only (ADR 0014): defining what a role means is a
     // different power from assigning one, and an admin keeps only the second.
@@ -59,6 +73,7 @@ export default function OrganizationSections({ loaderData }: Route.ComponentProp
       label: "Roles",
       end: false,
       needs: "role.manage",
+      icon: ShieldCheck,
     },
   ].filter((section) => section.needs === null || permissions.includes(section.needs));
 
