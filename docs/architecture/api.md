@@ -235,9 +235,25 @@ Le détail de la recherche, la démonstration de la dérive et les essais :
 
 ## Clés API
 
-Approche façon Contentful : 3 clés fixes par projet, MVP = un seul triplet
-par projet (pas de clés multiples du même type pour le MVP — reporté à une
-version future pour distinguer environnements/intégrations).
+Trois **types** de clés, et autant de clés qu'on veut de chaque type — chacune
+portant un nom.
+
+⚠️ Ce document a d'abord annoncé « 3 clés fixes par projet, un seul triplet ».
+C'était une simplification de MVP, corrigée ici : elle empêche la **rotation
+sans coupure**, qui est l'usage principal d'une clé après sa création.
+
+Avec un seul emplacement par type, remplacer une clé impose de révoquer puis de
+créer — et entre les deux le site est cassé : l'ancienne ne répond plus, la
+nouvelle n'est pas encore déployée. Avec une liste, l'ordre s'inverse : créer,
+déployer, vérifier, **puis** révoquer. Le second bénéfice suit — une clé par
+consommateur (site, application, CI), donc une fuite se révoque sans casser les
+autres.
+
+C'est aussi ce que font Contentful et Sanity, et ce que le code faisait déjà :
+`api_keys` porte une colonne `name` et aucune contrainte d'unicité sur
+`(environment_id, kind)`. Imposer le triplet aurait coûté **plus** cher — un
+index unique partiel — pas moins ; et sans lui la règle n'aurait vécu que dans
+la console, ce que ce projet refuse.
 
 | Clé | Lecture | Écriture | Contenu visible |
 |---|---|---|---|
@@ -294,6 +310,34 @@ requête, donc aucune urgence les concernant.
 
 Voir [evolutions-prevues.md](./evolutions-prevues.md).
 
+### Où on les gère
+
+`GET`/`POST /organizations/{id}/projects/{projectId}/api-keys`, et
+`POST …/api-keys/{keyId}/revoke` puis `DELETE …/api-keys/{keyId}`.
+
+**Adressées par projet, pas par environnement**, alors qu'une clé appartient à
+un environnement ([ADR 0013](../adr/0013-cles-api-rattachees-a-un-environnement.md)).
+Le serveur résout `master` lui-même : c'est le seul qui existe, et aucun écran
+ne prononce le mot ([environments.md](./environments.md)). Exposer
+`environmentId` obligerait la console à trouver une valeur qu'elle ne saurait
+expliquer à personne.
+
+Le jour où les environnements deviennent réels, un sélecteur apparaît et
+l'adresse s'allonge en `…/projects/{pid}/environments/{eid}/api-keys` ;
+l'actuelle en devient le raccourci vers `master`. C'est bon marché **parce que
+la clé porte déjà son `environment_id`** — c'est exactement ce que l'ADR 0013
+achetait.
+
+L'écran range les clés en **trois sections**, une par type, chacune avec sa
+propre action (`+ New public key`, etc.). Le type n'est donc jamais un champ à
+remplir : il est déterminé par l'endroit où l'on clique.
+
+⚠️ **Pas de lecture seule sur cette page.** `listApiKeys` exige `apikey.manage`,
+et c'est juste : les clés publique et preview sont stockées **en clair**, donc
+les voir c'est les avoir. La section est tout ou rien — sans la permission,
+l'entrée de barre latérale n'apparaît pas et la route refuse. Aujourd'hui seuls
+`owner` et `admin` la détiennent ; aucun rôle de projet.
+
 ### Révocation & suppression
 
 - Une clé peut être **révoquée** (elle cesse immédiatement de fonctionner,
@@ -303,3 +347,15 @@ Voir [evolutions-prevues.md](./evolutions-prevues.md).
 - **La suppression d'une clé encore active est interdite** : il faut d'abord
   la révoquer. Cela évite qu'une clé disparaisse du système sans qu'on sache
   si elle était encore en circulation, et préserve la traçabilité
+
+Une clé révoquée **reste donc dans la liste**, inactive, jusqu'à ce qu'on la
+supprime. L'écran doit la montrer comme telle plutôt que de la faire
+disparaître : c'est la trace de ce qui a circulé.
+
+Le **nom est obligatoire**. Sans lui, révoquer devient aveugle — on ne saurait
+pas laquelle des trois clés publiques est celle du site qu'on veut couper.
+
+⏳ **Pas de colonne « dernière utilisation »** pour l'instant. `last_used_at`
+existe en base, mais rien ne l'écrit tant qu'aucune route ne s'authentifie par
+clé. Une colonne qui ne peut dire qu'une seule chose est du bruit ; elle
+apparaîtra avec l'API de livraison (étape 7).

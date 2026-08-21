@@ -257,12 +257,41 @@ Les deux listes d'invitations en attente sont **séparées** — celles d'un pro
 n'apparaissent plus dans l'équipe de l'organization, où personne ne les a
 envoyées.
 
+### En cours : les clés API
+
+Les services existent tous et sont testés (`createApiKey`, `listApiKeys`,
+`revokeApiKey`, `deleteApiKey`, `masterEnvironment`) — seules les **routes HTTP
+et l'écran** manquent. Leur place est dans la page de projet.
+
+**Décidé** : une **liste nommée** par type, pas un triplet figé. La raison est
+la rotation sans coupure — avec un seul emplacement, remplacer une clé impose
+de révoquer puis créer, et le site est cassé entre les deux. Détail et
+correction de la documentation dans
+[architecture/api.md](architecture/api.md#clés-api).
+
+L'écran range les clés en **trois sections**, une par type, chacune avec sa
+propre action. Adressage `…/projects/{pid}/api-keys` : le serveur résout
+`master`, la console n'entend jamais parler d'environnements.
+
+⚠️ **Rien ne consomme encore une clé.** `resolveApiKey` n'est appelé que par
+ses tests, et aucune route ne s'authentifie par clé — c'est l'étape 7. On livre
+donc de quoi créer et révoquer des clés qui n'ouvrent encore rien.
+
+⚠️ **Pas de lecture seule** sur cette page : les clés publique et preview sont
+stockées en clair, donc les voir c'est les avoir. `apikey.manage` gouverne la
+section entière — `owner` et `admin` seulement, aucun rôle de projet.
+
 ### Ensuite
 
-**Les clés API** — les services existent tous (`listApiKeys`, `createApiKey`,
-`revokeApiKey`, `deleteApiKey`), seules les routes HTTP manquent. Leur place
-est dans la page de projet, et c'est là que le **bloc `.env`** de la console de
-référence prend son sens : trois clés à recopier dans le fichier d'un frontend.
+**Gestion des rôles** — `role.manage` est dans le catalogue et
+l'[ADR 0011](adr/0011-roles-personnalises-par-organization.md) prévoit des
+rôles personnalisables, mais **rien n'est construit** : ni créer un rôle, ni
+modifier ses permissions.
+
+**Gestion des adhésions** — retirer, suspendre, changer de rôle. ⚠️ À ne pas
+confondre avec la suppression d'un **compte** : un admin d'organization ne doit
+jamais pouvoir effacer l'accès de quelqu'un à ses autres organizations. Le
+périmètre reste à trancher.
 
 **Compléter l'API au fil de l'eau**, quand un écran révèle un manque.
 
