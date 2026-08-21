@@ -183,6 +183,52 @@ Symétrique de la règle d'invitation (*seul un `owner` peut promouvoir vers
 `owner`/`admin`*) : sans cela, un `admin` pourrait évincer le propriétaire de
 l'organization et contourner la règle du dernier `owner`.
 
+⚠️ **La console ne peut pas déduire cette matrice.** Savoir si l'appelant peut
+retirer *ce* membre-ci suppose de comparer leurs rôles — donc de recopier la
+règle hors de sa source de vérité, ce que ce document interdit par ailleurs.
+
+`GET /organizations/{id}/members` renvoie donc, **par membre**, ce que
+l'appelant peut en faire, calculé par le garde-fou qui refuserait ensuite.
+Même procédé que `assignable` sur `GET …/roles`, et pour la même raison.
+
+## Quitter de soi-même
+
+Partir n'est pas être retiré : ça ne demande **aucune permission**. La règle du
+dernier `owner` s'applique quand même — le seul propriétaire ne peut pas s'en
+aller sans avoir promu quelqu'un.
+
+C'est la même opération de retrait, avec une garde différente : soi-même, ou
+`member.manage` pour quelqu'un d'autre.
+
+## Suspension
+
+Une adhésion peut être **suspendue** : la ligne subsiste, le rôle est conservé,
+mais l'accès cesse. C'est le verrouillage temporaire — incident, absence
+prolongée — qu'un retrait rendrait irréversible sans re-choisir le rôle.
+
+`suspended_at` sur `organization_members` et `project_members`. Trois endroits
+la lisent, et **aucun n'est `can()`** :
+
+| Où | Effet |
+|---|---|
+| `organizationGrant` / `projectGrant` | aucun grant n'est rendu — donc 404 partout |
+| `listOrganizationsForUser` | l'organization disparaît du sélecteur |
+| `protect_last_owner` | ne compte que les `owner` **actifs** |
+
+Couper à la résolution du grant plutôt que dans `can()` garde le point de
+vérification unique intact : une suspension n'est pas une permission en moins,
+c'est une adhésion qui ne compte plus.
+
+⚠️ **Aucune policy RLS ne change.** `app_is_member_of` reste vraie pour un
+suspendu — mais aucune route d'administration ne s'ouvre sans grant. C'est le
+partage habituel : RLS cadre le locataire, le modèle de rôles vit en TypeScript
+([securite.md](./securite.md)).
+
+⚠️ **Le trigger du dernier `owner` doit ignorer les suspendus.** Sans ça,
+suspendre le seul propriétaire **orpheline l'organization** : plus personne n'a
+de droits, et personne ne peut le réactiver puisque ça demande `member.manage`.
+Le trou que la règle existe pour empêcher se rouvrirait par une autre porte.
+
 ## Accès aux brouillons
 
 Les rôles en lecture seule — `viewer` (organization) et `guest` (projet) —
@@ -192,16 +238,23 @@ preview, voir [api.md](./api.md)), pas au niveau des rôles humains.
 
 ## Règle du dernier `owner`
 
-Une organization doit **toujours** avoir au moins un `owner`. Tant qu'un
-utilisateur est le seul `owner` d'une organization, il ne peut pas :
+Une organization doit **toujours** avoir au moins un `owner` **actif**. Tant
+qu'un utilisateur est le seul `owner` d'une organization, il ne peut pas :
 
-- être retiré de l'organization
+- être retiré de l'organization, ni la quitter de lui-même
+- être **suspendu**
 - être rétrogradé vers `admin` ou `viewer`
 - supprimer son propre compte utilisateur
 
 Il doit d'abord promouvoir quelqu'un d'autre `owner`, ou supprimer
 l'organization. Sans cette règle, une organization devient orpheline : plus
 personne ne peut gérer la facturation, les membres ou la suppression.
+
+⚠️ **Le trigger est `DEFERRABLE INITIALLY DEFERRED`** : il ne se déclenche pas
+à l'instruction mais **au commit**. Un `.catch()` posé sur le `DELETE` ne
+l'attrapera donc jamais — l'exception sort au moment où la transaction se
+ferme, et un refus lisible se transforme en 500 si on le traite au mauvais
+endroit. Même piège que le `23505` de « déjà membre ».
 
 ## Pas de cumul de rôles
 

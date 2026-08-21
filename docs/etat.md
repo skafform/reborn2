@@ -290,17 +290,47 @@ Et `listApiKeys` ne sélectionne plus `last_used_at` : rien ne l'écrit avant
 l'étape 7, et le renvoyer aurait mis dans la spec un champ qui ne peut dire
 qu'une seule chose.
 
+### En cours : la gestion des adhésions
+
+Retirer, suspendre, réactiver, changer de rôle, et quitter de soi-même.
+Aujourd'hui **personne ne peut retirer personne** — une fois entré dans une
+organization, on y reste.
+
+⚠️ **Adhésion, pas compte.** Un admin d'organization ne touche jamais à la
+table `user` : il effacerait l'accès de la personne à sa propre organization
+personnelle et à toutes les autres où elle travaille. Ce n'est pas du
+vocabulaire, c'est une frontière de pouvoir.
+
+La matrice de qui peut retirer qui est **déjà écrite** — symétrique de celle de
+l'invitation, et `canAssignRole` en est le miroir déjà construit. Détail dans
+[architecture/roles-permissions.md](architecture/roles-permissions.md#retrait-dun-membre).
+
+Trois choses à ne pas redécouvrir :
+
+- ⚠️ **La console ne peut pas déduire cette matrice.** `GET …/members` dira,
+  **par membre**, ce que l'appelant peut en faire — même procédé qu'`assignable`
+  sur `GET …/roles`
+- ⚠️ **Le trigger du dernier `owner` est différé** : il se déclenche au commit,
+  pas à l'instruction. Un `.catch()` sur le `DELETE` ne l'attrapera jamais, et
+  un refus lisible deviendrait un 500
+- ⚠️ **Suspendre le seul `owner` orphelinerait l'organization.** Le trigger doit
+  compter les propriétaires **actifs**, sinon la règle du dernier `owner` se
+  contourne par une autre porte
+
+La suspension se lit à la **résolution du grant**, jamais dans `can()` : une
+suspension n'est pas une permission en moins, c'est une adhésion qui ne compte
+plus. Le point de vérification unique reste intact, et aucune policy RLS ne
+change.
+
 ### Ensuite
 
-**Gestion des rôles** — `role.manage` est dans le catalogue et
-l'[ADR 0011](adr/0011-roles-personnalises-par-organization.md) prévoit des
-rôles personnalisables, mais **rien n'est construit** : ni créer un rôle, ni
-modifier ses permissions.
+**Gestion des rôles personnalisés** — `role.manage` est dans le catalogue et
+l'[ADR 0011](adr/0011-roles-personnalises-par-organization.md) les prévoit,
+mais **rien n'est construit** : ni créer un rôle, ni modifier ses permissions.
 
-**Gestion des adhésions** — retirer, suspendre, changer de rôle. ⚠️ À ne pas
-confondre avec la suppression d'un **compte** : un admin d'organization ne doit
-jamais pouvoir effacer l'accès de quelqu'un à ses autres organizations. Le
-périmètre reste à trancher.
+⚠️ Correction d'un ordre annoncé à l'envers : changer le rôle de quelqu'un ne
+suppose **pas** de savoir en définir. Les rôles système existent dans toute
+organization dès sa création — les adhésions passent donc devant.
 
 **Compléter l'API au fil de l'eau**, quand un écran révèle un manque.
 
