@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
+  <!--
+    The amber of the dark theme, not of the light one: a favicon sits on a tab
+    bar whose colour we don't control, and #b45309 vanishes against a dark one.
+
+    The letter is drawn rather than typeset — a <text> element would depend on a
+    font the renderer may not have, and an S is two tangent circles anyway: each
+    a 270° arc, the upper open at its bottom right, the lower at its top left.
+  -->
+  <rect width="32" height="32" rx="7" fill="#f59e0b" />
+  <path
+    d="M20.75 11.25A4.75 4.75 0 1 0 16 16A4.75 4.75 0 1 1 11.25 20.75"
+    fill="none"
+    stroke="#fff"
+    stroke-width="3.5"
+    stroke-linecap="round"
+  />
+</svg>

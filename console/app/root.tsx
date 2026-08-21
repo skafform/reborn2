@@ -25,6 +25,10 @@ export function Layout({ children }: { children: React.ReactNode }) {
           type="font/woff2"
           crossOrigin="anonymous"
         />
+        {/* Declared, so the browser stops asking for /favicon.ico — nothing
+            serves that path, and the request ends up in the router, which
+            rightly answers that no route matches it. */}
+        <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
         <title>Skafform Console</title>
         <Meta />
         <Links />
