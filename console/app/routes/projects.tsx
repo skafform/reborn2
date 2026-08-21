@@ -1,7 +1,11 @@
 import { useEffect, useState } from "react";
 import { Form, useNavigation } from "react-router";
-import { ApiError, api, apiErrorMessage, postJson } from "../lib/api";
-import { CreatedProjectSchema, ProjectsSchema } from "../lib/api-contract";
+import { api, displayableError, postJson } from "../lib/api";
+import {
+  CreatedProjectSchema,
+  NewProjectSchema,
+  ProjectsSchema,
+} from "../lib/api-contract";
 import { Banner, Button, Empty, Field, HeaderAction, Modal } from "../ui/controls";
 import type { Route } from "./+types/projects";
 
@@ -20,12 +24,14 @@ export async function clientAction({ params, request }: Route.ClientActionArgs) 
   try {
     await postJson(
       `/organizations/${params.organizationId}/projects`,
-      CreatedProjectSchema,
+      NewProjectSchema,
       { name: String(form.get("name")) },
+      CreatedProjectSchema,
     );
     return { created: true };
   } catch (error) {
-    if (error instanceof ApiError) return { error: apiErrorMessage(error) };
+    const message = displayableError(error);
+    if (message) return { error: message };
     throw error;
   }
 }

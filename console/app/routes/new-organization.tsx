@@ -1,6 +1,6 @@
 import { Form, Link, redirect, useNavigation } from "react-router";
-import { ApiError, apiErrorMessage, postJson } from "../lib/api";
-import { CreatedOrganizationSchema } from "../lib/api-contract";
+import { displayableError, postJson } from "../lib/api";
+import { CreatedOrganizationSchema, NewOrganizationSchema } from "../lib/api-contract";
 import { authClient } from "../lib/auth";
 import { Banner, Button, Field } from "../ui/controls";
 import type { Route } from "./+types/new-organization";
@@ -14,12 +14,16 @@ export async function clientLoader() {
 export async function clientAction({ request }: Route.ClientActionArgs) {
   const form = await request.formData();
   try {
-    const organization = await postJson("/organizations", CreatedOrganizationSchema, {
-      name: String(form.get("name")),
-    });
+    const organization = await postJson(
+      "/organizations",
+      NewOrganizationSchema,
+      { name: String(form.get("name")) },
+      CreatedOrganizationSchema,
+    );
     return redirect(`/org/${organization.id}`);
   } catch (error) {
-    if (error instanceof ApiError) return { error: apiErrorMessage(error) };
+    const message = displayableError(error);
+    if (message) return { error: message };
     throw error;
   }
 }

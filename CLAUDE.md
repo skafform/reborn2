@@ -54,7 +54,7 @@ besoin. Il récupère `/openapi.json` **par HTTP**, jamais par un chemin vers
 backend sous la main. À lancer **chaque fois que l'API change**, sinon la
 console garde l'ancien contrat — la validation Zod le signalera à l'exécution,
 mais autant le voir dans la PR. Voir
-[api.md](docs/architecture/api.md#comment-la-console-dérive-son-client--décidé-pas-encore-fait).
+[api.md](docs/architecture/api.md#comment-la-console-dérive-son-client--fait).
 
 ⚠️ **Ne jamais éditer `api-schemas.ts` à la main.** Il est régénéré, et une
 correction manuelle recréerait exactement la dérive qu'il élimine.

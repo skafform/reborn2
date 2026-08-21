@@ -19,7 +19,8 @@ frontière du socle réutilisable (commit `de5e593`).
 | Emails | Gabarits maison sans dépendance, prévisualisation sur `/dev/emails` |
 | Clés API | Publique · preview · secrète, par environnement |
 
-⚠️ **14 commits et le tag attendent `git push --follow-tags`.**
+⚠️ **Le tag se pousse avec `git push --follow-tags`** — `git push` seul le
+laisse derrière.
 
 ## En cours : la console d'administration
 
@@ -132,23 +133,39 @@ les deux typechecks **au vert** et vidait une colonne à l'écran.
 
 Désormais : `pnpm api:sync` récupère `/openapi.json` **par HTTP**, Orval en
 génère des schémas **Zod 4 Mini**, les types viennent de `z.infer`, et `api()`
-**valide chaque réponse**. Plus une seule forme de réponse écrite à la main.
+**valide chaque réponse**. Plus une seule forme écrite à la main.
 
-Les deux filets, éprouvés en rejouant le renommage :
+**Dans les deux sens** : `postJson` prend le schéma du corps, et le corps est
+typé par lui. Orval les générait déjà, ils dormaient inutilisés. Un champ
+renommé côté serveur casse donc aussi le typecheck **à l'envoi**.
+
+Les filets, éprouvés plutôt qu'affirmés :
 
 | Situation | Ce qui se passe |
 |---|---|
-| Fichier à jour | le typecheck de la console **échoue**, en nommant le champ |
-| Fichier périmé | la validation échoue à l'exécution, en nommant le champ |
+| Réponse — fichier à jour | le typecheck de la console **échoue**, en nommant le champ |
+| Réponse — fichier périmé | la validation échoue à l'exécution, en nommant le champ |
+| Corps — champ mal nommé | `TS2561: 'rolId' does not exist in type …` |
+| Corps — valeur mal formée | `email: Invalid email address ; roleId: Invalid UUID` |
 
 ⚠️ **Aucune route ne doit renvoyer `z.any()`** — les trois qui le faisaient ont
 été décrites. Ce n'est plus une imprécision de documentation, c'est un trou
 dans la validation de la console.
 
-⏳ **Reste à faire** : la vérification en CI (régénérer + `git diff
---exit-code`), qui attraperait l'oubli de `api:sync` dans la PR. Il n'existe
-aucune CI aujourd'hui. Détail dans
+⚠️ **Un corps refusé s'affiche, une réponse hors contrat non.** `displayableError`
+est le seul endroit qui tranche : une saisie invalide donne un bandeau, une
+réponse hors contrat remonte bruyamment à l'`ErrorBoundary` — c'est un défaut à
+corriger, pas une situation à présenter poliment.
+
+⏳ **Reste à faire** : la vérification en CI, seule pièce à attraper l'oubli
+d'`api:sync` dans la PR. Il n'existe aucune CI aujourd'hui — et ⚠️ régénérer
+depuis la spec commitée **ne suffirait pas** : la spec doit venir du serveur en
+marche. Détail dans
 [architecture/api.md](architecture/api.md#comment-la-console-dérive-son-client--fait).
+
+**Ce qui reste ouvert, après ça** : les chemins d'appel (une chaîne, qu'un
+client Orval complet fermerait — écarté), et le fait que **la console n'a aucun
+test** : la validation ne se déclenche que sur les écrans ouverts à la main.
 
 ### Par quoi continuer
 
@@ -181,6 +198,7 @@ Rappels structurants :
 |---|---|---|
 | [0004](backlog/0004-cors-admin-ui.md) | CORS pour l'admin UI | En production seulement — le proxy le règle en développement |
 | [0008](backlog/0008-resolution-des-projets-d-un-membre.md) | Résolution des projets d'un membre | À mesurer avant d'agir |
+| [0012](backlog/0012-la-console-n-a-aucun-test.md) | La console n'a aucun test | Avec la CI — les deux se décident ensemble |
 
 Neuf items clos.
 

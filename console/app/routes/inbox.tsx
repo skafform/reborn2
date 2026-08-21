@@ -1,5 +1,5 @@
 import { Form, redirect, useNavigation } from "react-router";
-import { ApiError, api, apiErrorMessage } from "../lib/api";
+import { api, displayableError } from "../lib/api";
 import {
   AcceptedFromInboxSchema,
   ReceivedInvitationsSchema,
@@ -32,7 +32,8 @@ export async function clientAction({ request }: Route.ClientActionArgs) {
     // vient : accepter une invitation, c'est y aller.
     return redirect(`/org/${result.organizationId}`);
   } catch (error) {
-    if (error instanceof ApiError) return { error: apiErrorMessage(error) };
+    const message = displayableError(error);
+    if (message) return { error: message };
     throw error;
   }
 }

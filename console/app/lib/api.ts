@@ -18,6 +18,12 @@ import * as z from "zod/mini";
  * La validation attrape en plus ce qu'aucune vérification à la compilation ne
  * peut voir : un backend déployé plus récent que la console, ou un onglet resté
  * ouvert pendant un redéploiement.
+ *
+ * **Les corps envoyés le sont aussi**, par le même contrat et dans l'autre
+ * sens. Le typage y fait l'essentiel — `postJson` exige un corps de la forme
+ * que le schéma décrit, donc un champ renommé côté serveur casse le typecheck.
+ * La validation ajoute ce que le type ne voit pas : une adresse qui n'en est
+ * pas une, un identifiant qui n'est pas un UUID.
  */
 
 /**
@@ -53,6 +59,30 @@ export class ContractError extends Error {
     this.name = "ContractError";
   }
 }
+
+/**
+ * Le corps ne correspond pas au contrat — refusé **avant** d'être envoyé.
+ *
+ * Contrairement à `ContractError`, celle-ci est montrée à l'écran : son cas
+ * atteignable est une valeur saisie que la validation du navigateur a laissée
+ * passer, pas un défaut de la console. D'où `issues` conservé tel quel, qui
+ * nomme le champ en cause.
+ */
+export class InvalidRequestError extends Error {
+  readonly issues: string;
+
+  constructor(path: string, issues: string) {
+    super(`${path} was sent unexpected data — ${issues}`);
+    this.name = "InvalidRequestError";
+    this.issues = issues;
+  }
+}
+
+/** `email: Invalid email address ; roleId: …` — le champ, puis ce qui cloche. */
+const describeIssues = (error: z.core.$ZodError) =>
+  error.issues
+    .map((issue) => `${issue.path.join(".") || "(racine)"}: ${issue.message}`)
+    .join(" ; ");
 
 async function request(path: string, init?: RequestInit): Promise<unknown> {
   const response = await fetch(`/api${path}`, {
@@ -96,14 +126,7 @@ export async function api<S extends z.ZodMiniType>(
   const body = await request(path, init);
   const parsed = schema.safeParse(body);
 
-  if (!parsed.success) {
-    throw new ContractError(
-      path,
-      parsed.error.issues
-        .map((issue) => `${issue.path.join(".") || "(racine)"}: ${issue.message}`)
-        .join(" ; "),
-    );
-  }
+  if (!parsed.success) throw new ContractError(path, describeIssues(parsed.error));
   return parsed.data;
 }
 
@@ -111,21 +134,54 @@ export async function api<S extends z.ZodMiniType>(
 export const apiVoid = (path: string, init?: RequestInit) =>
   request(path, init).then(() => undefined);
 
-export const postJson = <S extends z.ZodMiniType>(
+/**
+ * Envoie un corps décrit par le contrat, et valide la réponse comme `api()`.
+ *
+ * Le corps est typé **par son schéma** : un champ renommé côté serveur devient
+ * une erreur de compilation ici, sans que personne n'ait à y penser. Il est
+ * ensuite validé, ce qui n'est pas redondant — `String(form.get("email"))` est
+ * un `string` pour TypeScript, quoi qu'il contienne.
+ */
+export async function postJson<B extends z.ZodMiniType, S extends z.ZodMiniType>(
   path: string,
-  schema: S,
-  body: unknown,
-) => api(path, schema, { method: "POST", body: JSON.stringify(body) });
+  bodySchema: B,
+  body: z.infer<B>,
+  responseSchema: S,
+): Promise<z.infer<S>> {
+  const checked = bodySchema.safeParse(body);
+  if (!checked.success)
+    throw new InvalidRequestError(path, describeIssues(checked.error));
+
+  return api(path, responseSchema, {
+    method: "POST",
+    body: JSON.stringify(checked.data),
+  });
+}
 
 /**
- * Le message anglais montré à l'écran. Le backend répond en français
- * (message développeur, hors périmètre de ce changement) — jamais affiché
- * directement, pour que la console reste entièrement en anglais.
+ * Le message anglais à montrer, ou `null` si l'erreur n'est pas de celles
+ * qu'un écran présente.
+ *
+ * Un seul endroit décide ce qui s'affiche en bandeau et ce qui remonte à
+ * l'`ErrorBoundary`. `ContractError` en est délibérément absente : une réponse
+ * hors contrat est un défaut à corriger, pas une situation à présenter
+ * poliment — elle doit rester bruyante.
+ */
+export function displayableError(error: unknown): string | null {
+  if (error instanceof ApiError) return apiErrorMessage(error);
+  if (error instanceof InvalidRequestError) return error.issues;
+  return null;
+}
+
+/**
+ * Le backend répond en français (message développeur, hors périmètre de ce
+ * changement) — jamais affiché directement, pour que la console reste
+ * entièrement en anglais.
  *
  * Priorité au code `reason`, stable d'une version à l'autre ; à défaut, un
  * message générique par statut.
  */
-export function apiErrorMessage(error: ApiError): string {
+function apiErrorMessage(error: ApiError): string {
   const byReason: Record<string, string> = {
     missing_permission: "You don't have permission to do that.",
     escalation: "You can't grant a permission you don't hold yourself.",

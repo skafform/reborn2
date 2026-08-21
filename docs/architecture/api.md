@@ -99,13 +99,36 @@ Chaque réponse passe par son schéma avant d'être rendue, avec
 `z.config(en())` — Zod Mini ne charge aucune locale, et sans elle tous les
 messages se réduisent à `Invalid input` (le `path` reste néanmoins présent).
 
+Les **corps envoyés** passent par le même contrat, dans l'autre sens :
+`postJson(chemin, schémaDuCorps, corps, schémaDeRéponse)`. Le typage y fait
+l'essentiel — le corps est typé **par son schéma**, donc un champ renommé côté
+serveur casse le typecheck de la console dès le prochain `api:sync`. La
+validation ajoute ce que le type ne voit pas : `String(form.get("email"))` est
+un `string` quoi qu'il contienne.
+
+⚠️ **Un corps refusé s'affiche, une réponse hors contrat non.** Le premier cas
+atteignable est une saisie que le navigateur a laissée passer — un bandeau.
+Le second est un défaut à corriger, qui doit rester bruyant. `displayableError`
+est le seul endroit qui tranche entre les deux.
+
 **5. Vérifier en CI** — ⏳ *reste à faire : il n'existe aucune CI aujourd'hui*
 
 Régénérer, puis `git diff --exit-code`. La génération étant déterministe, un
 écart signifie que quelqu'un a oublié `api:sync` — la PR échoue, et le `diff`
-montre le champ en cause. La CI compare **deux fichiers commités**, donc ne
-démarre ni backend ni base ; c'est pour ça que la spec est commitée, et pas
-seulement les schémas.
+montre le champ en cause.
+
+⚠️ **Régénérer depuis la spec commitée ne suffit pas.** Ça n'attrape qu'un
+`api-schemas.ts` édité à la main, ou une spec modifiée sans relancer Orval.
+L'oubli d'`api:sync` — le cas pour lequel cette étape existe — passerait au
+vert : `openapi.json` resterait périmé, Orval en régénérerait des schémas
+identiques, et le `diff` serait propre.
+
+Pour l'attraper, la CI doit obtenir la spec **du backend en marche**, pas de la
+copie commitée. Et ce n'est pas une commodité qu'on peut contourner par un
+chemin de fichier : l'[ADR 0005](../adr/0005-depots-separes-contrat-openapi.md)
+l'interdit nommément, spec comprise. La forme exacte de cette CI reste à
+décider — elle implique une base, puisque le serveur refuse de démarrer sans
+elle.
 
 ⚠️ La CI **constate, elle ne corrige pas**. Un fichier régénéré à l'insu de
 l'auteur apparaîtrait dans ses commits sans qu'il l'ait relu.
@@ -115,10 +138,11 @@ l'auteur apparaîtrait dans ses commits sans qu'il l'ait relu.
 | Pièce | Ferme | Quand |
 |---|---|---|
 | Génération (2 + 3) | la recopie à la main | à la compilation |
-| Validation (4) | la donnée reçue qui ne correspond pas | à l'exécution de l'écran |
+| Typage du corps (4) | le champ renommé à l'envoi | à la compilation |
+| Validation (4) | la donnée reçue ou envoyée qui ne correspond pas | à l'exécution de l'écran |
 | CI (5) | l'oubli de régénérer | dans la PR |
 
-Les trois sont nécessaires : la CI ignore tout du backend réel, la validation
+Toutes sont nécessaires : la CI ignore tout du backend réel, la validation
 n'a lieu que sur les écrans ouverts, et sans génération il n'y a rien à
 comparer ni à valider.
 
@@ -147,13 +171,21 @@ jamais un écran blanc.
 #### Ce que ça ne ferme pas
 
 1. **Les chemins** — `api("…/membres")` compilerait toujours
-2. **Les corps de requête** — rien ne vérifie ce qu'on envoie
-3. **Les écrans jamais ouverts** — la validation ne se déclenche que sur ce qui
-   s'exécute
+2. **Les écrans jamais ouverts** — la validation ne se déclenche que sur ce qui
+   s'exécute, et **la console n'a aucun test** : « exécuté » veut dire ouvert à
+   la main dans un navigateur
 
-Un client Orval complet fermerait les deux premiers, au prix d'une réécriture
-de tous les appels. Écarté : le chemin mal tapé n'a jamais causé de problème
-ici, alors que la dérive des types, elle, s'est déjà produite.
+Un client Orval complet fermerait le premier, au prix d'une réécriture de tous
+les appels. Écarté : le chemin mal tapé n'a jamais causé de problème ici, alors
+que la dérive des types, elle, s'est déjà produite — et un chemin faux échoue
+en 404 tout de suite, bruyamment, jamais en silence.
+
+Le second ne se ferme que par des tests de console. C'est une décision à part
+entière, pas un morceau de cette chaîne.
+
+**Les corps de requête y étaient**, et n'y sont plus : Orval générait déjà les
+trois schémas de corps, ils dormaient inutilisés. Les brancher a coûté un
+paramètre sur `postJson` et trois alias.
 
 #### Écarté, et pourquoi
 

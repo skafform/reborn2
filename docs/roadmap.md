@@ -74,11 +74,12 @@ voyaient pas ([backlog 0010](backlog/0010-suppression-d-organization-bloquee.md)
 et [0011](backlog/0011-nettoyage-des-tests-avale-ses-erreurs.md)), et un
 découpage de permission trop grossier.
 
-⚠️ **Le client typé généré depuis la spec OpenAPI n'a toujours pas été
-essayé** — c'est pourtant la stratégie de
-l'[ADR 0005](adr/0005-depots-separes-contrat-openapi.md), et la partie la plus
-incertaine de la disposition en deux serveurs. La console appelle encore l'API
-au `fetch`, avec des types déclarés à la main.
+Le pari a payé une fois de plus sur le typage : la console tirait ses types à
+la main, et la dérive annoncée par
+l'[ADR 0005](adr/0005-depots-separes-contrat-openapi.md) avait commencé sans
+que rien ne la signale. Le client généré depuis la spec — la partie la plus
+incertaine de la disposition en deux serveurs — est désormais **en place et
+éprouvé** ([architecture/api.md](architecture/api.md#comment-la-console-dérive-son-client--fait)).
 
 ## Plus tard
 

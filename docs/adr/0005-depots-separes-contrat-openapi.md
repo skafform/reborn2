@@ -71,11 +71,23 @@ génération depuis les schémas d'un projet — façon Sanity TypeGen.
 Le domaine racine partagé n'est pas un détail : des domaines distincts
 imposeraient des cookies tiers et remettraient en cause la stratégie de session.
 
-⚠️ **La partie la plus incertaine de cet ADR n'a toujours pas été éprouvée.**
-La console existe et consomme l'API, mais au `fetch`, avec des types **déclarés
-à la main** — exactement ce que la troisième alternative écartée décrit, et
-dont la dérive est garantie à moyen terme. Tant que le client n'est pas généré
-depuis la spec, cette décision reste une intention, pas un résultat.
+**La partie la plus incertaine de cet ADR a été éprouvée** *(2026-08-21)*. Elle
+ne l'avait jamais été : la console consommait l'API au `fetch`, avec des types
+**déclarés à la main** — exactement la troisième alternative écartée ci-dessus.
+La dérive annoncée avait commencé, et a été reproduite pour de vrai : renommer
+un champ côté serveur laissait les deux typechecks au vert et vidait une
+colonne à l'écran.
+
+La chaîne prévue par cet ADR est en place — `pnpm api:sync` récupère la spec
+par HTTP, Orval en génère des schémas Zod, la console n'écrit plus aucune forme
+à la main, et valide ce qu'elle reçoit comme ce qu'elle envoie. La décision est
+désormais un résultat. Détail et étapes :
+[../architecture/api.md](../architecture/api.md#comment-la-console-dérive-son-client--fait).
+
+⚠️ **Conséquence pour la CI** : la spec se récupère du serveur en marche, jamais
+d'un chemin de fichier. Une vérification qui régénérerait depuis la copie
+commitée serait bon marché — et laisserait passer précisément l'oubli d'
+`api:sync` qu'elle prétend attraper.
 
 Détail :
 [../research/comparaison-typage-cms.md](../research/comparaison-typage-cms.md).

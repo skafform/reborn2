@@ -1,9 +1,10 @@
 import { useEffect, useState } from "react";
 import { Form, useNavigation } from "react-router";
-import { ApiError, api, apiErrorMessage, apiVoid, postJson } from "../lib/api";
+import { api, apiVoid, displayableError, postJson } from "../lib/api";
 import {
   MembershipSchema,
   MembersSchema,
+  NewInvitationSchema,
   PendingInvitationsSchema,
   RolesSchema,
   SentInvitationSchema,
@@ -84,13 +85,19 @@ export async function clientAction({ params, request }: Route.ClientActionArgs) 
       return { cancelled: true };
     }
 
-    await postJson(`${base}/invitations`, SentInvitationSchema, {
-      email: String(form.get("email")),
-      roleId: String(form.get("roleId")),
-    });
+    await postJson(
+      `${base}/invitations`,
+      NewInvitationSchema,
+      {
+        email: String(form.get("email")),
+        roleId: String(form.get("roleId")),
+      },
+      SentInvitationSchema,
+    );
     return { sent: true };
   } catch (error) {
-    if (error instanceof ApiError) return { error: apiErrorMessage(error) };
+    const message = displayableError(error);
+    if (message) return { error: message };
     throw error;
   }
 }

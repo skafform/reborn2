@@ -16,7 +16,10 @@ import {
   type GetApiOrganizationsResponseItem,
   PostApiInboxInvitationIdAcceptResponse,
   PostApiInvitationsTokenAcceptResponse,
+  PostApiOrganizationsBody,
+  PostApiOrganizationsOrganizationIdInvitationsBody,
   PostApiOrganizationsOrganizationIdInvitationsResponse,
+  PostApiOrganizationsOrganizationIdProjectsBody,
   PostApiOrganizationsOrganizationIdProjectsResponse,
   PostApiOrganizationsResponse,
 } from "./api-schemas";
@@ -35,11 +38,15 @@ import {
  *
  * Les types viennent de `z.infer` : une seule source pour la validation **et**
  * pour le typage.
+ *
+ * Les schémas en `New…` décrivent ce qu'on **envoie**. Ils viennent du même
+ * contrat que les réponses, et ferment la dérive dans l'autre sens.
  */
 
 export const OrganizationsSchema = GetApiOrganizationsResponse;
 export type Organization = z.infer<typeof GetApiOrganizationsResponseItem>;
 
+export const NewOrganizationSchema = PostApiOrganizationsBody;
 export const CreatedOrganizationSchema = PostApiOrganizationsResponse;
 export type CreatedOrganization = z.infer<typeof PostApiOrganizationsResponse>;
 
@@ -48,6 +55,7 @@ export type Project = z.infer<
   typeof GetApiOrganizationsOrganizationIdProjectsResponseItem
 >;
 
+export const NewProjectSchema = PostApiOrganizationsOrganizationIdProjectsBody;
 export const CreatedProjectSchema = PostApiOrganizationsOrganizationIdProjectsResponse;
 
 export const MembershipSchema = GetApiOrganizationsOrganizationIdMeResponse;
@@ -66,6 +74,8 @@ export const PendingInvitationsSchema =
 export type PendingInvitation = z.infer<
   typeof GetApiOrganizationsOrganizationIdInvitationsResponseItem
 >;
+
+export const NewInvitationSchema = PostApiOrganizationsOrganizationIdInvitationsBody;
 
 /** Ce que renvoie l'envoi d'une invitation : son identifiant, rien d'autre. */
 export const SentInvitationSchema =

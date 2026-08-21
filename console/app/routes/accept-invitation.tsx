@@ -1,5 +1,5 @@
 import { Form, Link, redirect, useNavigation } from "react-router";
-import { ApiError, api, apiErrorMessage } from "../lib/api";
+import { api, displayableError } from "../lib/api";
 import {
   AcceptedByTokenSchema,
   InvitationDescriptionSchema,
@@ -35,9 +35,8 @@ export async function clientLoader({ request }: Route.ClientLoaderArgs) {
     const invitation = await api(`/invitations/${token}`, InvitationDescriptionSchema);
     return { token, session, invitation, error: null };
   } catch (error) {
-    if (error instanceof ApiError) {
-      return { token, session, invitation: null, error: apiErrorMessage(error) };
-    }
+    const message = displayableError(error);
+    if (message) return { token, session, invitation: null, error: message };
     throw error;
   }
 }
@@ -56,7 +55,8 @@ export async function clientAction({ request }: Route.ClientActionArgs) {
     // (docs/backlog #0008 touche à ce même angle mort).
     return redirect("/");
   } catch (error) {
-    if (error instanceof ApiError) return { error: apiErrorMessage(error) };
+    const message = displayableError(error);
+    if (message) return { error: message };
     throw error;
   }
 }

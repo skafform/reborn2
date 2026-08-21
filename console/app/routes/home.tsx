@@ -1,6 +1,10 @@
 import { redirect } from "react-router";
 import { api, postJson } from "../lib/api";
-import { CreatedOrganizationSchema, OrganizationsSchema } from "../lib/api-contract";
+import {
+  CreatedOrganizationSchema,
+  NewOrganizationSchema,
+  OrganizationsSchema,
+} from "../lib/api-contract";
 import { authClient } from "../lib/auth";
 
 /**
@@ -28,9 +32,12 @@ export async function clientLoader() {
   // organizations une fois dans la coque.
   if (first) throw redirect(`/org/${first.id}`);
 
-  const created = await postJson("/organizations", CreatedOrganizationSchema, {
-    name: `${session.user.name}'s organization`,
-  });
+  const created = await postJson(
+    "/organizations",
+    NewOrganizationSchema,
+    { name: `${session.user.name}'s organization` },
+    CreatedOrganizationSchema,
+  );
   throw redirect(`/org/${created.id}`);
 }
 
