@@ -71,10 +71,15 @@
 
 @media (prefers-color-scheme: dark) {
   .console {
-    --console-background: #050506;
-    --console-panel-background: #1a1b1f;
+    /* Relevés dans le thème sombre de Linear, à une exception près.
+       ⚠️ Leur gris de texte atténué — `#6b6f76` — donne **3,7:1** sur ce
+       panneau, sous le seuil WCAG AA de 4,5:1 pour du texte normal. Le nôtre
+       s'arrête à `#7b8088` : bien plus discret qu'avant, et 4,7:1. Copier le
+       leur ferait échouer dates, adresses et libellés d'un coup. */
+    --console-background: #09090a;
+    --console-panel-background: #121213;
     --console-foreground: #f3f4f6;
-    --console-border: #374151;
+    --console-border: #212224;
     --console-border-subtle: rgb(255 255 255 / 10%);
 
     --console-accent: #f59e0b;
@@ -82,10 +87,10 @@
     --console-danger: #ef4444;
     --console-danger-hover: #dc2626;
 
-    --console-chrome-background: #060709;
+    --console-chrome-background: #09090a;
     --console-chrome-foreground: #d4d4d8;
     --console-chrome-active-foreground: #fafafa;
-    --console-foreground-muted: #9ca3af;
+    --console-foreground-muted: #7b8088;
 
     color-scheme: dark;
   }
