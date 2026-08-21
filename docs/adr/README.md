@@ -48,6 +48,7 @@ Court : si un ADR dépasse une page, c'est souvent qu'il en contient deux.
 | [0008](0008-point-d-emission-d-evenements-unique.md) | Point d'émission d'événements unique | 2026-08-19 |
 | [0009](0009-pas-de-better-auth-cli.md) | Ne pas utiliser `@better-auth/cli` | 2026-08-20 |
 | [0010](0010-typescript-natif-sans-etape-de-build.md) | TypeScript exécuté nativement, sans étape de build | 2026-08-20 |
-| [0011](0011-roles-personnalises-par-organization.md) | Rôles personnalisés par organization | 2026-08-20 |
+| [0011](0011-roles-personnalises-par-organization.md) | Rôles personnalisés par organization — *partiellement remplacé par 0014* | 2026-08-20 |
 | [0012](0012-resolution-des-permissions-par-requete.md) | Résolution des permissions par requête, et codes de refus | 2026-08-20 |
 | [0013](0013-cles-api-rattachees-a-un-environnement.md) | Une clé API appartient à un environnement | 2026-08-20 |
+| [0014](0014-creation-de-roles-reservee-au-owner.md) | La création de rôles est réservée au `owner` | 2026-08-21 |

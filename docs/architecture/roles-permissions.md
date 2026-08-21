@@ -20,6 +20,7 @@ que personne ne maintient.
 | Contenu | `content.read` · `content.read_draft` · `content.write` · `content.publish` |
 | Schémas | `schema.read` · `schema.write` |
 | Membres | `member.read` · `member.manage` · `member.manage_admin` |
+| Rôles | `role.manage` |
 | Clés API | `apikey.manage` |
 | Projets | `project.create` · `project.delete` |
 | Organization | `org.settings` · `org.billing` · `org.transfer` · `org.delete` |
@@ -37,6 +38,7 @@ que personne ne maintient.
 | `member.read` | ✅ | ✅ | ✅ | — | — | — |
 | `member.manage` | ✅ | ✅ | — | — | — | — |
 | `member.manage_admin` | ✅ | — | — | — | — | — |
+| `role.manage` | ✅ | — | — | — | — | — |
 | `apikey.manage` | ✅ | ✅ | — | — | — | — |
 | `project.create` | ✅ | ✅ | — | — | — | — |
 | `project.delete` | ✅ | — | — | — | — | — |
@@ -70,6 +72,15 @@ Les rôles de projet (`editor`, `contributor`, `guest`) n'ont aucune des trois :
 un pigiste ou un client n'a pas à voir l'annuaire de l'organization qui
 l'accueille.
 
+⚠️ **`role.manage` n'est détenue que par `owner`** ([ADR 0014](../adr/0014-creation-de-roles-reservee-au-owner.md)).
+Un `admin` assigne les rôles existants ; il ne décide pas de ce qu'un rôle
+*signifie*. Sans journal d'audit, la liste des rôles est la seule trace d'un
+changement du modèle de permissions — et elle ne vaut comme trace que si une
+seule personne y écrit.
+
+La délégation reste possible, et devient **explicite** : un `owner` crée un
+rôle personnalisé contenant `role.manage` et l'assigne.
+
 ## Les clés API partagent le même catalogue
 
 | Clé | Permissions |
@@ -92,11 +103,81 @@ polymorphe du journal d'audit (`user` ou `api_key`, voir
 
 ## Où vit la correspondance rôle → permissions
 
-**En code**, dans une constante versionnée — testable, sans aller-retour en
-base. La déplacer vers la base est la couture pour des **rôles personnalisés**
-définis par les clients, fonctionnalité que Contentful et Sanity réservent tous
-deux à leurs paliers payants. Voir
-[evolutions-prevues.md](./evolutions-prevues.md).
+**En base**, depuis l'[ADR 0011](../adr/0011-roles-personnalises-par-organization.md) —
+`roles` et `role_permissions`, une copie par organization. Le **catalogue**,
+lui, reste en code et alimente la table `permissions` par migration : elle sert
+de cible de clé étrangère, donc aucune permission inconnue ne peut être
+accordée.
+
+*(Ce document a longtemps dit « en code » — c'était l'ADR 0004, remplacé.)*
+
+## Rôles personnalisés
+
+Les rôles système sont **lisibles, jamais modifiables** : le trigger
+`protect_system_roles` refuse de les renommer, de changer leur portée ou de les
+supprimer, et `protect_system_role_permissions` protège leurs permissions.
+L'écran les montre donc en lecture seule, à côté des rôles personnalisés.
+
+C'est ce que font les leaders. GitHub : *« When you create a custom repository
+role, you start by choosing an inherited role from a set of pre-defined
+options »*, et les rôles qu'on ne possède pas *« can be seen and assigned as
+well, but not edited or deleted »*. Contentful et Sanity publient de même les
+permissions de leurs rôles prédéfinis.
+
+### Dupliquer, pas hériter
+
+Un rôle système peut servir de **point de départ** : « Duplicate » ouvre la
+création avec ses permissions déjà cochées. La copie est faite **une fois**, et
+plus rien ne les relie.
+
+⚠️ **Pas d'héritage vivant**, contrairement à la *base role* de GitHub. Nos
+rôles système sont copiés par organization, et une migration peut les faire
+évoluer — la 0022 a ajouté `member.read` à tous les `viewer` existants. Avec un
+lien vivant, elle aurait élargi en silence tous les rôles dérivés, et **aucun
+garde-fou ne l'aurait vu** : la règle d'escalade s'applique à qui accorde, pas
+à une migration.
+
+⚠️ **`owner` n'est pas duplicable.** Le dupliquer coche le catalogue entier :
+ce n'est pas un point de départ, c'est le point d'arrivée. Et le résultat
+serait un **propriétaire fantôme** — quelqu'un qui détient tout, `org.delete`
+et `member.manage_admin` compris, que `protect_last_owner` ne compte pas
+puisqu'il ne recense que le rôle système `owner`. L'organization afficherait un
+propriétaire pendant que deux personnes peuvent tout faire.
+
+L'organization ne devient pas orpheline pour autant, le trigger bloquant
+toujours le départ du vrai `owner` — mais la liste des membres cesserait de
+dire qui détient les clés, ce que l'[ADR 0014](../adr/0014-creation-de-roles-reservee-au-owner.md)
+cherche précisément à préserver.
+
+Et il n'y a rien à fabriquer : **pour un second propriétaire, on promeut
+quelqu'un `owner`.** Une organization peut en compter plusieurs, la règle du
+dernier n'en exige qu'un. Le rôle système fait exactement ce qu'un clone
+imiterait, en mieux — il est compté par `protect_last_owner`, il s'affiche
+comme `owner` dans l'annuaire, et l'accorder exige `member.manage_admin`, que
+seul un `owner` détient.
+
+Dupliquer `owner` serait donc le chemin **compliqué vers un résultat inférieur**.
+
+### Ce que l'écran doit dire
+
+⚠️ **Modifier un rôle change l'accès de tous ses porteurs, à la requête
+suivante.** Les permissions sont résolues à chaque requête, sans cache
+([ADR 0012](../adr/0012-resolution-des-permissions-par-requete.md)) — c'est ce
+qui fait qu'un retrait prend effet immédiatement. L'écran affiche donc **le
+nombre de porteurs** à côté de l'enregistrement : sans lui, on modifie à
+l'aveugle.
+
+⚠️ **Un rôle porté ne se supprime pas.** Il faut d'abord réattribuer ses
+membres. Même règle que pour une organization ou un projet — rien ne se
+supprime tant que ce n'est pas vidé, jamais de cascade destructrice sur un
+clic. La clé étrangère composite l'interdit de toute façon ; le refus doit être
+lisible et **compter** les porteurs, pas remonter une violation brute.
+
+**Les cases proposées sont celles que l'appelant détient.** On n'accorde pas
+une permission qu'on n'a pas — autant ne pas l'offrir. Lors d'une duplication,
+seules les permissions détenues sont cochées, et l'écran dit lesquelles ont été
+laissées de côté : l'action réussit toujours, et l'écart avec l'original
+s'explique.
 
 ## Organization — `organization_members`
 

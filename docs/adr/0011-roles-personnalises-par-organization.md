@@ -1,6 +1,7 @@
 # ADR 0011 — Rôles personnalisés par organization
 
-**Statut** : Accepté
+**Statut** : Accepté, **partiellement remplacé par
+[ADR 0014](0014-creation-de-roles-reservee-au-owner.md)**
 **Date** : 2026-08-20
 **Remplace partiellement** : [ADR 0004](0004-rbac-catalogue-de-permissions.md)
 
@@ -60,6 +61,11 @@ compliquent l'évaluation et le débogage sans bénéfice ici.
 
 Une permission s'ajoute au catalogue : **`role.manage`**, détenue par `owner`
 et `admin`.
+
+> ⚠️ **Ce point a été révisé** par l'[ADR 0014](0014-creation-de-roles-reservee-au-owner.md)
+> *(2026-08-21)* : `role.manage` n'est plus détenue que par `owner`. La
+> contrepartie annoncée plus bas — la journalisation — n'existait pas, et la
+> liste des rôles en tient lieu. Le reste de cet ADR est inchangé.
 
 ## Alternatives écartées
 
