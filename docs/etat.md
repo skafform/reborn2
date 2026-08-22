@@ -591,6 +591,15 @@ et ne modifie pas.
 0027. Là-bas la clé était *extraite* d'une autre qui portait déjà la capacité ;
 ici aucune clé existante ne l'impliquait — `schema.write` délibérément pas.
 
+⚠️ **Le vocabulaire est tranché : « content type » partout dans l'UI**, la
+bibliothèque comprise — « Library » reste le nom du *lieu*, ses entrées sont
+des content types. « Schema » demeure le mot **technique** : tables, routes
+`/schemas`, clés `schema.read`/`schema.write`. C'est la séparation qu'ont faite
+tous les acteurs établis (vérifié : Sanity la nomme explicitement — `schema`
+dans le code, *document types* pour les éditeurs ; Strapi n'affiche jamais
+« schema » ; Contentful et son *content model* sont le contre-exemple cité).
+L'utilisateur qui copie doit retrouver le même mot des deux côtés du geste.
+
 Deux morceaux de console **extraits au deuxième consommateur**, comme
 `menu.tsx` l'avait été : `ui/schema-fields.tsx` (le formulaire) et
 `ui/lineage.tsx` (la table de lignée). ⚠️ Deux noms de champ font le contrat

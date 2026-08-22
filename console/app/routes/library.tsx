@@ -111,25 +111,25 @@ export default function Library({ loaderData, actionData }: Route.ComponentProps
       <div className="console-page-header">
         <h1>Library</h1>
         {canWrite && (
-          <HeaderAction onClick={() => setOpen(true)}>+ New schema</HeaderAction>
+          <HeaderAction onClick={() => setOpen(true)}>+ New content type</HeaderAction>
         )}
       </div>
 
       {actionData && "error" in actionData && (
         <Banner tone="error">{actionData.error}</Banner>
       )}
-      {actionData && "created" in actionData && <Banner>Schema added.</Banner>}
-      {actionData && "deleted" in actionData && <Banner>Schema removed.</Banner>}
+      {actionData && "created" in actionData && <Banner>Content type added.</Banner>}
+      {actionData && "deleted" in actionData && <Banner>Content type removed.</Banner>}
       {actionData && "restored" in actionData && <Banner>Version restored.</Banner>}
 
       <Section
-        title="Shared schemas"
-        description="Models this organization offers its projects. Copying one into a project makes an independent copy — editing the library never changes what a project already has."
+        title="Shared content types"
+        description="Content types this organization offers its projects. Copying one into a project makes an independent copy — editing the library never changes what a project already has."
         first
       >
         {loaderData.schemas.length === 0 ? (
           <Empty>
-            Nothing in the library yet. A schema put here can be copied into any
+            Nothing in the library yet. A content type put here can be copied into any
             project, as a starting point rather than a link.
           </Empty>
         ) : (
@@ -186,7 +186,11 @@ export default function Library({ loaderData, actionData }: Route.ComponentProps
         )}
       </Section>
 
-      <Modal open={open} onClose={() => setOpen(false)} title="New library schema">
+      <Modal
+        open={open}
+        onClose={() => setOpen(false)}
+        title="New library content type"
+      >
         <Form method="post" className="console-form">
           <SchemaFields key={String(open)} />
           <div className="console-actions">
@@ -200,7 +204,7 @@ export default function Library({ loaderData, actionData }: Route.ComponentProps
       <Modal
         open={Boolean(history)}
         onClose={() => navigate(pathname, { replace: true })}
-        title={`History — ${opened ? (opened.label ?? opened.name) : "schema"}`}
+        title={`History — ${opened ? (opened.label ?? opened.name) : "content type"}`}
       >
         {history && (
           <Lineage

@@ -31,7 +31,7 @@ export function SchemaFields() {
 
       <p className="console-muted">
         Fields, in the order they appear. That order is the form layout, so changing it
-        changes the schema.
+        changes the content type.
       </p>
 
       {Array.from({ length: rows }, (_, index) => (
