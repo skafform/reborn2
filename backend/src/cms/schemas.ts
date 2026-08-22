@@ -1,4 +1,4 @@
-import { and, asc, count, desc, eq, sql } from "drizzle-orm";
+import { and, asc, count, desc, eq, inArray, sql } from "drizzle-orm";
 import type { Actor } from "../auth/authorization.ts";
 import { requirePermission } from "../auth/escalation.ts";
 import { type Transaction, withContext } from "../db/client.ts";
@@ -26,7 +26,7 @@ import {
  */
 
 export class SchemaError extends ServiceError {
-  declare readonly status: 404 | 409;
+  declare readonly status: 404 | 409 | 422;
 }
 
 type Fields = { name: string; label: string | null; definition: Definition };
@@ -185,6 +185,53 @@ function appendHistory(
 }
 
 /**
+ * Un champ `reference` vise un type de contenu **par son nom**, et ce nom doit
+ * désigner quelque chose dans cet environnement
+ * ([ADR 0020](../../../docs/adr/0020-references-entre-documents.md)).
+ *
+ * ⚠️ **Conséquence sue : deux types qui se référencent mutuellement se
+ * modélisent en trois gestes**, pas deux — créer `author`, créer `article` qui
+ * le vise, puis *modifier* `author` pour viser `article`. C'est ce que font
+ * Sanity et Contentful, et le prix d'un `to` qui ne peut pas nommer le vide.
+ */
+async function rejectUnknownTarget(
+  tx: Transaction,
+  environmentId: string,
+  fields: Fields,
+) {
+  const targets = [
+    ...new Set(
+      fields.definition.fields
+        .filter((field) => field.type === "reference")
+        .map((field) => field.to)
+        .filter((to): to is string => typeof to === "string"),
+    ),
+  ];
+  if (targets.length === 0) return;
+
+  const known = await tx
+    .select({ name: schemas.name })
+    .from(schemas)
+    .where(
+      and(eq(schemas.environmentId, environmentId), inArray(schemas.name, targets)),
+    );
+
+  // ⚠️ **Un type peut se viser lui-même** — un `article` qui pointe un article
+  // connexe. Il n'existe pas encore au moment de sa création, et porte son
+  // *nouveau* nom au moment d'une modification : c'est donc le nom qu'on
+  // s'apprête à écrire qui compte, jamais celui qui est en base.
+  const names = new Set([...known.map((row) => row.name), fields.name]);
+  const missing = targets.filter((to) => !names.has(to));
+  if (missing.length > 0) {
+    throw new SchemaError(
+      422,
+      "unknown_reference_target",
+      `type visé introuvable : ${missing.join(", ")}`,
+    );
+  }
+}
+
+/**
  * ⚠️ **Le nom est unique dans son environnement**, et la contrainte le dirait
  * en 500. La lire d'abord rend le refus utilisable par l'écran.
  *
@@ -219,6 +266,7 @@ export async function createSchema(input: {
 
   return withContext({ userId: actor.userId, organizationId }, async (tx) => {
     await rejectDuplicateName(tx, environmentId, fields.name);
+    await rejectUnknownTarget(tx, environmentId, fields);
 
     // ⚠️ La version d'abord : `schemas.current_hash` porte une clé étrangère
     // vers elle, donc la ligne de schéma ne peut pas exister avant.
@@ -360,6 +408,7 @@ export async function updateSchema(input: {
     if (hash === currentHash) return unchanged;
 
     await rejectDuplicateName(tx, environmentId, fields.name, schemaId);
+    await rejectUnknownTarget(tx, environmentId, fields);
     await storeVersion(tx, organizationId, hash, fields);
 
     const [updated] = await tx

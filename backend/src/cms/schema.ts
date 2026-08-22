@@ -476,6 +476,9 @@ export const documents = pgTable(
       table.organizationId,
       table.translationGroupId,
     ),
+    // Cible des deux clés composites de l'index de références : c'est elle qui
+    // interdit à une référence de traverser les environnements.
+    unique("documents_id_environment_id_key").on(table.id, table.environmentId),
     foreignKey({
       columns: [table.environmentId, table.organizationId],
       foreignColumns: [environments.id, environments.organizationId],
@@ -500,5 +503,81 @@ export const documents = pgTable(
       foreignColumns: [documentVersions.organizationId, documentVersions.hash],
       name: "documents_published_version_fk",
     }),
+  ],
+);
+
+/**
+ * L'index des références entre documents
+ * ([ADR 0020](../../../docs/adr/0020-references-entre-documents.md)).
+ *
+ * ⚠️ **Dérivé, jamais autoritaire.** La valeur qui fait foi est l'UUID dans
+ * `documents.data` ; cette table se **reconstruit** en rebalayant les
+ * documents. C'est ce qui rend le motif peu risqué : un défaut de
+ * synchronisation est une dette réparable, jamais une perte de données.
+ *
+ * ⚠️ **Elle naît avec `documents`, jamais avant.** Une table de références sans
+ * documents à indexer est exactement l'erreur d'un projet précédent — créée,
+ * jamais remplie.
+ *
+ * ⚠️ **Les clés composites font un travail silencieux** : les deux extrémités
+ * portent le **même** `environment_id` dans une seule ligne, donc une référence
+ * ne peut pas traverser les environnements. Interdit par la forme, pas par la
+ * discipline.
+ */
+export const documentReferences = pgTable(
+  "document_references",
+  {
+    organizationId: uuid("organization_id")
+      .notNull()
+      .references(() => organizations.id, { onDelete: "cascade" }),
+    environmentId: uuid("environment_id").notNull(),
+    sourceDocumentId: uuid("source_document_id").notNull(),
+    targetDocumentId: uuid("target_document_id").notNull(),
+    /** Quel champ de la source porte cette référence. */
+    fieldName: text("field_name").notNull(),
+  },
+  (table) => [
+    // Un champ porte une référence, ou aucune : la paire est l'identité de la
+    // ligne. Colonne de cadrage en tête, comme partout.
+    primaryKey({
+      columns: [table.organizationId, table.sourceDocumentId, table.fieldName],
+    }),
+    // « Qu'est-ce qui pointe vers ce document ? » — la question pour laquelle
+    // toute la table existe, posée à chaque suppression et à chaque
+    // dépublication.
+    index("document_references_target_idx").on(
+      table.organizationId,
+      table.targetDocumentId,
+    ),
+    foreignKey({
+      columns: [table.sourceDocumentId, table.environmentId],
+      foreignColumns: [documents.id, documents.environmentId],
+      name: "document_references_source_fk",
+    }).onDelete("cascade"),
+    /**
+     * ⚠️ **`CASCADE` des deux côtés, et le refus est applicatif** — l'inverse
+     * de ce qu'ADR 0020 esquissait, pour une raison découverte en le
+     * construisant.
+     *
+     * Un `RESTRICT` ici **empêche de supprimer un projet** : la cascade
+     * descend vers les documents, et le premier document référencé bloque la
+     * sienne. Or supprimer un contenant doit emporter son contenu, références
+     * comprises.
+     *
+     * Ce que la décision protégeait — *rien ne se supprime tant que ça tient
+     * quelque chose* — reste entier, et au bon endroit : `deleteDocument`
+     * refuse en **nommant ce qui pointe**, ce qu'une contrainte n'aurait
+     * jamais su faire. La clé, elle, garantit ce qui lui revient : aucune
+     * ligne d'index ne survit au document qu'elle nomme.
+     *
+     * ⚠️ **Aucune référence pendante ne peut en naître** : un document meurt
+     * soit par `deleteDocument`, qui refuse, soit avec tout son environnement
+     * — auquel cas la source part avec la cible.
+     */
+    foreignKey({
+      columns: [table.targetDocumentId, table.environmentId],
+      foreignColumns: [documents.id, documents.environmentId],
+      name: "document_references_target_fk",
+    }).onDelete("cascade"),
   ],
 );

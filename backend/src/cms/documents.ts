@@ -1,12 +1,12 @@
-import { and, asc, eq, inArray, sql } from "drizzle-orm";
+import { and, asc, eq, inArray, isNotNull, isNull, notInArray, sql } from "drizzle-orm";
 import type { Actor } from "../auth/authorization.ts";
 import { requirePermission } from "../auth/escalation.ts";
 import { type Transaction, withContext } from "../db/client.ts";
 import { ServiceError } from "../services/service-error.ts";
-import type { DocumentData } from "./definition.ts";
+import type { Definition, DocumentData } from "./definition.ts";
 import { documentFingerprint } from "./fingerprint.ts";
 import { CMS_PERMISSIONS } from "./permissions.ts";
-import { documents, documentVersions, schemas } from "./schema.ts";
+import { documentReferences, documents, documentVersions, schemas } from "./schema.ts";
 import { documentValidators } from "./validate.ts";
 
 /**
@@ -16,10 +16,12 @@ import { documentValidators } from "./validate.ts";
  * Créer, enregistrer, lister, supprimer, publier, dépublier, abandonner — et
  * le **nettoyage synchrone** qui accompagne chaque déplacement de pointeur.
  *
- * ⚠️ **La clôture des références n'y est pas encore**, et c'est la seule
- * chose qui manque : aucune référence n'existe avant le jalon des `documents`
- * référencés. Sa place est nommée dans `publishDocuments` et
- * `unpublishDocuments`, entre les contrôles et le déplacement.
+ * Les **références** y vivent aussi : la valeur qui fait foi est l'UUID dans
+ * `data`, `document_references` en est l'index **dérivé**, réécrit dans la même
+ * transaction, et l'invariant de clôture — *ce qui est publié ne pointe que
+ * vers du publié* — garde les deux portes de la publication
+ * ([ADR 0020](../../../docs/adr/0020-references-entre-documents.md),
+ * [ADR 0021](../../../docs/adr/0021-ensemble-publie-clos-par-reference.md)).
  */
 
 export class DocumentError extends ServiceError {
@@ -67,6 +69,104 @@ async function validateShape(
       .join(", ");
     throw new DocumentError(422, "invalid_document", `champs refusés : ${named}`);
   }
+
+  return schema.definition;
+}
+
+/** Les champs `reference` d'une définition, et le type que chacun vise. */
+const referenceFields = (definition: Definition) =>
+  definition.fields.filter(
+    (field): field is (typeof definition.fields)[number] & { to: string } =>
+      field.type === "reference" && typeof field.to === "string",
+  );
+
+/**
+ * Ce que le `data` d'un document pointe : la cible **existe**, elle est du
+ * **type nommé par `to`**, et elle vit dans le même environnement.
+ *
+ * ⚠️ **La clé composite n'en garantit que deux sur trois.** L'existence et
+ * l'environnement sont tenus par la forme ; que la cible soit du bon type ne
+ * l'est pas — un `data` peut nommer un `author` là où le champ demande un
+ * `article`, et rien dans le schéma de base ne s'y oppose. C'est donc un
+ * contrôle applicatif, et c'est le seul des trois qui en soit un.
+ */
+async function resolveReferences(
+  tx: Transaction,
+  environmentId: string,
+  definition: Definition,
+  data: DocumentData,
+) {
+  const wanted = referenceFields(definition)
+    .map((field) => ({ field: field.name, to: field.to, target: data[field.name] }))
+    .filter(
+      (entry): entry is typeof entry & { target: string } =>
+        typeof entry.target === "string",
+    );
+  if (wanted.length === 0) return [];
+
+  const found = await tx
+    .select({ id: documents.id, type: schemas.name })
+    .from(documents)
+    .innerJoin(schemas, eq(schemas.id, documents.schemaId))
+    .where(
+      and(
+        eq(documents.environmentId, environmentId),
+        inArray(
+          documents.id,
+          wanted.map((entry) => entry.target),
+        ),
+      ),
+    );
+  const types = new Map(found.map((row) => [row.id, row.type]));
+
+  for (const entry of wanted) {
+    const actual = types.get(entry.target);
+    if (!actual) {
+      throw new DocumentError(
+        422,
+        "unknown_reference",
+        `${entry.field} : aucun document ${entry.target} dans cet environnement`,
+      );
+    }
+    if (actual !== entry.to) {
+      throw new DocumentError(
+        422,
+        "wrong_reference_type",
+        `${entry.field} : attendait un ${entry.to}, a reçu un ${actual}`,
+      );
+    }
+  }
+
+  return wanted.map((entry) => ({ fieldName: entry.field, target: entry.target }));
+}
+
+/**
+ * Réécrit l'index d'un document : ses lignes disparaissent, puis renaissent
+ * depuis son `data` — **dans la transaction d'écriture**, jamais après.
+ *
+ * ⚠️ Les deux réussissent ou aucune. Pas de tâche de fond, pas de cohérence à
+ * terme, pas de synchronisation entre systèmes : c'est ce qu'un seul Postgres
+ * achète, et on le prend (ADR 0020).
+ */
+async function syncReferences(
+  tx: Transaction,
+  scope: { organizationId: string; environmentId: string; sourceDocumentId: string },
+  links: readonly { fieldName: string; target: string }[],
+) {
+  await tx
+    .delete(documentReferences)
+    .where(eq(documentReferences.sourceDocumentId, scope.sourceDocumentId));
+
+  if (links.length === 0) return;
+  await tx.insert(documentReferences).values(
+    links.map((link) => ({
+      organizationId: scope.organizationId,
+      environmentId: scope.environmentId,
+      sourceDocumentId: scope.sourceDocumentId,
+      targetDocumentId: link.target,
+      fieldName: link.fieldName,
+    })),
+  );
 }
 
 /** Le contenu est nouveau **dans cette organization**, ou il ne l'est pas. */
@@ -171,7 +271,8 @@ export async function createDocument(input: {
   requirePermission(actor, CMS_PERMISSIONS.contentWrite);
 
   return withContext({ userId: actor.userId, organizationId }, async (tx) => {
-    await validateShape(tx, environmentId, schemaId, data);
+    const definition = await validateShape(tx, environmentId, schemaId, data);
+    const links = await resolveReferences(tx, environmentId, definition, data);
 
     // ⚠️ La version d'abord : `current_hash` porte une clé étrangère vers elle.
     const hash = documentFingerprint(data);
@@ -182,6 +283,12 @@ export async function createDocument(input: {
       .values({ environmentId, organizationId, schemaId, data, currentHash: hash })
       .returning(columns);
     if (!created) throw new Error("document insert returned no row");
+
+    await syncReferences(
+      tx,
+      { organizationId, environmentId, sourceDocumentId: created.id },
+      links,
+    );
     return created;
   });
 }
@@ -212,12 +319,18 @@ export async function updateDocument(input: {
       );
     if (!before) throw new DocumentError(404, "unknown_document", "introuvable");
 
-    await validateShape(tx, environmentId, before.schemaId, data);
+    const definition = await validateShape(tx, environmentId, before.schemaId, data);
+    const links = await resolveReferences(tx, environmentId, definition, data);
 
     const hash = documentFingerprint(data);
     if (hash === before.currentHash) return before;
 
     await storeVersion(tx, organizationId, hash, data);
+    await syncReferences(
+      tx,
+      { organizationId, environmentId, sourceDocumentId: documentId },
+      links,
+    );
 
     const [updated] = await tx
       .update(documents)
@@ -235,6 +348,31 @@ export async function updateDocument(input: {
 }
 
 /**
+ * ⚠️ **`RESTRICT` sans ses manières serait un 409 nu.** La contrainte refuse
+ * déjà la suppression d'une cible référencée ; ce que l'application ajoute est
+ * de **nommer ce qui pointe** — c'est la règle de partout ici, et l'index rend
+ * cette liste triviale à produire. C'est même sa seule raison d'exister
+ * ([ADR 0020](../../../docs/adr/0020-references-entre-documents.md)).
+ */
+async function rejectReferencedTarget(tx: Transaction, documentId: string) {
+  const referrers = await tx
+    .select({
+      source: documentReferences.sourceDocumentId,
+      field: documentReferences.fieldName,
+    })
+    .from(documentReferences)
+    .where(eq(documentReferences.targetDocumentId, documentId));
+
+  if (referrers.length > 0) {
+    throw new DocumentError(
+      409,
+      "referenced",
+      `référencé par ${referrers.map((r) => `${r.source}.${r.field}`).join(", ")}`,
+    );
+  }
+}
+
+/**
  * ⚠️ **Supprimer un document oublie ses deux versions**, sinon chaque
  * suppression laisserait un ou deux payloads que rien ne pourra plus jamais
  * atteindre — la même croissance non bornée, prise par l'autre bout.
@@ -249,6 +387,8 @@ export async function deleteDocument(input: {
   requirePermission(actor, CMS_PERMISSIONS.contentWrite);
 
   await withContext({ userId: actor.userId, organizationId }, async (tx) => {
+    await rejectReferencedTarget(tx, documentId);
+
     const [deleted] = await tx
       .delete(documents)
       .where(
@@ -264,6 +404,57 @@ export async function deleteDocument(input: {
     if (deleted.publishedHash && deleted.publishedHash !== deleted.currentHash) {
       await forgetVersion(tx, organizationId, deleted.publishedHash);
     }
+  });
+}
+
+/**
+ * Reconstruit l'index d'un environnement en rebalayant ses documents.
+ *
+ * ⚠️ **C'est ce qui rend « dette réparable » réel plutôt que théorique**
+ * (ADR 0020). `data` fait foi ; si l'index dérivait — un défaut, une écriture
+ * hors du chemin prévu — cette routine le remet d'accord sans qu'aucune donnée
+ * ne soit perdue. C'est toute la différence entre un index dérivé et un index
+ * autoritaire.
+ *
+ * ⚠️ **Aucune route ne l'expose, et c'est délibéré** : l'exploitation est un
+ * geste local, jamais un chemin transverse dans l'application publique
+ * ([ADR 0015](../../../docs/adr/0015-exploitation-hors-ligne-jamais-dans-l-application.md)).
+ */
+export async function rebuildReferenceIndex(input: {
+  actor: Actor;
+  organizationId: string;
+  environmentId: string;
+}) {
+  const { actor, organizationId, environmentId } = input;
+  requirePermission(actor, CMS_PERMISSIONS.contentWrite);
+
+  return withContext({ userId: actor.userId, organizationId }, async (tx) => {
+    const rows = await tx
+      .select({
+        id: documents.id,
+        data: documents.data,
+        definition: schemas.definition,
+      })
+      .from(documents)
+      .innerJoin(schemas, eq(schemas.id, documents.schemaId))
+      .where(eq(documents.environmentId, environmentId));
+
+    let links = 0;
+    for (const row of rows) {
+      const found = referenceFields(row.definition)
+        .map((field) => ({ fieldName: field.name, target: row.data[field.name] }))
+        .filter(
+          (link): link is { fieldName: string; target: string } =>
+            typeof link.target === "string",
+        );
+      await syncReferences(
+        tx,
+        { organizationId, environmentId, sourceDocumentId: row.id },
+        found,
+      );
+      links += found.length;
+    }
+    return { documents: rows.length, links };
   });
 }
 
@@ -320,6 +511,87 @@ async function rejectIncomplete(
         `${entry.id} : champs manquants ou refusés — ${named}`,
       );
     }
+  }
+}
+
+/**
+ * **Ce qui est publié ne pointe que vers du publié**
+ * ([ADR 0021](../../../docs/adr/0021-ensemble-publie-clos-par-reference.md)).
+ * Un invariant, énoncé une fois — les deux vérifications en découlent.
+ *
+ * ⚠️ **Le contrôle porte sur une transition d'ensemble**, jamais sur un
+ * document isolé, même quand l'ensemble n'a qu'un membre : deux documents qui
+ * se référencent mutuellement ne peuvent être publiés qu'ensemble, et
+ * l'écrire au singulier rendrait ça impossible.
+ */
+async function rejectUnclosedPublication(
+  tx: Transaction,
+  publishing: readonly string[],
+) {
+  const dangling = await tx
+    .select({
+      source: documentReferences.sourceDocumentId,
+      field: documentReferences.fieldName,
+      target: documentReferences.targetDocumentId,
+    })
+    .from(documentReferences)
+    .innerJoin(documents, eq(documents.id, documentReferences.targetDocumentId))
+    .where(
+      and(
+        inArray(documentReferences.sourceDocumentId, [...publishing]),
+        // Publiée après la transition, c'est : déjà publiée, **ou** publiée
+        // par ce geste-ci. La seconde moitié est ce que l'ensemble achète.
+        isNull(documents.publishedHash),
+        notInArray(documents.id, [...publishing]),
+      ),
+    );
+
+  if (dangling.length > 0) {
+    throw new DocumentError(
+      409,
+      "references_unpublished",
+      `pointe vers du non publié : ${dangling
+        .map((row) => `${row.source}.${row.field} → ${row.target}`)
+        .join(", ")}`,
+    );
+  }
+}
+
+/**
+ * L'autre porte du même invariant — celle qu'une formulation en règle aurait
+ * manquée. « Ne pas publier contre un brouillon » ne dit rien de la
+ * dépublication, et c'est pourtant le même trou par l'autre bout.
+ */
+async function rejectUnclosedUnpublication(
+  tx: Transaction,
+  unpublishing: readonly string[],
+) {
+  const orphaning = await tx
+    .select({
+      source: documentReferences.sourceDocumentId,
+      field: documentReferences.fieldName,
+      target: documentReferences.targetDocumentId,
+    })
+    .from(documentReferences)
+    .innerJoin(documents, eq(documents.id, documentReferences.sourceDocumentId))
+    .where(
+      and(
+        inArray(documentReferences.targetDocumentId, [...unpublishing]),
+        isNotNull(documents.publishedHash),
+        // Un référent qu'on dépublie dans le même geste ne pointera plus
+        // depuis le publié : il ne s'oppose à rien.
+        notInArray(documents.id, [...unpublishing]),
+      ),
+    );
+
+  if (orphaning.length > 0) {
+    throw new DocumentError(
+      409,
+      "referenced_by_published",
+      `référencé depuis du publié : ${orphaning
+        .map((row) => `${row.source}.${row.field} → ${row.target}`)
+        .join(", ")}`,
+    );
   }
 }
 
@@ -381,6 +653,7 @@ export async function publishDocuments(input: {
   return withContext({ userId: actor.userId, organizationId }, async (tx) => {
     const before = await loadAll(tx, environmentId, documentIds);
     await rejectIncomplete(tx, environmentId, before);
+    await rejectUnclosedPublication(tx, documentIds);
 
     const published = [];
     for (const document of before) {
@@ -427,6 +700,7 @@ export async function unpublishDocuments(input: {
 
   return withContext({ userId: actor.userId, organizationId }, async (tx) => {
     const before = await loadAll(tx, environmentId, documentIds);
+    await rejectUnclosedUnpublication(tx, documentIds);
 
     const unpublished = [];
     for (const document of before) {

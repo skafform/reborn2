@@ -73,7 +73,23 @@ Une routine de reconstruction accompagne l'étape 4, pour que la propriété
 
 ### Supprimer une cible référencée est refusé
 
-`ON DELETE RESTRICT`, et le refus **nomme ce qui pointe**.
+Le refus **nomme ce qui pointe**.
+
+⚠️ **Précision apportée à l'implémentation (2026-08-22) : la clé est en
+`CASCADE`, pas en `RESTRICT`, et le refus est applicatif.** Cette décision
+écrivait `ON DELETE RESTRICT` ; construite, cette clause **empêche de
+supprimer un projet** — la cascade descend vers les documents, et le premier
+document référencé bloque la sienne. Or supprimer un contenant doit emporter
+son contenu, références comprises.
+
+Ce que la décision protégeait est intact, et mieux placé : `deleteDocument`
+refuse en **nommant les référents**, ce qu'une contrainte n'aurait jamais su
+faire — c'est d'ailleurs la seule raison d'être de l'index. La clé garantit ce
+qui lui revient : aucune ligne d'index ne survit au document qu'elle nomme.
+
+⚠️ **Aucune référence pendante ne peut en naître** : un document meurt soit par
+`deleteDocument`, qui refuse, soit avec tout son environnement — auquel cas la
+source part avec la cible.
 
 C'est déjà la règle partout ici — clé API, rôle, adhésion, projet,
 organization : rien ne se supprime tant que ça tient quelque chose, et le refus
@@ -95,6 +111,22 @@ déplace le travail de tolérance sur chaque rendu et chaque consommateur du SDK
 Le public visé — développeurs seuls, petites agences — est mieux servi par un
 refus clair que par un site qui doit survivre à des trous. Reste possible plus
 tard **en option par champ** : un ajout, pas une migration.
+
+### ⚠️ Ce que la clé composite ne garantit pas
+
+Elle tient l'**existence** de la cible et son **environnement**. Elle ne dit
+rien de son **type** : un `data` peut nommer un `author` là où le champ demande
+un `article`, et aucune contrainte de base ne s'y oppose. C'est un contrôle
+applicatif, à l'écriture, et c'est le seul des trois qui en soit un.
+
+### Le prix d'un `to` qui ne peut pas nommer le vide
+
+Le nom visé doit désigner un type de cet environnement, vérifié à l'écriture du
+schéma. ⚠️ **Conséquence sue : deux types qui se référencent mutuellement se
+modélisent en trois gestes**, pas deux — créer `author`, créer `article` qui le
+vise, puis *modifier* `author` pour viser `article`. C'est ce que font Sanity et
+Contentful. Un type peut en revanche **se viser lui-même dès sa création** : le
+nom qui compte est celui qu'on s'apprête à écrire.
 
 ## ⚠️ Ce que cette décision ne tranche pas
 

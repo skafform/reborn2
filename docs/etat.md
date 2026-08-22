@@ -7,13 +7,13 @@ travail : où on en est, ce qui reste, par quoi commencer.
 
 Étapes 1 à 6a de la [feuille de route](roadmap.md), et beaucoup de socle
 depuis : rôles personnalisés, adhésions, routes de clés, chaîne du contrat,
-CI. **278 tests au vert**, typecheck et lint propres des deux côtés.
+CI. **290 tests au vert**, typecheck et lint propres des deux côtés.
 
 | | |
 |---|---|
 | Serveur | Hono + `@hono/zod-openapi`, validation d'environnement au démarrage |
 | Authentification | Better-Auth sur `pg.Pool`, confirmation d'adresse obligatoire, réinitialisation |
-| Multi-tenant | 17 tables sous RLS **activé et forcé**, point de passage `withContext` |
+| Multi-tenant | 18 tables sous RLS **activé et forcé**, point de passage `withContext` |
 | Autorisation | Rôles personnalisables par organization, 19 permissions, `can()`, garde-fous |
 | Invitations | Jeton haché, email verrouillé, usage unique, plafond par organization, Inbox |
 | Emails | Gabarits maison sans dépendance, prévisualisation sur `/dev/emails` |
@@ -729,16 +729,34 @@ le déplacement des pointeurs. Elle arrive avec les références.
 refuse un requis vide *ou réduit à des espaces*, en nommant le champ **et** le
 document.
 
-### Le jalon suivant — les références
+**Jalon 5 fait** : les références sont réelles (migration 0033), et la clôture
+cesse d'être vraie par vacuité. 12 tests, dont **le cycle** — ni A ni B ne se
+publie seul, les deux ensemble passent : la preuve que la transition
+d'ensemble n'était pas une anticipation.
 
-[ADR 0020](adr/0020-references-entre-documents.md) porte tout : sixième type de
-champ, `to` **par nom**, `data` fait foi, index dérivé, `RESTRICT` qui nomme
-les référents.
+⚠️ **Un écart à ADR 0020, découvert en construisant** : la clé cible est en
+`CASCADE`, pas en `RESTRICT`. Cette clause **empêchait de supprimer un
+projet** — la cascade descend vers les documents, et le premier document
+référencé bloque la sienne. Le refus est donc applicatif, et il **nomme les
+référents**, ce qu'une contrainte n'aurait jamais su faire. Aucune référence
+pendante ne peut en naître : un document meurt soit par `deleteDocument`, qui
+refuse, soit avec tout son environnement.
 
-⚠️ **Une précision que l'ADR ne dit pas** et qu'il faut tenir : la clé
-composite garantit que la cible **existe** et qu'elle est du **même
-environnement** — jamais que son type correspond au `to` du champ. C'est un
-contrôle applicatif à l'écriture.
+⚠️ **La clé composite garantit l'existence et l'environnement, jamais le
+type** — un `data` peut nommer un `author` là où le champ demande un
+`article`. Seul contrôle applicatif des trois.
+
+⚠️ **`to` et `reference` vont ensemble ou pas du tout**, tenu par un
+raffinement Zod : un `text` portant un `to` que personne ne lit serait deux
+écritures pour un sens, donc **deux empreintes pour un même schéma**.
+
+⚠️ **Deux types qui se référencent mutuellement se modélisent en trois
+gestes** — le `to` ne peut pas nommer le vide. Un type peut en revanche se
+viser lui-même dès sa création.
+
+**`rebuildReferenceIndex` existe**, sans route : c'est ce qui rend « dette
+réparable » réel plutôt que théorique, et l'exploitation est un geste local
+([ADR 0015](adr/0015-exploitation-hors-ligne-jamais-dans-l-application.md)).
 
 ⚠️ Quatre contraintes à ne pas perdre en l'écrivant :
 
@@ -826,8 +844,11 @@ Dix items clos.
 - **`@better-auth/cli` génère un schéma périmé** — utiliser
   `scripts/migrate-auth.ts`
 - **drizzle-kit génère un ordre invalide** — contrainte unique après la clé
-  étrangère qui en dépend. Arrivé **trois fois** (migrations 0029, 0031, 0032) :
-  ce n'est pas « parfois », c'est à vérifier à chaque génération
+  étrangère qui en dépend. Arrivé **quatre fois** (migrations 0029, 0031, 0032,
+  0033) : ce n'est pas « parfois », c'est à vérifier à chaque génération
+- **Un `RESTRICT` sur une table qu'une cascade traverse bloque la cascade** —
+  supprimer le contenant devient impossible. Le refus produit doit être
+  applicatif ; la clé, elle, ne garantit que l'absence de ligne orpheline
 - **Définir `onError` sur Hono retire son traitement par défaut**
 - **Les rôles Postgres appartiennent au cluster**, pas à la base
 - **Le mailer réel ne s'installe qu'au démarrage du serveur** — un import ne

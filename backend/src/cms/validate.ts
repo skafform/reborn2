@@ -53,6 +53,13 @@ const BASE_TYPES: Record<FieldType, () => z.ZodType> = {
   number: () => z.number(),
   boolean: () => z.boolean(),
   date: () => z.iso.date(),
+  /**
+   * ⚠️ **La forme seule : un identifiant de document.** Que la cible existe,
+   * qu'elle soit du type nommé par `to` et du même environnement ne se lit pas
+   * dans le `data` — c'est un contrôle contre la base, à l'écriture, dans
+   * `documents.ts` (ADR 0020).
+   */
+  reference: () => z.uuid(),
 };
 
 /**

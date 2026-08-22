@@ -12,12 +12,13 @@ import { z } from "@hono/zod-openapi";
  */
 
 /**
- * ⚠️ **Cinq scalaires, et rien d'autre.** Les deux types composites que tout
- * CMS finit par avoir sont chacun bloqués : `reference` par la dernière
- * décision ouverte, `asset` par un stockage objet qui n'existe pas.
+ * ⚠️ **Cinq scalaires et une référence.** `reference` est arrivé le
+ * 2026-08-22 ([ADR 0020](../../../docs/adr/0020-references-entre-documents.md))
+ * **sans invalider une seule empreinte** — une définition existante garde ses
+ * octets, et c'est exactement ce que cette liste promettait. `asset` reste
+ * bloqué par un stockage objet qui n'existe pas.
  *
- * En ajouter plus tard **n'invalide aucune empreinte** : une définition
- * existante garde ses octets. Le format s'étend sans casse.
+ * Le format s'étend sans casse.
  *
  * `text` et `longtext` ne diffèrent pas au stockage — les deux sont des
  * chaînes — mais partout ailleurs : une ligne contre une zone de saisie, une
@@ -33,7 +34,14 @@ import { z } from "@hono/zod-openapi";
  * aujourd'hui s'élargit à coût nul, permissif aujourd'hui se resserre en
  * migrant des données clients (`validate.ts`).
  */
-export const FIELD_TYPES = ["text", "longtext", "number", "boolean", "date"] as const;
+export const FIELD_TYPES = [
+  "text",
+  "longtext",
+  "number",
+  "boolean",
+  "date",
+  "reference",
+] as const;
 
 /**
  * ⚠️ **`name` est la clé de stockage**, dans `documents.data` et dans les
@@ -67,7 +75,28 @@ export const FieldSchema = z
      * `min`, `max`, `pattern` viendront. Y ajouter une clé ne re-hache rien ;
      * déplacer `required` à plat plus tard re-hacherait tout.
      */
+    /**
+     * Le type de contenu visé, pour un champ `reference` — et **rien d'autre
+     * n'en porte**, ce que le raffinement plus bas rend vrai.
+     *
+     * ⚠️ **Par le *nom* du type, jamais par son identifiant** (ADR 0020), et
+     * ce n'est pas une commodité. Un schéma de bibliothèque copié dans trois
+     * projets doit rester portable : par nom, chaque copie résout contre
+     * l'`author` de **son** environnement ; par identifiant, chaque copie
+     * pointerait vers le schéma d'un autre environnement, ce que le cadrage
+     * interdit structurellement.
+     */
+    to: z.string().regex(IDENTIFIER).max(64).optional().openapi({ example: "author" }),
     validation: z.object({ required: z.boolean() }),
+  })
+  /**
+   * ⚠️ **`to` et `reference` vont ensemble ou pas du tout.** Sans ce refus, un
+   * champ `text` pourrait porter un `to` que personne ne lit : deux écritures
+   * pour un même sens, donc **deux empreintes pour un même schéma** — la
+   * chose que la forme d'une définition existe pour empêcher.
+   */
+  .refine((field) => (field.type === "reference") === (field.to !== undefined), {
+    error: "`to` nomme le type visé, et n'appartient qu'à un champ `reference`",
   })
   .openapi("SchemaField");
 
