@@ -1,13 +1,23 @@
 import { useEffect, useState } from "react";
-import { Form, useNavigation, useOutletContext } from "react-router";
+import {
+  Form,
+  Link,
+  useLocation,
+  useNavigate,
+  useNavigation,
+  useOutletContext,
+} from "react-router";
 import { api, apiVoid, displayableError, postJson } from "../lib/api";
 import {
+  ContentTypeHistorySchema,
   ContentTypesSchema,
   CreatedContentTypeSchema,
   NewContentTypeSchema,
+  RestoreContentTypeSchema,
+  RestoredContentTypeSchema,
 } from "../lib/api-contract";
 import { contentTypeBody, FIELD_TYPES } from "../lib/content-type-body";
-import { day } from "../lib/format";
+import { day, moment } from "../lib/format";
 import {
   Banner,
   Button,
@@ -22,15 +32,30 @@ import type { Route } from "./+types/project-content-types";
 import type { ProjectContext } from "./project";
 
 /**
- * Les types de contenu d'un projet.
+ * Les types de contenu d'un projet, et la lignée de chacun.
  *
  * ⚠️ **Le mot « environnement » n'apparaît pas**, ici comme dans l'API : le
  * chemin nomme un projet, et `master` est résolu côté serveur
  * (architecture/environments.md).
+ *
+ * ⚠️ **La lignée ouverte est un paramètre d'URL**, pas un état de composant.
+ * L'ouvrir est une navigation, donc React Router recharge le chargeur et la
+ * restauration passe par le même `clientAction` que le reste — pas de second
+ * mécanisme de récupération à côté du premier. Et l'écran devient adressable.
  */
-export async function clientLoader({ params }: Route.ClientLoaderArgs) {
+export async function clientLoader({ params, request }: Route.ClientLoaderArgs) {
   const base = `/organizations/${params.organizationId}/projects/${params.projectId}/schemas`;
-  return { contentTypes: await api(base, ContentTypesSchema) };
+  const opened = new URL(request.url).searchParams.get("history");
+
+  const [contentTypes, history] = await Promise.all([
+    api(base, ContentTypesSchema),
+    opened ? api(`${base}/${opened}/history`, ContentTypeHistorySchema) : null,
+  ]);
+
+  return {
+    contentTypes,
+    history: opened && history ? { schemaId: opened, ...history } : null,
+  };
 }
 
 export async function clientAction({ params, request }: Route.ClientActionArgs) {
@@ -42,6 +67,18 @@ export async function clientAction({ params, request }: Route.ClientActionArgs) 
     if (typeof deleteId === "string") {
       await apiVoid(`${base}/${deleteId}`, { method: "DELETE" });
       return { deleted: true };
+    }
+
+    const restore = form.get("restore");
+    const restoreId = form.get("schemaId");
+    if (typeof restore === "string" && typeof restoreId === "string") {
+      await postJson(
+        `${base}/${restoreId}/restore`,
+        RestoreContentTypeSchema,
+        { hash: restore },
+        RestoredContentTypeSchema,
+      );
+      return { restored: true };
     }
 
     await postJson(
@@ -58,6 +95,15 @@ export async function clientAction({ params, request }: Route.ClientActionArgs) 
   }
 }
 
+/**
+ * ⚠️ **`null` veut dire « compte supprimé »**, pas « personne ». L'identifiant
+ * de l'acteur passe à `NULL` quand le compte s'en va, l'histoire lui survivant
+ * — laisser une case vide ferait passer ça pour un défaut.
+ */
+function who(entry: { actorName: string | null; actorEmail: string | null }) {
+  return entry.actorName ?? entry.actorEmail ?? "Deleted user";
+}
+
 export default function ProjectContentTypes({
   loaderData,
   actionData,
@@ -65,6 +111,8 @@ export default function ProjectContentTypes({
   const busy = useNavigation().state !== "idle";
   const { permissions } = useOutletContext<ProjectContext>();
   const canWrite = permissions.includes("schema.write");
+  const navigate = useNavigate();
+  const { pathname } = useLocation();
   const [open, setOpen] = useState(false);
   /** Le nombre de lignes de champ offertes — jamais moins d'une. */
   const [rows, setRows] = useState(1);
@@ -75,6 +123,10 @@ export default function ProjectContentTypes({
       setRows(1);
     }
   }, [actionData]);
+
+  const { history } = loaderData;
+  const opened =
+    history && loaderData.contentTypes.find((t) => t.id === history.schemaId);
 
   return (
     <>
@@ -90,6 +142,7 @@ export default function ProjectContentTypes({
       )}
       {actionData && "created" in actionData && <Banner>Content type created.</Banner>}
       {actionData && "deleted" in actionData && <Banner>Content type deleted.</Banner>}
+      {actionData && "restored" in actionData && <Banner>Version restored.</Banner>}
 
       <Section
         title="Types"
@@ -125,13 +178,24 @@ export default function ProjectContentTypes({
                   </td>
                   <td className="console-muted">{day(type.updatedAt)}</td>
                   <td>
-                    {canWrite && (
-                      <Form method="post" className="console-row-actions">
-                        <RowAction danger name="delete" value={type.id} disabled={busy}>
-                          Delete
-                        </RowAction>
-                      </Form>
-                    )}
+                    <div className="console-row-actions">
+                      {/* Une navigation, pas un état : voir l'en-tête. */}
+                      <Link className="console-link-button" to={`?history=${type.id}`}>
+                        History
+                      </Link>
+                      {canWrite && (
+                        <Form method="post">
+                          <RowAction
+                            danger
+                            name="delete"
+                            value={type.id}
+                            disabled={busy}
+                          >
+                            Delete
+                          </RowAction>
+                        </Form>
+                      )}
+                    </div>
                   </td>
                 </tr>
               ))}
@@ -194,6 +258,58 @@ export default function ProjectContentTypes({
             </Button>
           </div>
         </Form>
+      </Modal>
+
+      <Modal
+        open={Boolean(history)}
+        onClose={() => navigate(pathname, { replace: true })}
+        title={`History — ${opened ? (opened.label ?? opened.name) : "content type"}`}
+      >
+        <p className="console-muted">
+          Every change of state, newest first. Saving without changing anything records
+          nothing — this is a log of states, not of clicks.
+        </p>
+
+        <table className="console-table">
+          <thead>
+            <tr>
+              <th>When</th>
+              <th>What</th>
+              <th>Who</th>
+              <th>Named</th>
+              <th />
+            </tr>
+          </thead>
+          <tbody>
+            {history?.entries.map((entry) => (
+              <tr key={`${entry.hash}-${entry.createdAt}`}>
+                <td className="console-muted">{moment(entry.createdAt)}</td>
+                <td>{entry.action === "restored" ? "Restored" : "Saved"}</td>
+                <td className="console-muted">{who(entry)}</td>
+                <td>
+                  <span className="console-identity">
+                    {entry.label ?? entry.name}
+                    {entry.label && <code className="console-hint">{entry.name}</code>}
+                  </span>
+                </td>
+                <td>
+                  {entry.hash === history.currentHash ? (
+                    <span className="console-hint">Current</span>
+                  ) : (
+                    canWrite && (
+                      <Form method="post">
+                        <input type="hidden" name="schemaId" value={history.schemaId} />
+                        <RowAction name="restore" value={entry.hash} disabled={busy}>
+                          Restore
+                        </RowAction>
+                      </Form>
+                    )
+                  )}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
       </Modal>
     </>
   );

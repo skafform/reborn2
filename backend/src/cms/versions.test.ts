@@ -76,8 +76,9 @@ describe("versionnage des schémas", () => {
     await closePool();
   });
 
-  const historyOf = (schemaId: string) =>
-    listSchemaHistory({ actor, organizationId, environmentId, schemaId });
+  const historyOf = async (schemaId: string) =>
+    (await listSchemaHistory({ actor, organizationId, environmentId, schemaId }))
+      .entries;
 
   /**
    * ⚠️ Deux mécanismes que la documentation Postgres promet mais que rien ici
@@ -102,7 +103,7 @@ describe("versionnage des schémas", () => {
     assert.equal(journal.length, 1);
     assert.equal(journal[0]?.action, "saved");
     assert.equal(journal[0]?.hash, fingerprint(fields), "l'empreinte du contenu");
-    assert.equal(journal[0]?.actorUserId, userId);
+    assert.match(journal[0]?.actorEmail ?? "", /^version-owner-/);
 
     const [stored] = await withContext({ userId, organizationId }, (tx) =>
       tx

@@ -18,6 +18,7 @@ import {
   GetApiOrganizationsOrganizationIdProjectsProjectIdResponse,
   GetApiOrganizationsOrganizationIdProjectsProjectIdSchemasResponse,
   type GetApiOrganizationsOrganizationIdProjectsProjectIdSchemasResponseItem,
+  GetApiOrganizationsOrganizationIdProjectsProjectIdSchemasSchemaIdHistoryResponse,
   GetApiOrganizationsOrganizationIdProjectsResponse,
   type GetApiOrganizationsOrganizationIdProjectsResponseItem,
   GetApiOrganizationsOrganizationIdRolesResponse,
@@ -38,6 +39,8 @@ import {
   PostApiOrganizationsOrganizationIdProjectsProjectIdInvitationsResponse,
   PostApiOrganizationsOrganizationIdProjectsProjectIdSchemasBody,
   PostApiOrganizationsOrganizationIdProjectsProjectIdSchemasResponse,
+  PostApiOrganizationsOrganizationIdProjectsProjectIdSchemasSchemaIdRestoreBody,
+  PostApiOrganizationsOrganizationIdProjectsProjectIdSchemasSchemaIdRestoreResponse,
   PostApiOrganizationsOrganizationIdProjectsResponse,
   PostApiOrganizationsOrganizationIdRolesBody,
   PostApiOrganizationsOrganizationIdRolesResponse,
@@ -165,6 +168,23 @@ export const NewContentTypeSchema =
   PostApiOrganizationsOrganizationIdProjectsProjectIdSchemasBody;
 export const CreatedContentTypeSchema =
   PostApiOrganizationsOrganizationIdProjectsProjectIdSchemasResponse;
+
+/**
+ * La lignée d'un type de contenu, du plus récent au plus ancien.
+ *
+ * ⚠️ `currentHash` voyage avec elle : sans lui, l'écran ne saurait pas quelle
+ * entrée est l'état courant, et proposerait de restaurer celle qui y est déjà.
+ */
+export const ContentTypeHistorySchema =
+  GetApiOrganizationsOrganizationIdProjectsProjectIdSchemasSchemaIdHistoryResponse;
+export type ContentTypeHistoryEntry = z.infer<
+  typeof ContentTypeHistorySchema
+>["entries"][number];
+
+export const RestoreContentTypeSchema =
+  PostApiOrganizationsOrganizationIdProjectsProjectIdSchemasSchemaIdRestoreBody;
+export const RestoredContentTypeSchema =
+  PostApiOrganizationsOrganizationIdProjectsProjectIdSchemasSchemaIdRestoreResponse;
 
 export const MembershipSchema = GetApiOrganizationsOrganizationIdMeResponse;
 export type Membership = z.infer<typeof GetApiOrganizationsOrganizationIdMeResponse>;

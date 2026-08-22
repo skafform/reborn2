@@ -156,6 +156,96 @@ describe("types de contenu", () => {
     assert.equal(written.status, 403, "modifier un schéma peut casser des documents");
   });
 
+  /**
+   * Les deux routes de lignée, par la chaîne complète.
+   *
+   * ⚠️ **Aucune permission nouvelle** : lire une lignée est une lecture de
+   * schéma, restaurer est une écriture. C'est ce que ces deux cas vérifient —
+   * le `viewer` lit et ne restaure pas.
+   */
+  describe("lignée", () => {
+    let schemaId = "";
+    let firstHash = "";
+
+    before(async () => {
+      const created = await call(base, owner, {
+        method: "POST",
+        body: JSON.stringify({
+          name: "lineage",
+          label: "Avant",
+          definition: { fields: [field("title")] },
+        }),
+      });
+      schemaId = ((await created.json()) as { id: string }).id;
+
+      const history = await call(`${base}/${schemaId}/history`, owner);
+      firstHash = ((await history.json()) as { currentHash: string }).currentHash;
+
+      await call(`${base}/${schemaId}`, owner, {
+        method: "PUT",
+        body: JSON.stringify({
+          name: "lineage",
+          label: "Après",
+          definition: { fields: [field("title"), field("body", "longtext", false)] },
+        }),
+      });
+    });
+
+    it("rend la lignée, du plus récent au plus ancien", async () => {
+      const response = await call(`${base}/${schemaId}/history`, owner);
+      assert.equal(response.status, 200);
+
+      const body = (await response.json()) as {
+        currentHash: string;
+        entries: { action: string; hash: string; label: string | null }[];
+      };
+      assert.equal(body.entries.length, 2);
+      assert.equal(body.entries[0]?.label, "Après");
+      assert.equal(body.entries[1]?.label, "Avant");
+      assert.equal(body.currentHash, body.entries[0]?.hash, "le pointeur voyage avec");
+      assert.notEqual(body.currentHash, firstHash);
+    });
+
+    it("restaure, et l'écrit dans la lignée", async () => {
+      const restored = await call(`${base}/${schemaId}/restore`, owner, {
+        method: "POST",
+        body: JSON.stringify({ hash: firstHash }),
+      });
+      assert.equal(restored.status, 200);
+      assert.equal(((await restored.json()) as { label: string }).label, "Avant");
+
+      const history = await call(`${base}/${schemaId}/history`, owner);
+      const body = (await history.json()) as {
+        currentHash: string;
+        entries: { action: string }[];
+      };
+      assert.equal(body.currentHash, firstHash);
+      assert.deepEqual(
+        body.entries.map((entry) => entry.action),
+        ["restored", "saved", "saved"],
+        "le journal n'est jamais réécrit : l'aller-retour reste lisible",
+      );
+    });
+
+    it("refuse une empreinte mal formée avant d'atteindre le service", async () => {
+      const response = await call(`${base}/${schemaId}/restore`, owner, {
+        method: "POST",
+        body: JSON.stringify({ hash: "pas-une-empreinte" }),
+      });
+      assert.equal(response.status, 400);
+    });
+
+    it("laisse un viewer lire la lignée sans restaurer", async () => {
+      assert.equal((await call(`${base}/${schemaId}/history`, viewer)).status, 200);
+
+      const restored = await call(`${base}/${schemaId}/restore`, viewer, {
+        method: "POST",
+        body: JSON.stringify({ hash: firstHash }),
+      });
+      assert.equal(restored.status, 403);
+    });
+  });
+
   it("ne montre rien à un étranger", async () => {
     const stranger = await createVerifiedUser("schema-etranger");
     users.push(stranger.id);

@@ -556,6 +556,76 @@
           }
         },
         "required": ["name", "label", "definition"]
+      },
+      "SchemaHistory": {
+        "type": "object",
+        "properties": {
+          "currentHash": {
+            "type": "string",
+            "pattern": "^[a-z0-9-]+:[0-9a-f]{64}$",
+            "example": "sha256-1:eed07419c964a6936ee1ff00ce0a7834ce1dc7730547c2150ab6fc99d5109441"
+          },
+          "entries": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SchemaHistoryEntry"
+            }
+          }
+        },
+        "required": ["currentHash", "entries"]
+      },
+      "SchemaHistoryEntry": {
+        "type": "object",
+        "properties": {
+          "hash": {
+            "type": "string",
+            "pattern": "^[a-z0-9-]+:[0-9a-f]{64}$",
+            "example": "sha256-1:eed07419c964a6936ee1ff00ce0a7834ce1dc7730547c2150ab6fc99d5109441"
+          },
+          "action": {
+            "type": "string",
+            "enum": ["saved", "restored"]
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "actorName": {
+            "type": "string",
+            "nullable": true
+          },
+          "actorEmail": {
+            "type": "string",
+            "nullable": true
+          },
+          "name": {
+            "type": "string"
+          },
+          "label": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "required": [
+          "hash",
+          "action",
+          "createdAt",
+          "actorName",
+          "actorEmail",
+          "name",
+          "label"
+        ]
+      },
+      "SchemaRestoreInput": {
+        "type": "object",
+        "properties": {
+          "hash": {
+            "type": "string",
+            "pattern": "^[a-z0-9-]+:[0-9a-f]{64}$",
+            "example": "sha256-1:eed07419c964a6936ee1ff00ce0a7834ce1dc7730547c2150ab6fc99d5109441"
+          }
+        },
+        "required": ["hash"]
       }
     },
     "parameters": {}
@@ -2077,6 +2147,107 @@
         "responses": {
           "204": {
             "description": "Supprimé"
+          }
+        }
+      }
+    },
+    "/api/organizations/{organizationId}/projects/{projectId}/schemas/{schemaId}/history": {
+      "get": {
+        "summary": "La lignée d'un type de contenu",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "organizationId",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "projectId",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "schemaId",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Du plus récent au plus ancien",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SchemaHistory"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/organizations/{organizationId}/projects/{projectId}/schemas/{schemaId}/restore": {
+      "post": {
+        "summary": "Restaurer une version antérieure",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "organizationId",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "projectId",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "schemaId",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SchemaRestoreInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Restauré",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Schema"
+                }
+              }
+            }
           }
         }
       }

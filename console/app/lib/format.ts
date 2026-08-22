@@ -14,3 +14,17 @@
  */
 export const day = (value: string | Date) =>
   new Date(value).toLocaleDateString("en-CA");
+
+/**
+ * A date down to the minute, for a log where several entries share a day.
+ *
+ * Same `en-CA` choice as `day`, and for the same reason — one reading for
+ * every reader. `hourCycle: "h23"` because the locale would otherwise decide,
+ * and a lineage read as `2:04` is ambiguous where `14:04` is not.
+ */
+export const moment = (value: string | Date) =>
+  new Date(value).toLocaleString("en-CA", {
+    dateStyle: "short",
+    timeStyle: "short",
+    hourCycle: "h23",
+  });

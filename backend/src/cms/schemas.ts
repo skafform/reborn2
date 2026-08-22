@@ -1,4 +1,4 @@
-import { and, asc, desc, eq } from "drizzle-orm";
+import { and, asc, desc, eq, sql } from "drizzle-orm";
 import type { Actor } from "../auth/authorization.ts";
 import { requirePermission } from "../auth/escalation.ts";
 import { type Transaction, withContext } from "../db/client.ts";
@@ -251,18 +251,23 @@ export async function listSchemaHistory(input: {
   return withContext({ userId: actor.userId, organizationId }, async (tx) => {
     // Sans ça, un schéma inexistant et un schéma sans journal se
     // ressembleraient — or l'un est une erreur et l'autre est impossible.
-    const [exists] = await tx
-      .select({ id: schemas.id })
+    const [current] = await tx
+      .select({ currentHash: schemas.currentHash })
       .from(schemas)
       .where(and(eq(schemas.id, schemaId), eq(schemas.environmentId, environmentId)));
-    if (!exists) throw new SchemaError(404, "unknown_schema", "introuvable");
+    if (!current) throw new SchemaError(404, "unknown_schema", "introuvable");
 
-    return tx
+    const entries = await tx
       .select({
         hash: schemaHistory.hash,
         action: schemaHistory.action,
-        actorUserId: schemaHistory.actorUserId,
         createdAt: schemaHistory.createdAt,
+        // ⚠️ Du SQL brut pour `"user"`, comme `listMembers` : la table
+        // appartient à Better-Auth, elle n'est pas décrite par Drizzle ici.
+        // `leftJoin` parce que `actor_user_id` passe à `NULL` quand le compte
+        // s'en va — l'histoire survit aux comptes.
+        actorName: sql<string | null>`u.name`,
+        actorEmail: sql<string | null>`u.email`,
         // L'état qu'a nommé cette ligne, pour que la lignée se lise sans une
         // requête par entrée.
         name: schemaVersions.name,
@@ -276,8 +281,14 @@ export async function listSchemaHistory(input: {
           eq(schemaVersions.hash, schemaHistory.hash),
         ),
       )
+      .leftJoin(sql`"user" u`, sql`u.id = ${schemaHistory.actorUserId}`)
       .where(eq(schemaHistory.schemaId, schemaId))
       .orderBy(desc(schemaHistory.seq));
+
+    // ⚠️ Le pointeur voyage avec la lignée. Sans lui, l'écran ne saurait pas
+    // quelle entrée est l'état courant — et proposerait de restaurer celle
+    // qui y est déjà.
+    return { currentHash: current.currentHash, entries };
   });
 }
 

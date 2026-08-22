@@ -7,7 +7,7 @@ travail : où on en est, ce qui reste, par quoi commencer.
 
 Étapes 1 à 6a de la [feuille de route](roadmap.md), et beaucoup de socle
 depuis : rôles personnalisés, adhésions, routes de clés, chaîne du contrat,
-CI. **213 tests au vert**, typecheck et lint propres des deux côtés.
+CI. **217 tests au vert**, typecheck et lint propres des deux côtés.
 
 | | |
 |---|---|
@@ -166,6 +166,8 @@ planter.
 | `GET …/projects/{pid}/members` | `member.read` — donc pas les membres du projet eux-mêmes |
 | `GET`/`POST …/projects/{pid}/invitations` | `member.manage` — le `projectId` vient de l'URL |
 | `GET`/`POST …/projects/{pid}/api-keys` | `apikey.manage`, vérifié par le service |
+| `GET …/schemas/{id}/history` | `schema.read` — lire une lignée est une lecture de schéma |
+| `POST …/schemas/{id}/restore` | `schema.write` — restaurer en est une écriture |
 | `POST …/api-keys/{id}/revoke`, `DELETE …/api-keys/{id}` | idem — et la suppression exige la révocation |
 
 `/me` existe parce que **le nom du rôle ne suffit pas** : les rôles sont
@@ -533,23 +535,39 @@ l'identité de chaque version.
    versions étant dédupliquées par organization, aller vers une empreinte que
    ce schéma n'a jamais eue serait une **affectation**, pas une restauration.
 
-   ⚠️ **Aucune route n'expose encore l'historique ni la restauration** — elles
-   viendront avec l'écran, comme le reste de l'API. `createSchema` et
-   `updateSchema`, eux, versionnent déjà par leurs routes existantes.
+   ✅ **L'écran de lignée et ses deux routes sont là** —
+   `GET …/schemas/{id}/history` et `POST …/schemas/{id}/restore`. Aucune
+   permission nouvelle : lire une lignée est une lecture de schéma, restaurer
+   une écriture. Une fonctionnalité entière est arrivée et le vocabulaire n'a
+   pas bougé.
 
 **Rien à rattraper** : `select count(*) from schemas` rendait **0**, vérifié
 avant d'écrire `current_hash NOT NULL` sans valeur de repli. La version
 initiale et sa ligne d'historique font partie de la création.
 
+### L'écran de lignée
+
+Une modale ouverte depuis une ligne de la table des types de contenu : quand,
+quoi (`Saved` / `Restored`), qui, l'état nommé, et *Restore* sur tout ce qui
+n'est pas le courant.
+
+⚠️ **La lignée ouverte est un paramètre d'URL, pas un état de composant.**
+L'ouvrir est une navigation, donc le chargeur la récupère et la restauration
+passe par le même `clientAction` que la création et la suppression — pas de
+second mécanisme de récupération à côté du premier. Effet secondaire utile :
+l'écran devient adressable.
+
+⚠️ **« Deleted user » plutôt qu'une case vide** quand `actor_user_id` est
+`NULL`. C'est le `ON DELETE SET NULL` qui fonctionne, pas un défaut — mais un
+blanc n'aurait aucune façon de le dire.
+
+⚠️ **Le contrat ne grave pas `sha256-1`.** La borne dit « un tag, puis un
+condensé hexadécimal », sans lequel — le tag existe précisément pour changer, et
+le graver obligerait à republier le contrat ce jour-là.
+
 ### Par quoi reprendre — maintenant
 
-**L'écran de lignée**, et les deux routes qu'il révélera : lire l'historique,
-restaurer une version. Aucune permission à ajouter — lire l'historique est une
-lecture de schéma, restaurer une écriture de schéma. ⚠️ L'écran doit afficher
-« utilisateur supprimé » quand `actor_user_id` est `NULL`, sinon le
-`ON DELETE SET NULL` ressemblera à un bug la première fois qu'il servira.
-
-Puis l'**étape 3** — `library_schemas`, la copie dans un environnement, et la
+L'**étape 3** — `library_schemas`, la copie dans un environnement, et la
 divergence à trois états, qui se lit désormais par comparaison d'empreintes.
 
 ⚠️ Et un souhait resté en plan, qui aurait transformé une énigme en message :
