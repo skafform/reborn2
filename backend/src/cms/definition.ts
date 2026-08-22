@@ -85,6 +85,17 @@ export const DefinitionSchema = z
 export type Definition = z.infer<typeof DefinitionSchema>;
 
 /**
+ * Ce qu'un document porte : les valeurs de ses champs, façonnées par une
+ * définition mais **jamais typées par elle** — la définition vit en base, donc
+ * TypeScript ne peut pas la connaître.
+ *
+ * ⚠️ Ce n'est pas un aveu de faiblesse : c'est `validate.ts` qui tient la
+ * garantie, à l'exécution, contre la définition **courante**. Un type
+ * statique ici ne pourrait que mentir.
+ */
+export type DocumentData = Record<string, unknown>;
+
+/**
  * Deux champs ne peuvent pas partager une clé de stockage.
  *
  * Vérifié ici plutôt que par une contrainte de base : `fields` est un tableau

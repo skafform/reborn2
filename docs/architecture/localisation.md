@@ -7,10 +7,20 @@ elle touche le modèle du document lui-même — et doit être posée dès le d�
 
 ```
 documents
-  id, environment_id, schema_id, status, data, created_at, updated_at,
+  id, environment_id, schema_id, data, current_hash, published_hash,
+  created_at, updated_at,
   locale                  ← "fr" par défaut, jamais exposé au MVP
-  translation_group_id    ← égal à id tant qu'il n'y a qu'une langue
+  translation_group_id    ← un groupe par document tant qu'il n'y a qu'une langue
 ```
+
+⚠️ **Il n'y a pas de colonne `status`** : l'état de publication est dérivé de
+deux pointeurs ([ADR 0022](../adr/0022-document-a-deux-pointeurs.md)). Ce
+croquis en portait une, et l'argument « le champ `status` » ci-dessous en
+dépendait — il tient toujours, mais il faut le lire comme *les deux pointeurs*.
+
+⚠️ `translation_group_id` prend une valeur propre à chaque document plutôt que
+l'`id` lui-même : « égal à id » était un raccourci pour « chacun son groupe »,
+et une valeur distincte l'obtient sans second aller-retour.
 
 Coût aujourd'hui : deux colonnes que toute la logique ignore. Coût le jour
 venu : ajouter des lignes et exposer un sélecteur de langue — aucune

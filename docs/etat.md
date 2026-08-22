@@ -7,13 +7,13 @@ travail : où on en est, ce qui reste, par quoi commencer.
 
 Étapes 1 à 6a de la [feuille de route](roadmap.md), et beaucoup de socle
 depuis : rôles personnalisés, adhésions, routes de clés, chaîne du contrat,
-CI. **257 tests au vert**, typecheck et lint propres des deux côtés.
+CI. **270 tests au vert**, typecheck et lint propres des deux côtés.
 
 | | |
 |---|---|
 | Serveur | Hono + `@hono/zod-openapi`, validation d'environnement au démarrage |
 | Authentification | Better-Auth sur `pg.Pool`, confirmation d'adresse obligatoire, réinitialisation |
-| Multi-tenant | 15 tables sous RLS **activé et forcé**, point de passage `withContext` |
+| Multi-tenant | 17 tables sous RLS **activé et forcé**, point de passage `withContext` |
 | Autorisation | Rôles personnalisables par organization, 19 permissions, `can()`, garde-fous |
 | Invitations | Jeton haché, email verrouillé, usage unique, plafond par organization, Inbox |
 | Emails | Gabarits maison sans dépendance, prévisualisation sur `/dev/emails` |
@@ -678,6 +678,34 @@ inclut la forme** — un brouillon enregistré sous une ancienne définition
 repasse la forme courante au moment de publier. Aucun transform nulle part :
 l'empreinte du `data` est son identité.
 
+**Jalon 3 fait** : migration 0032 — `document_versions` et `documents`, plus
+créer / enregistrer / lister / supprimer et le **nettoyage synchrone**.
+13 tests, dont **la course jouée pour de vrai** : deux transactions
+simultanées, la seconde reprenant l'empreinte que la première s'apprête à
+oublier. Le refus `23503` est avalé, et la transaction extérieure survit grâce
+au `SAVEPOINT` — sans lui elle serait morte, emportant l'enregistrement qu'on
+venait de faire.
+
+⚠️ **Deux mécanismes de nettoyage, et chacun gagne sa place.** Le `NOT EXISTS`
+traite le cas courant sans lever — au premier remaniement d'un document publié,
+l'ancien `current_hash` est encore le `published_hash` de la **même ligne**, et
+un `DELETE` nu lèverait à *chaque* sauvegarde : l'exception comme flux normal.
+La clé étrangère traite la course.
+
+⚠️ **`document_versions` a une policy `DELETE`**, contrairement à
+`schema_versions`. C'est l'écart au motif « SELECT/INSERT seulement », et il
+est délibéré : une version reste immuable — aucune policy `UPDATE` — mais elle
+est **supprimable quand plus rien ne la nomme**.
+
+⚠️ **Supprimer un type de contenu qui porte des documents est refusé en
+comptant** (409 `schema_in_use`) : `documents_schema_fk` est en `RESTRICT`, et
+sans le contrôle applicatif le refus remonterait en 500.
+
+⚠️ **Deux cascades partent d'un environnement** — vers les types et vers les
+documents — reliées par cette clé `RESTRICT`. Un test épingle que supprimer un
+projet fonctionne quand même, plutôt que de le découvrir au nettoyage d'une
+suite.
+
 ⚠️ Quatre contraintes à ne pas perdre en l'écrivant :
 
 - **Le nettoyage des versions inatteignables est synchrone**, dans la
@@ -763,8 +791,9 @@ Dix items clos.
   forme à liste de colonnes (PostgreSQL 15+) est ce qu'il faut
 - **`@better-auth/cli` génère un schéma périmé** — utiliser
   `scripts/migrate-auth.ts`
-- **drizzle-kit génère parfois un ordre invalide** — contrainte unique après la
-  clé étrangère qui en dépend
+- **drizzle-kit génère un ordre invalide** — contrainte unique après la clé
+  étrangère qui en dépend. Arrivé **trois fois** (migrations 0029, 0031, 0032) :
+  ce n'est pas « parfois », c'est à vérifier à chaque génération
 - **Définir `onError` sur Hono retire son traitement par défaut**
 - **Les rôles Postgres appartiennent au cluster**, pas à la base
 - **Le mailer réel ne s'installe qu'au démarrage du serveur** — un import ne

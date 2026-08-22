@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, sql } from "drizzle-orm";
+import { and, asc, count, desc, eq, sql } from "drizzle-orm";
 import type { Actor } from "../auth/authorization.ts";
 import { requirePermission } from "../auth/escalation.ts";
 import { type Transaction, withContext } from "../db/client.ts";
@@ -7,6 +7,7 @@ import { type Definition, duplicateFieldName } from "./definition.ts";
 import { fingerprint, type VersionedContent } from "./fingerprint.ts";
 import { CMS_PERMISSIONS } from "./permissions.ts";
 import {
+  documents,
   type HistoryAction,
   librarySchemas,
   schemaHistory,
@@ -545,6 +546,25 @@ export async function deleteSchema(input: {
   requirePermission(actor, CMS_PERMISSIONS.schemaWrite);
 
   await withContext({ userId: actor.userId, organizationId }, async (tx) => {
+    /**
+     * ⚠️ **Compter avant, plutôt que buter sur la clé.** `documents_schema_fk`
+     * est en `RESTRICT` : sans ce contrôle, supprimer un type qui porte des
+     * entries remonterait en 500 au lieu de dire ce qui bloque. C'est la règle
+     * de partout ici — révoquer une clé avant de la supprimer, vider une
+     * organization avant de l'effacer : **le refus compte ce qui reste**.
+     */
+    const [held] = await tx
+      .select({ entries: count() })
+      .from(documents)
+      .where(eq(documents.schemaId, schemaId));
+    if (held && held.entries > 0) {
+      throw new SchemaError(
+        409,
+        "schema_in_use",
+        `${held.entries} document(s) utilisent encore ce type`,
+      );
+    }
+
     const deleted = await tx
       .delete(schemas)
       .where(and(eq(schemas.id, schemaId), eq(schemas.environmentId, environmentId)))

@@ -13,7 +13,7 @@ import {
   uuid,
 } from "drizzle-orm/pg-core";
 import { environments, organizations } from "../db/schema.ts";
-import type { Definition } from "./definition.ts";
+import type { Definition, DocumentData } from "./definition.ts";
 
 /**
  * Les tables du CMS.
@@ -106,6 +106,11 @@ export const schemas = pgTable(
     // Cible de la clé étrangère composite du journal : c'est elle qui interdit
     // à une ligne d'historique de traverser deux cadrages.
     unique("schemas_id_organization_id_key").on(table.id, table.organizationId),
+    // ⚠️ Cible de celle des documents. Sans elle, un document d'un
+    // environnement pourrait se réclamer d'un type de contenu d'un autre — et
+    // l'API de livraison servirait un document validé contre un schéma que son
+    // environnement ne contient pas.
+    unique("schemas_id_environment_id_key").on(table.id, table.environmentId),
     foreignKey({
       columns: [table.environmentId, table.organizationId],
       foreignColumns: [environments.id, environments.organizationId],
@@ -355,5 +360,145 @@ export const librarySchemaHistory = pgTable(
       name: "library_schema_history_version_fk",
     }),
     check("library_schema_history_action_check", sql`action in ('saved', 'restored')`),
+  ],
+);
+
+/**
+ * Le magasin de versions des documents (ADR 0022).
+ *
+ * ⚠️ **Une table à part de `schema_versions`, malgré la même forme et la même
+ * empreinte.** Ce qui diffère est la **durée de vie** : une version de schéma
+ * est retenue pour toujours par un journal en ajout seul ; une version de
+ * document n'est retenue que par deux pointeurs et meurt dès qu'ils la
+ * lâchent. Dans une table commune, le nettoyage des documents buterait sur les
+ * clés du journal des schémas — donc ne s'exécuterait jamais, en silence.
+ *
+ * ⚠️ **Elle a donc une policy `DELETE`**, contrairement à `schema_versions` qui
+ * n'a que `SELECT` et `INSERT`. C'est l'écart au motif, et il est délibéré : une
+ * version reste **immuable** — aucune policy `UPDATE` — mais elle est
+ * **supprimable quand plus rien ne la nomme**.
+ */
+export const documentVersions = pgTable(
+  "document_versions",
+  {
+    organizationId: uuid("organization_id")
+      .notNull()
+      .references(() => organizations.id, { onDelete: "cascade" }),
+    /** `sha256-1:<hex>` — l'empreinte du `data` seul. Voir `fingerprint.ts`. */
+    hash: text("hash").notNull(),
+    data: jsonb("data").notNull().$type<DocumentData>(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [primaryKey({ columns: [table.organizationId, table.hash] })],
+);
+
+/**
+ * Un document : une ligne, **deux pointeurs**, et aucun statut stocké
+ * ([ADR 0022](../../../docs/adr/0022-document-a-deux-pointeurs.md)).
+ *
+ * | État | Condition |
+ * |---|---|
+ * | Draft | `published_hash IS NULL` |
+ * | Published | `published_hash = current_hash` |
+ * | Changed | `published_hash IS NOT NULL` et `≠ current_hash` |
+ *
+ * ⚠️ **Pas de colonne `status`.** Elle ne pourrait pas exprimer *Changed* — un
+ * document publié qui porte des modifications en attente, c'est-à-dire le cas
+ * central du travail éditorial.
+ */
+export const documents = pgTable(
+  "documents",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    environmentId: uuid("environment_id")
+      .notNull()
+      .references(() => environments.id, { onDelete: "cascade" }),
+    /** Dénormalisé, comme partout : c'est ce qui rend la policy autonome. */
+    organizationId: uuid("organization_id")
+      .notNull()
+      .references(() => organizations.id, { onDelete: "restrict" }),
+    /**
+     * ⚠️ **En `RESTRICT`, et par une clé composite** avec l'environnement.
+     * Supprimer un type de contenu qui porte des entries est refusé en comptant
+     * ce qui reste — la règle de partout ; et un document ne peut pas se
+     * réclamer d'un type d'un **autre** environnement, ce que la livraison
+     * servirait sinon comme validé contre un schéma absent de chez elle.
+     */
+    schemaId: uuid("schema_id").notNull(),
+    /**
+     * ⚠️ **Le courant, dénormalisé — et jamais le publié.** La console lit
+     * sans jointure ; la livraison joint le magasin par `published_hash`,
+     * derrière un cache de toute façon. Dénormaliser les deux doublerait le
+     * stockage que la déduplication vient d'économiser.
+     *
+     * ⚠️ Invariant silencieux : `data` **est** la version que `current_hash`
+     * nomme. Une seule fonction d'écriture les pose ensemble, et un test
+     * l'assure.
+     */
+    data: jsonb("data").notNull().$type<DocumentData>(),
+    /** Ce que la console édite. */
+    currentHash: text("current_hash").notNull(),
+    /** Ce que l'API de livraison sert. `null` tant que rien n'a été publié. */
+    publishedHash: text("published_hash"),
+    /**
+     * La couture multilingue (ADR 0007) : deux colonnes que toute la logique
+     * ignore aujourd'hui, et qui évitent une migration le jour venu.
+     *
+     * ⚠️ `translation_group_id` prend une valeur **propre à chaque document**
+     * plutôt que l'`id` lui-même — `localisation.md` disait « égal à id », qui
+     * était un raccourci pour « chacun son groupe ». Une valeur distincte
+     * l'obtient sans un second aller-retour, et le groupe reste modifiable le
+     * jour où une traduction en rejoint un.
+     */
+    locale: text("locale").notNull().default("fr"),
+    translationGroupId: uuid("translation_group_id").notNull().defaultRandom(),
+    ...timestamps,
+  },
+  (table) => [
+    // Colonne de cadrage en tête, puis ce que la console filtre : les
+    // documents d'un type, dans un environnement.
+    index("documents_organization_id_idx").on(
+      table.organizationId,
+      table.environmentId,
+      table.schemaId,
+    ),
+    /**
+     * ⚠️ **Les deux index que le nettoyage interroge.** « Plus aucun pointeur
+     * ne nomme cette empreinte ? » est la question posée à chaque
+     * enregistrement ; sans eux, elle balaierait les documents de
+     * l'organization à chaque frappe de sauvegarde.
+     */
+    index("documents_current_hash_idx").on(table.organizationId, table.currentHash),
+    index("documents_published_hash_idx")
+      .on(table.organizationId, table.publishedHash)
+      .where(sql`published_hash is not null`),
+    index("documents_translation_group_idx").on(
+      table.organizationId,
+      table.translationGroupId,
+    ),
+    foreignKey({
+      columns: [table.environmentId, table.organizationId],
+      foreignColumns: [environments.id, environments.organizationId],
+      name: "documents_environment_fk",
+    }),
+    foreignKey({
+      columns: [table.schemaId, table.environmentId],
+      foreignColumns: [schemas.id, schemas.environmentId],
+      name: "documents_schema_fk",
+    }).onDelete("restrict"),
+    // ⚠️ Les deux pointeurs portent une clé : « le pointeur nomme toujours une
+    // version réelle » est une propriété de la forme. C'est aussi elle qui
+    // refuse la suppression d'une version qu'un autre document vient de
+    // reprendre — la course perdue d'ADR 0022.
+    foreignKey({
+      columns: [table.organizationId, table.currentHash],
+      foreignColumns: [documentVersions.organizationId, documentVersions.hash],
+      name: "documents_current_version_fk",
+    }),
+    foreignKey({
+      columns: [table.organizationId, table.publishedHash],
+      foreignColumns: [documentVersions.organizationId, documentVersions.hash],
+      name: "documents_published_version_fk",
+    }),
   ],
 );
