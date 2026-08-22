@@ -507,7 +507,10 @@ Rappels structurants :
 - Le contenu est rattaché à `environment_id`, jamais à `project_id`
 - L'API de lecture reste en **GET avec paramètres d'URL** — sinon plus de cache
 - Toute écriture passe par un **point d'émission d'événements unique** — c'est
-  là que se décidera le refus de publier contre un brouillon
+  là que vit la clôture du publié, dans les deux sens
+- ⚠️ **La vérification porte sur un ensemble dès le premier jour**, même à un
+  membre : la publication groupée est la seule issue aux cycles, et l'écrire
+  « un document » obligerait à la réécrire
 - ⚠️ **La table d'index des références naît avec `documents`**, jamais avant :
   une table de références sans documents à indexer est l'erreur qu'un projet
   précédent a déjà faite

@@ -11,22 +11,17 @@ devient aussi un [ADR](../adr/).
 Les écarts entre le code et l'architecture ne sont **pas** ici : ce sont des
 tâches, elles vivent dans le [backlog](../backlog/).
 
-## À trancher avant d'écrire la couche contenu
+## Plus rien à trancher avant la couche contenu
 
-### Publier contre un brouillon
+✅ **Les quatre questions sont fermées.** Le versionnage et le moment de la
+validation le 2026-08-21 — **ensemble**, le premier supposant une réponse au
+second sans la nommer — puis les références et la clôture du publié le
+2026-08-22.
 
-⚠️ **Tout ce qui restait des références entre documents**, réduit à une phrase
-par [ADR 0020](../adr/0020-references-entre-documents.md) :
-
-> Faut-il bloquer la publication d'un document qui référence un brouillon non
-> publié, comme le fait Sanity ?
-
-Une clé étrangère garantit l'existence, jamais l'état de publication. C'est une
-règle applicative, au point d'émission d'événements — pas une contrainte de
-base.
-
-**Ne bloque pas l'étape 4** : elle s'y décide, avec un cas concret sous les
-yeux.
+La dernière s'est formulée en **invariant** plutôt qu'en règle : *ce qui est
+publié ne pointe que vers du publié*. Les deux vérifications — publier,
+dépublier — en découlent au lieu d'être deux règles à tenir d'accord
+([ADR 0021](../adr/0021-ensemble-publie-clos-par-reference.md)).
 
 ## À trancher plus tard, sans coût de retard
 
