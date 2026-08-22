@@ -20,6 +20,9 @@
 
 - La validation d'un document se fait côté API via un schéma Zod généré
   dynamiquement à partir de la définition stockée dans `schemas`
+- ⚠️ **À l'écriture seulement, jamais à la lecture**
+  ([ADR 0017](../adr/0017-validation-a-l-ecriture-seulement.md)) — une lecture
+  rend ce qui est stocké
 
 ## Le schéma vit en base, pas dans le code
 
@@ -38,10 +41,50 @@ contenu non conforme sans que rien ne l'arrête.
 
 **Le prix à payer** : en mettant le schéma dans le code, Sanity obtient
 gratuitement l'historique des changements, la revue de code, le retour en
-arrière (`git revert`) et les branches. Nos schémas vivant dans une table,
-rien de tout cela n'existe par défaut — voir la décision ouverte sur le
-versionnage des schémas dans
-[decisions-ouvertes.md](./decisions-ouvertes.md).
+arrière (`git revert`) et les branches. Nos schémas vivant dans une table, rien
+de tout cela n'existe par défaut. C'est ce trou que comble le versionnage
+adressé par contenu, décrit plus bas.
+
+## Versionnage : l'identité d'une version est son contenu
+
+Décidé par [ADR 0016](../adr/0016-versionnage-des-schemas-adresse-par-contenu.md),
+qui porte le raisonnement complet. Ce qu'il faut en retenir ici :
+
+| Table | Nature |
+|---|---|
+| `schema_versions` | Contenu immuable, dédupliqué. Clé `(organization_id, hash)` |
+| `schema_history` | Journal par schéma, en ajout seul |
+
+`schemas.current_hash` désigne la version courante. Enregistrer une définition
+au hachage déjà courant est un **no-op**. Restaurer, c'est **déplacer le
+pointeur** et ajouter une ligne d'historique — jamais réécrire le journal.
+
+⚠️ **Trois choses qui se perdent facilement**, et qui sont chacune un piège
+plutôt qu'un détail :
+
+1. La lignée vit dans le journal, **jamais** en `parent_hash` sur la version —
+   une ligne partagée par deux schémas mêlerait deux lignées
+2. La déduplication est **par organization**, jamais globale — sinon le
+   `created_at` d'une ligne partagée révèle qu'une autre organization détient
+   le même schéma, et une table globale échapperait à RLS
+3. Le hachage porte un **tag d'algorithme** (`sha256-1:`) — geler la
+   normalisation sans lui est une décision qui ne peut être fausse qu'une fois
+
+## Bibliothèque de schémas de l'organization
+
+Une organization tient une bibliothèque de schémas que ses projets copient.
+`library_schemas` est une **table à part**, cadrée par `organization_id`
+([ADR 0018](../adr/0018-bibliotheque-de-schemas-table-separee.md)) — et non un
+`environment_id` nullable, qu'une policy *fail-closed* rendrait invisible.
+
+- L'opération est **copier dans un environnement cible**, jamais « dans un
+  projet » : un projet ne contient pas de schéma
+- La copie est indépendante ensuite. Elle porte `copied_from`, une clé
+  étrangère composite `(organization_id, copied_from)` — le seul lien du modèle
+  qui traverse deux niveaux de cadrage
+- La divergence se lit par **comparaison de hachages**, en trois états, sans
+  moteur de diff. ⚠️ Le troisième, `locally_modified`, confond « seule la copie
+  a bougé » et « les deux ont bougé »
 
 ## Permissions
 
@@ -49,6 +92,10 @@ versionnage des schémas dans
   volontairement exclu pour `editor`, même s'il peut être une personne
   externe au projet, car une modification de schéma peut casser des
   documents existants (changement structurel, pas juste du contenu)
+- **Éditer la bibliothèque** : `library.write`, une clé **distincte** de
+  `schema.write`, aux mêmes détenteurs par défaut (`owner`, `admin`). Distincte
+  parce que ce défaut sera probablement revisité, et que le restreindre doit
+  rester un ajustement de rôle ([ADR 0018](../adr/0018-bibliotheque-de-schemas-table-separee.md))
 - **Créer/modifier du contenu (brouillon)** : `owner`/`admin`/`editor`/
   `contributor`
 - **Publier** (`draft` → `published`) : `owner`/`admin`/`editor` —

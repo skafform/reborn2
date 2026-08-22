@@ -18,7 +18,7 @@ que personne ne maintient.
 | Domaine | Permissions |
 |---|---|
 | Contenu | `content.read` · `content.read_draft` · `content.write` · `content.publish` |
-| Schémas | `schema.read` · `schema.write` |
+| Schémas | `schema.read` · `schema.write` · `library.write` |
 | Membres | `member.read` · `member.manage` · `member.manage_admin` |
 | Rôles | `role.manage` |
 | Clés API | `apikey.manage` |
@@ -35,6 +35,7 @@ que personne ne maintient.
 | `content.publish` | ✅ | ✅ | — | ✅ | — | — |
 | `schema.read` | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | `schema.write` | ✅ | ✅ | — | — | — | — |
+| `library.write` | ✅ | ✅ | — | — | — | — |
 | `member.read` | ✅ | ✅ | ✅ | — | — | — |
 | `member.manage` | ✅ | ✅ | — | — | — | — |
 | `member.manage_admin` | ✅ | — | — | — | — | — |

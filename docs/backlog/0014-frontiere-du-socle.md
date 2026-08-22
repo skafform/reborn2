@@ -68,6 +68,36 @@ et `org.delete` sont du socle, `content.publish` et `schema.write` sont du CMS.
 Tant que c'est le cas, la règle d'import empêche le socle de *dépendre* du CMS,
 mais pas d'en *contenir* le vocabulaire.
 
+### ⚠️ Ce n'est pas un déplacement de chaînes
+
+Le nœud est ailleurs, et il a été identifié en préparant l'étape 6b :
+
+- `SYSTEM_ROLES` vit dans le socle et **accorde** aujourd'hui `schema.*` et
+  `content.*`
+- `seedSystemRoles` sème ces rôles à chaque création d'organization
+- la table `permissions` est la cible de clé étrangère qui rend toute
+  permission inconnue impossible à accorder
+
+Si les clés du CMS sortent du socle, `SYSTEM_ROLES` ne peut plus les nommer.
+Il faut donc que `seedSystemRoles` parcoure un **registre** que le module CMS
+alimente en important le socle — jamais l'inverse. C'est la seule direction qui
+préserve la frontière, et elle décide de la forme : une constante devient une
+liste composée à l'exécution.
+
+Deux conséquences concrètes :
+
+⚠️ **Il y a bien un rattrapage.** Pas sur les schémas — aucun n'existe — mais
+sur les **permissions** : chaque nouvelle clé du CMS doit être insérée au
+vocabulaire et accordée aux rôles système de **toutes les organizations déjà
+créées**. Exactement le motif de la migration 0027, désactivation du trigger
+`role_permissions_protect_system` comprise.
+
+⚠️ **Une migration ne peut pas appeler du code.** Le registre résout le semage
+à l'exécution ; l'insertion dans `permissions` reste du SQL écrit à la main.
+Les deux doivent rester d'accord, et **rien ne le vérifie aujourd'hui** — un
+contrôle de préconditions au démarrage serait le bon endroit
+([backlog #0007](0007-amorcage-et-verification-db.md) fait déjà ça pour RLS).
+
 ## 3 — Le tag
 
 Un tag au dernier commit avant le premier fichier de CMS. **Repère historique,

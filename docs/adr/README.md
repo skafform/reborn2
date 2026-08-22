@@ -53,3 +53,6 @@ Court : si un ADR dépasse une page, c'est souvent qu'il en contient deux.
 | [0013](0013-cles-api-rattachees-a-un-environnement.md) | Une clé API appartient à un environnement | 2026-08-20 |
 | [0014](0014-creation-de-roles-reservee-au-owner.md) | La création de rôles est réservée au `owner` | 2026-08-21 |
 | [0015](0015-exploitation-hors-ligne-jamais-dans-l-application.md) | L'exploitation vit hors de l'application, en local | 2026-08-21 |
+| [0016](0016-versionnage-des-schemas-adresse-par-contenu.md) | Versionnage des schémas adressé par contenu | 2026-08-21 |
+| [0017](0017-validation-a-l-ecriture-seulement.md) | La validation d'un document s'applique à l'écriture seulement | 2026-08-21 |
+| [0018](0018-bibliotheque-de-schemas-table-separee.md) | La bibliothèque de schémas est une table à part | 2026-08-21 |

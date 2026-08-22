@@ -13,40 +13,6 @@ tâches, elles vivent dans le [backlog](../backlog/).
 
 ## À trancher avant d'écrire la couche contenu
 
-### Quand la validation s'applique-t-elle ?
-
-[content-schemas.md](./content-schemas.md) dit que la validation se fait à
-l'API via un schéma Zod généré dynamiquement, mais pas **quand** :
-
-- **À l'écriture seulement** — les documents déjà en base ne sont jamais
-  revalidés. Ajouter un champ obligatoire ne casse rien rétroactivement ; la
-  contrainte s'applique à la prochaine modification du document
-- **À l'écriture et à la lecture** — tout doit toujours être conforme, donc
-  un changement de schéma invalide instantanément le contenu existant
-
-*Piste privilégiée : à l'écriture seulement.* C'est ce que font Sanity et
-Contentful ; le second modèle transforme chaque modification de schéma en
-incident de production. À noter : avec ce choix, ce qui casse n'est jamais le
-stockage mais le **site du client**, s'il suppose la présence d'un champ
-absent des anciens documents.
-
-### Versionnage des schémas
-
-Conséquence directe du choix « schéma en base plutôt que dans le code » (voir
-[content-schemas.md](./content-schemas.md)). Si un `admin` supprime un champ
-par erreur, il n'existe aujourd'hui :
-
-- aucun historique de l'état antérieur du schéma
-- aucun retour en arrière possible
-- et le journal d'audit ([audit.md](./audit.md)) enregistre *qu'il y a eu*
-  une modification, pas *ce qui a changé*
-
-Les environnements ne comblent pas ce trou : staging protège **pendant** un
-test, il ne restaure rien **après** une erreur en production.
-
-Deux pistes : conserver chaque révision de `definition` avec possibilité de
-restauration, ou enrichir le journal d'audit pour qu'il stocke le diff.
-
 ### Références entre documents
 
 Voir [content-schemas.md](./content-schemas.md#références-entre-documents--à-trancher)
