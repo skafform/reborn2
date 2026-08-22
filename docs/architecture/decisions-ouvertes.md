@@ -23,6 +23,19 @@ publié ne pointe que vers du publié*. Les deux vérifications — publier,
 dépublier — en découlent au lieu d'être deux règles à tenir d'accord
 ([ADR 0021](../adr/0021-ensemble-publie-clos-par-reference.md)).
 
+## À trancher au début de l'étape 4
+
+- **Où vivent les documents dans la console.** Discuté, penchant arrêté, pas
+  encore validé : une section **Content** propre dans la barre latérale du
+  projet, dont la navigation interne est la liste des types (cliquer
+  « Article » → ses documents) — le type comme porte d'entrée, comme Sanity et
+  Strapi, plutôt qu'une liste plate à filtrer comme Contentful. L'écran
+  *Content types* reste l'administration de la structure : deux gestes, deux
+  permissions, deux écrans. ⚠️ Deux détails décidés en même temps : l'URL d'un
+  type porte son **`id`** (le nom se renomme), et la ligne d'un document
+  s'affiche par le **premier champ `text`** du type — une convention à dire,
+  pas une colonne
+
 ## À trancher plus tard, sans coût de retard
 
 - **Liste complète des emails transactionnels** — inscription (magic link),

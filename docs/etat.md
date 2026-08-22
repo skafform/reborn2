@@ -637,11 +637,37 @@ ajouter un état côté serveur casse donc le typecheck de la console.
 
 ### Par quoi reprendre — maintenant
 
-L'**étape 4** : les `documents`. ⚠️ Les **références** y sont présentes dès la
-conception ([ADR 0020](adr/0020-references-entre-documents.md)), la table
-d'index naît **avec** `documents` et jamais avant, et la clôture du publié
-opère sur un **ensemble** dès le premier jour, même à un membre
-([ADR 0021](adr/0021-ensemble-publie-clos-par-reference.md)).
+L'**étape 4** : les `documents`. Le modèle est **décidé**
+([ADR 0022](adr/0022-document-a-deux-pointeurs.md)) — une ligne, deux pointeurs
+(`current_hash`, `published_hash`) vers un magasin `document_versions`,
+Draft/Published/Changed **dérivés**, jamais stockés. La livraison lit un champ,
+la console lit l'autre, zéro conditionnelle.
+
+⚠️ Quatre contraintes à ne pas perdre en l'écrivant :
+
+- **Le nettoyage des versions inatteignables est synchrone**, dans la
+  transaction d'enregistrement — la croissance serait sinon non bornée dès le
+  premier jour. La course perdue (suppression refusée par la FK) **est un
+  succès silencieux**, et son test de concurrence vaut la peine d'exister
+- **L'empreinte d'un document couvre `data` seul** — `locale` et
+  `translation_group_id` sont de l'adressage : ils disent *où* est le contenu,
+  pas *ce qu'il est*. `documentFingerprint` à part, `normalise.ts` ne bouge pas
+- **`data` sur la ligne ≡ version pointée par `current_hash`** — un invariant
+  silencieux, tenu par une seule fonction d'écriture, avec son assertion dans
+  les tests
+- **Publier est le moment des deux vérifications** — complétude
+  ([ADR 0017](adr/0017-validation-a-l-ecriture-seulement.md), raffiné : forme à
+  l'enregistrement, `required` à la publication, **deux modes Zod d'une seule
+  définition**) et clôture ([ADR 0021](adr/0021-ensemble-publie-clos-par-reference.md)),
+  les deux refus nommant ce qui manque
+
+⚠️ Et les rappels d'avant tiennent toujours : les **références** sont présentes
+dès la conception ([ADR 0020](adr/0020-references-entre-documents.md)), la
+table d'index naît **avec** `documents` et jamais avant, la clôture opère sur
+un **ensemble** même à un membre. La question UI — où vivent les documents dans
+la console — est dans
+[decisions-ouvertes.md](architecture/decisions-ouvertes.md), penchant arrêté
+mais non validé.
 
 ⚠️ Et un souhait resté en plan, qui aurait transformé une énigme en message :
 un contrôle au démarrage comparant le **registre de permissions** à la table

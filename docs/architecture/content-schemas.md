@@ -8,9 +8,14 @@
 - Table `documents` générique :
 
   ```
-  id, environment_id, schema_id, status, data (JSONB), created_at, updated_at,
-  locale, translation_group_id
+  id, environment_id, schema_id, data (JSONB), current_hash, published_hash,
+  locale, translation_group_id, created_at, updated_at
   ```
+
+  ⚠️ **Pas de colonne `status`** : l'état de publication est **dérivé** de deux
+  pointeurs vers un magasin de versions
+  ([ADR 0022](../adr/0022-document-a-deux-pointeurs.md)) — sinon « publié avec
+  des modifications en attente » serait inexprimable
 
   - `environment_id` plutôt que `project_id` — voir
     [environments.md](./environments.md)
@@ -261,52 +266,38 @@ table des versions.
 Voir [roles-permissions.md](./roles-permissions.md) pour la définition
 complète des rôles.
 
-## Draft / publish
+## Draft / publish — deux pointeurs, des états dérivés
 
-- Champ `status` (`draft` / `published`) sur les documents
-- Évolution possible vers un système de versions/révisions plus complet dans une
-  phase ultérieure
+Décidé par [ADR 0022](../adr/0022-document-a-deux-pointeurs.md), qui porte le
+raisonnement complet. Ce qu'il faut en retenir ici :
 
-## Références entre documents — À TRANCHER
+- `current_hash` (ce que la console édite) et `published_hash` (ce que la
+  livraison sert), tous deux vers un magasin `document_versions` adressé par
+  contenu — la mécanique d'ADR 0016, appliquée au `data`
+- **Draft / Published / Changed sont dérivés**, jamais stockés. Chaque
+  consommateur lit un champ, sans conditionnelle
+- Publier / dépublier / abandonner les modifications sont des **déplacements de
+  pointeur** ; publier est le moment des deux vérifications — complétude
+  ([ADR 0017](../adr/0017-validation-a-l-ecriture-seulement.md)) et clôture
+  ([ADR 0021](../adr/0021-ensemble-publie-clos-par-reference.md))
+- ⚠️ **Le nettoyage des versions inatteignables est synchrone**, dans la
+  transaction d'enregistrement — la croissance serait sinon non bornée dès le
+  premier jour. Pas de journal, pas de restauration arbitraire : deux pointeurs
+  de stockage, pas une archive
 
-Permettre à un document d'en pointer un autre (un `Article` référence un
-`Author`) plutôt que de dupliquer l'information : une seule source de vérité,
-et modifier l'auteur met à jour tous les articles qui le référencent.
+## Références entre documents — tranché
 
-### Ce que fait Sanity (vérifié, août 2026)
+Décidé par [ADR 0020](../adr/0020-references-entre-documents.md) (un sixième
+type de champ `reference`, `data` fait foi, un index dérivé
+`document_references` porte les contraintes — l'option B de l'ancienne
+analyse) et [ADR 0021](../adr/0021-ensemble-publie-clos-par-reference.md)
+(l'invariant de clôture : *ce qui est publié ne pointe que vers du publié*,
+dont les deux vérifications découlent).
 
-- Le lien vit **dans le document** : `{"auteur": {"_ref": "id-du-document"}}`
-- **Références fortes** (défaut) : intégrité référentielle appliquée —
-  impossible de supprimer un document référencé par d'autres, l'API renvoie
-  une erreur
-- **Références faibles** (`weak: true`) : aucune contrainte, la cible peut
-  disparaître
-- La publication d'un document est **bloquée** tant qu'il référence un
-  brouillon non publié — sauf si la référence est faible
-
-### Les deux options
-
-| Option | Description | Limite |
-|---|---|---|
-| **A** — inline seulement | Le `_ref` vit uniquement dans `documents.data` | Répondre à « qu'est-ce qui pointe vers ce document ? » impose de fouiller le JSON de tous les documents — or la question se pose à chaque suppression |
-| **B** — inline + index dérivé | `data` reste la source de vérité, plus une table `document_references (from_document_id, to_document_id, field_path)` reconstruite à chaque écriture | Une table à maintenir, mais recalculée depuis `data` donc sans risque de divergence |
-
-**Piste privilégiée : B.** L'index sert uniquement à répondre vite à
-« qu'est-ce qui pointe ici ? » et « ai-je le droit de supprimer ? ».
-
-### Règles qui en découleraient
-
-1. **Portée** — une référence ne peut viser qu'un document du **même projet**
-   (sinon l'isolation multi-tenant est percée), et du même environnement si
-   la couture d'environnements est retenue
-2. **Suppression bloquée** sur un document référencé — cohérent avec les
-   règles déjà retenues ailleurs (révoquer une clé avant de la supprimer,
-   vider une organization avant de la supprimer)
-3. **Publication bloquée** si le document référence un brouillon non publié —
-   *c'est la seule des trois qui mérite débat*
-
-Sources : [Reference type | Sanity Docs](https://www.sanity.io/docs/studio/reference-type)
-· [Connected Content | Sanity Docs](https://www.sanity.io/docs/studio/connected-content)
+⚠️ **Rien ne se construit avant son consommateur** : la table d'index naît
+**avec** `documents`, jamais avant, et la vérification de clôture porte sur une
+**transition d'ensemble** dès le premier jour — la publication groupée est la
+seule issue aux cycles.
 
 Voir [database.md](./database.md) pour l'emplacement de ces tables (gérées via
 Drizzle) et [multi-tenant.md](./multi-tenant.md) pour l'isolation par projet.

@@ -48,6 +48,31 @@ non conformes. Écarté : ça déplace le coût sans le supprimer — il faut al
 état « invalide » à afficher, à filtrer et à réparer, pour une situation qui se
 résout d'elle-même à la prochaine écriture.
 
+## Raffinement (2026-08-22) — l'écriture a deux moments
+
+Les brouillons ([ADR 0022](0022-document-a-deux-pointeurs.md)) coupent
+« l'écriture » en deux, et la coupure mérite d'être explicite plutôt
+qu'héritée :
+
+| Moment | Ce qui est vérifié |
+|---|---|
+| **Enregistrer** | La **forme** : types des champs, identifiants, existence des cibles de référence |
+| **Publier** | La **complétude** : `required` — et la clôture des références ([ADR 0021](0021-ensemble-publie-clos-par-reference.md)) |
+
+Un brouillon au champ requis vide est **l'état normal** du travail éditorial,
+pas une erreur — c'est exactement ce que fait Sanity, dont la validation garde
+la publication. L'enregistrement échoue toujours bruyamment sur une erreur de
+forme ; la publication échoue bruyamment, en **nommant les champs**, sur la
+complétude.
+
+**Publier est le moment des deux vérifications — complétude des champs et
+clôture des références, les deux refus nommant ce qui manque.** Un seul moment,
+deux portes, mêmes manières.
+
+⚠️ Conséquence technique : la génération Zod produit **deux modes depuis une
+seule définition** — la forme (tout facultatif, types stricts) et la complétude
+(les `required` exigés). Jamais deux définitions.
+
 ## Conséquences
 
 ⚠️ **Ce qui casse n'est jamais le stockage, c'est le site du client.** Un site
