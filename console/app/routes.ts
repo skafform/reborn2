@@ -47,6 +47,10 @@ export default [
       route("inbox", "routes/inbox.tsx"),
       route("team", "routes/team.tsx"),
       route("roles", "routes/roles.tsx"),
+      // ⚠️ Sous l'organization, jamais sous un projet : une entrée de
+      // bibliothèque appartient à l'organization seule (ADR 0018). C'est ce
+      // qui la distingue d'un type de contenu, et l'adresse doit le dire.
+      route("library", "routes/library.tsx"),
       route("settings", "routes/organization-settings.tsx"),
       // ⚠️ Le compte n'appartient à aucune organization — même compromis que
       // l'Inbox, et pour la même raison : la coque vit sous `org/:id`. D'où

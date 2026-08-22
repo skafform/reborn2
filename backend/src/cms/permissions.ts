@@ -54,4 +54,22 @@ export const CMS_PERMISSIONS = {
     description: "Create and edit content types",
     roles: ["admin"],
   }),
+
+  /**
+   * ⚠️ **Une clé distincte de `schema.write`, avec le même détenteur par
+   * défaut** ([ADR 0018](../../../docs/adr/0018-bibliotheque-de-schemas-table-separee.md)).
+   *
+   * Le risque réel est plus faible qu'il n'en a l'air : les copies étant
+   * indépendantes, éditer la bibliothèque ne casse rien d'existant — d'où
+   * `owner` **et** `admin`. Elle est séparée parce que ce défaut sera
+   * probablement revisité, et que le restreindre au seul `owner` doit rester
+   * un ajustement de rôle, pas une chirurgie du catalogue.
+   *
+   * ⚠️ **Lire la bibliothèque n'a pas de clé à elle** : c'est `schema.read`.
+   * Une clé de lecture de plus ne réglerait aucun problème qu'on ait.
+   */
+  libraryWrite: definePermission("library.write", {
+    description: "Curate the organization's schema library",
+    roles: ["admin"],
+  }),
 } as const;

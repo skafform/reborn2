@@ -7,6 +7,8 @@ import {
   GetApiOrganizationsOrganizationIdBillingResponse,
   GetApiOrganizationsOrganizationIdInvitationsResponse,
   type GetApiOrganizationsOrganizationIdInvitationsResponseItem,
+  GetApiOrganizationsOrganizationIdLibraryLibrarySchemaIdHistoryResponse,
+  GetApiOrganizationsOrganizationIdLibraryResponse,
   GetApiOrganizationsOrganizationIdMembersResponse,
   type GetApiOrganizationsOrganizationIdMembersResponseItem,
   GetApiOrganizationsOrganizationIdMeResponse,
@@ -32,6 +34,10 @@ import {
   PostApiOrganizationsBody,
   PostApiOrganizationsOrganizationIdInvitationsBody,
   PostApiOrganizationsOrganizationIdInvitationsResponse,
+  PostApiOrganizationsOrganizationIdLibraryBody,
+  PostApiOrganizationsOrganizationIdLibraryLibrarySchemaIdRestoreBody,
+  PostApiOrganizationsOrganizationIdLibraryLibrarySchemaIdRestoreResponse,
+  PostApiOrganizationsOrganizationIdLibraryResponse,
   PostApiOrganizationsOrganizationIdProjectsBody,
   PostApiOrganizationsOrganizationIdProjectsProjectIdApiKeysBody,
   PostApiOrganizationsOrganizationIdProjectsProjectIdApiKeysResponse,
@@ -185,6 +191,28 @@ export const RestoreContentTypeSchema =
   PostApiOrganizationsOrganizationIdProjectsProjectIdSchemasSchemaIdRestoreBody;
 export const RestoredContentTypeSchema =
   PostApiOrganizationsOrganizationIdProjectsProjectIdSchemasSchemaIdRestoreResponse;
+
+/**
+ * La bibliothèque de schémas de l'organization
+ * ([ADR 0018](../../../docs/adr/0018-bibliotheque-de-schemas-table-separee.md)).
+ *
+ * ⚠️ **Aucun projet dans l'adresse** — une entrée de bibliothèque appartient à
+ * l'organization seule. Sa ligne porte en plus `currentHash` : c'est lui qu'une
+ * copie comparera pour dire si elle a divergé.
+ */
+export const LibrarySchemasSchema = GetApiOrganizationsOrganizationIdLibraryResponse;
+
+export const NewLibrarySchemaSchema = PostApiOrganizationsOrganizationIdLibraryBody;
+export const CreatedLibrarySchemaSchema =
+  PostApiOrganizationsOrganizationIdLibraryResponse;
+
+export const LibraryHistorySchema =
+  GetApiOrganizationsOrganizationIdLibraryLibrarySchemaIdHistoryResponse;
+
+export const RestoreLibrarySchemaSchema =
+  PostApiOrganizationsOrganizationIdLibraryLibrarySchemaIdRestoreBody;
+export const RestoredLibrarySchemaSchema =
+  PostApiOrganizationsOrganizationIdLibraryLibrarySchemaIdRestoreResponse;
 
 export const MembershipSchema = GetApiOrganizationsOrganizationIdMeResponse;
 export type Membership = z.infer<typeof GetApiOrganizationsOrganizationIdMeResponse>;

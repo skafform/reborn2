@@ -6,6 +6,14 @@ import {
 } from "../http/middleware.ts";
 import { masterEnvironment } from "../services/api-keys.ts";
 import { DefinitionSchema } from "./definition.ts";
+import {
+  createLibrarySchema,
+  deleteLibrarySchema,
+  listLibrarySchemaHistory,
+  listLibrarySchemas,
+  restoreLibrarySchemaVersion,
+  updateLibrarySchema,
+} from "./library.ts";
 import { HISTORY_ACTIONS } from "./schema.ts";
 import {
   createSchema,
@@ -276,6 +284,157 @@ cmsRoutes.openapi(
       organizationId,
       environmentId,
       schemaId,
+    });
+    return c.body(null, 204);
+  },
+);
+
+/**
+ * La bibliothèque de schémas de l'organization
+ * ([ADR 0018](../../../docs/adr/0018-bibliotheque-de-schemas-table-separee.md)).
+ *
+ * ⚠️ **Aucun projet dans le chemin, et aucun environnement.** Une entrée de
+ * bibliothèque appartient à l'organization seule — c'est ce qui la distingue
+ * d'un type de contenu, et l'adresse doit le dire.
+ */
+const organizationParams = z.object({ organizationId: z.uuid() });
+const libraryParams = organizationParams.extend({ librarySchemaId: z.uuid() });
+
+const LibrarySchemaSchema = SchemaSchema.extend({
+  /** Le courant voyage avec la ligne : c'est lui qu'une copie comparera. */
+  currentHash: HashSchema,
+}).openapi("LibrarySchema");
+
+cmsRoutes.openapi(
+  createRoute({
+    method: "get",
+    path: "/organizations/{organizationId}/library",
+    summary: "Les schémas de la bibliothèque",
+    middleware: [requireSession, requireOrganization] as const,
+    request: { params: organizationParams },
+    responses: { 200: json(z.array(LibrarySchemaSchema), "Liste") },
+  }),
+  async (c) => {
+    const { organizationId } = c.req.valid("param");
+    return c.json(await listLibrarySchemas(c.get("actor"), organizationId));
+  },
+);
+
+cmsRoutes.openapi(
+  createRoute({
+    method: "post",
+    path: "/organizations/{organizationId}/library",
+    summary: "Ajouter un schéma à la bibliothèque",
+    middleware: [requireSession, requireOrganization] as const,
+    request: {
+      params: organizationParams,
+      body: { content: { "application/json": { schema: SchemaInput } } },
+    },
+    responses: { 201: json(SchemaSchema, "Créé") },
+  }),
+  async (c) => {
+    const { organizationId } = c.req.valid("param");
+    const created = await createLibrarySchema({
+      actor: c.get("actor"),
+      organizationId,
+      fields: c.req.valid("json"),
+    });
+    return c.json(created, 201);
+  },
+);
+
+cmsRoutes.openapi(
+  createRoute({
+    method: "put",
+    path: "/organizations/{organizationId}/library/{librarySchemaId}",
+    summary: "Modifier un schéma de la bibliothèque",
+    middleware: [requireSession, requireOrganization] as const,
+    request: {
+      params: libraryParams,
+      body: { content: { "application/json": { schema: SchemaInput } } },
+    },
+    responses: { 200: json(SchemaSchema, "Modifié") },
+  }),
+  async (c) => {
+    const { organizationId, librarySchemaId } = c.req.valid("param");
+    return c.json(
+      await updateLibrarySchema({
+        actor: c.get("actor"),
+        organizationId,
+        librarySchemaId,
+        fields: c.req.valid("json"),
+      }),
+    );
+  },
+);
+
+cmsRoutes.openapi(
+  createRoute({
+    method: "get",
+    path: "/organizations/{organizationId}/library/{librarySchemaId}/history",
+    summary: "La lignée d'un schéma de bibliothèque",
+    middleware: [requireSession, requireOrganization] as const,
+    request: { params: libraryParams },
+    responses: { 200: json(HistorySchema, "Du plus récent au plus ancien") },
+  }),
+  async (c) => {
+    const { organizationId, librarySchemaId } = c.req.valid("param");
+    return c.json(
+      await listLibrarySchemaHistory({
+        actor: c.get("actor"),
+        organizationId,
+        librarySchemaId,
+      }),
+    );
+  },
+);
+
+cmsRoutes.openapi(
+  createRoute({
+    method: "post",
+    path: "/organizations/{organizationId}/library/{librarySchemaId}/restore",
+    summary: "Restaurer une version antérieure d'un schéma de bibliothèque",
+    middleware: [requireSession, requireOrganization] as const,
+    request: {
+      params: libraryParams,
+      body: {
+        content: {
+          "application/json": {
+            schema: z.object({ hash: HashSchema }).openapi("LibraryRestoreInput"),
+          },
+        },
+      },
+    },
+    responses: { 200: json(SchemaSchema, "Restauré") },
+  }),
+  async (c) => {
+    const { organizationId, librarySchemaId } = c.req.valid("param");
+    return c.json(
+      await restoreLibrarySchemaVersion({
+        actor: c.get("actor"),
+        organizationId,
+        librarySchemaId,
+        hash: c.req.valid("json").hash,
+      }),
+    );
+  },
+);
+
+cmsRoutes.openapi(
+  createRoute({
+    method: "delete",
+    path: "/organizations/{organizationId}/library/{librarySchemaId}",
+    summary: "Retirer un schéma de la bibliothèque",
+    middleware: [requireSession, requireOrganization] as const,
+    request: { params: libraryParams },
+    responses: { 204: { description: "Retiré" } },
+  }),
+  async (c) => {
+    const { organizationId, librarySchemaId } = c.req.valid("param");
+    await deleteLibrarySchema({
+      actor: c.get("actor"),
+      organizationId,
+      librarySchemaId,
     });
     return c.body(null, 204);
   },

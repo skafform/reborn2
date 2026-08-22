@@ -1,4 +1,4 @@
-import { Box, Inbox, Settings, ShieldCheck, Users } from "lucide-react";
+import { Box, Inbox, LibraryBig, Settings, ShieldCheck, Users } from "lucide-react";
 import { Outlet, useOutletContext } from "react-router";
 import { api } from "../lib/api";
 import { MembershipSchema } from "../lib/api-contract";
@@ -65,6 +65,16 @@ export default function OrganizationSections({ loaderData }: Route.ComponentProp
       end: false,
       needs: "member.read",
       icon: Users,
+    },
+    // ⚠️ `schema.read`, pas `library.write` : regarder ce dans quoi son
+    // organization propose de piocher est ouvert à tout membre. Seule la
+    // curation a sa propre clé, et l'écran cache le bouton, pas la page.
+    {
+      to: `/org/${organizationId}/library`,
+      label: "Library",
+      end: false,
+      needs: "schema.read",
+      icon: LibraryBig,
     },
     // `role.manage` is owner-only (ADR 0014): defining what a role means is a
     // different power from assigning one, and an admin keeps only the second.

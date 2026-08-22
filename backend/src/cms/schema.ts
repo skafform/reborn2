@@ -218,3 +218,105 @@ export const schemaHistory = pgTable(
     check("schema_history_action_check", sql`action in ('saved', 'restored')`),
   ],
 );
+
+/**
+ * La bibliothèque de schémas d'une organization
+ * ([ADR 0018](../../../docs/adr/0018-bibliotheque-de-schemas-table-separee.md)).
+ *
+ * ⚠️ **Une table à part, pas un `environment_id` nullable sur `schemas`.** Une
+ * colonne de cadrage nulle se compare à `NULL` dans les policies, donc ne rend
+ * **aucune ligne** — le *fail-closed* voulu. Une ligne de bibliothèque aurait
+ * été invisible partout, et la contourner demanderait une seconde branche dans
+ * une policy critique.
+ *
+ * ⚠️ **Elle ne porte aucun contenu, par construction** : la clé étrangère d'un
+ * document ne peut pas pointer ici. « Un document ne référence qu'un schéma de
+ * projet » cesse d'être une règle à faire respecter.
+ *
+ * Forme voisine de `schemas`, et c'est le coût assumé de la séparation. Les
+ * deux divergeront de toute façon : une bibliothèque n'a ni environnement, ni
+ * statut de publication, ni documents.
+ */
+export const librarySchemas = pgTable(
+  "library_schemas",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    /** ⚠️ La colonne de cadrage est l'organization, pas un environnement. */
+    organizationId: uuid("organization_id")
+      .notNull()
+      .references(() => organizations.id, { onDelete: "cascade" }),
+    name: text("name").notNull(),
+    label: text("label"),
+    definition: jsonb("definition").notNull().$type<Definition>(),
+    /**
+     * ⚠️ **Une bibliothèque se versionne comme le reste**, et il le faut : sans
+     * son propre courant et son propre journal, le deuxième état de divergence
+     * — « copie intacte, bibliothèque avancée » — ne serait pas calculable.
+     */
+    currentHash: text("current_hash").notNull(),
+    ...timestamps,
+  },
+  (table) => [
+    unique("library_schemas_organization_id_name_key").on(
+      table.organizationId,
+      table.name,
+    ),
+    // Cible des clés composites : celle du journal, et plus tard celle de
+    // `schemas.copied_from`, le seul lien du modèle qui traverse deux cadrages.
+    unique("library_schemas_organization_id_id_key").on(table.organizationId, table.id),
+    foreignKey({
+      columns: [table.organizationId, table.currentHash],
+      foreignColumns: [schemaVersions.organizationId, schemaVersions.hash],
+      name: "library_schemas_current_version_fk",
+    }),
+  ],
+);
+
+/**
+ * Le journal de la bibliothèque.
+ *
+ * ⚠️ **Une seconde table, et non `schema_history` élargie.** Une clé étrangère
+ * composite ne pointe que vers une table ; en faire une qui accepte les deux
+ * demanderait de renoncer à la contrainte, donc au fait qu'une ligne de journal
+ * ne puisse pas nommer un schéma fantôme.
+ *
+ * ⚠️ **`schema_versions` est partagée, elle**, et ce n'est pas une économie :
+ * le diagnostic de divergence demande « le hachage de la copie est-il dans
+ * l'historique de la bibliothèque ? », question qui n'a de sens que si les deux
+ * nomment les mêmes lignes. C'est exactement ce que la déduplication par
+ * organization achète.
+ */
+export const librarySchemaHistory = pgTable(
+  "library_schema_history",
+  {
+    seq: bigint("seq", { mode: "number" }).generatedAlwaysAsIdentity().primaryKey(),
+    organizationId: uuid("organization_id")
+      .notNull()
+      .references(() => organizations.id, { onDelete: "cascade" }),
+    librarySchemaId: uuid("library_schema_id").notNull(),
+    hash: text("hash").notNull(),
+    action: text("action").notNull().$type<HistoryAction>(),
+    actorUserId: text("actor_user_id"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index("library_schema_history_organization_id_idx").on(
+      table.organizationId,
+      table.librarySchemaId,
+      table.seq,
+    ),
+    // ⚠️ Colonne de cadrage en tête des deux côtés, pour que la contrainte et
+    // son unicité cible se lisent dans le même ordre.
+    foreignKey({
+      columns: [table.organizationId, table.librarySchemaId],
+      foreignColumns: [librarySchemas.organizationId, librarySchemas.id],
+      name: "library_schema_history_schema_fk",
+    }).onDelete("cascade"),
+    foreignKey({
+      columns: [table.organizationId, table.hash],
+      foreignColumns: [schemaVersions.organizationId, schemaVersions.hash],
+      name: "library_schema_history_version_fk",
+    }),
+    check("library_schema_history_action_check", sql`action in ('saved', 'restored')`),
+  ],
+);

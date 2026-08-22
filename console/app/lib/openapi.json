@@ -315,7 +315,8 @@
                 "content.write",
                 "content.publish",
                 "schema.read",
-                "schema.write"
+                "schema.write",
+                "library.write"
               ]
             }
           }
@@ -617,6 +618,35 @@
         ]
       },
       "SchemaRestoreInput": {
+        "type": "object",
+        "properties": {
+          "hash": {
+            "type": "string",
+            "pattern": "^[a-z0-9-]+:[0-9a-f]{64}$",
+            "example": "sha256-1:eed07419c964a6936ee1ff00ce0a7834ce1dc7730547c2150ab6fc99d5109441"
+          }
+        },
+        "required": ["hash"]
+      },
+      "LibrarySchema": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/Schema"
+          },
+          {
+            "type": "object",
+            "properties": {
+              "currentHash": {
+                "type": "string",
+                "pattern": "^[a-z0-9-]+:[0-9a-f]{64}$",
+                "example": "sha256-1:eed07419c964a6936ee1ff00ce0a7834ce1dc7730547c2150ab6fc99d5109441"
+              }
+            },
+            "required": ["currentHash"]
+          }
+        ]
+      },
+      "LibraryRestoreInput": {
         "type": "object",
         "properties": {
           "hash": {
@@ -2234,6 +2264,229 @@
             "application/json": {
               "schema": {
                 "$ref": "#/components/schemas/SchemaRestoreInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Restauré",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Schema"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/organizations/{organizationId}/library": {
+      "get": {
+        "summary": "Les schémas de la bibliothèque",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "organizationId",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Liste",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/LibrarySchema"
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "summary": "Ajouter un schéma à la bibliothèque",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "organizationId",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SchemaInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Créé",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Schema"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/organizations/{organizationId}/library/{librarySchemaId}": {
+      "put": {
+        "summary": "Modifier un schéma de la bibliothèque",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "organizationId",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "librarySchemaId",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SchemaInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Modifié",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Schema"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "summary": "Retirer un schéma de la bibliothèque",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "organizationId",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "librarySchemaId",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Retiré"
+          }
+        }
+      }
+    },
+    "/api/organizations/{organizationId}/library/{librarySchemaId}/history": {
+      "get": {
+        "summary": "La lignée d'un schéma de bibliothèque",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "organizationId",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "librarySchemaId",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Du plus récent au plus ancien",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SchemaHistory"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/organizations/{organizationId}/library/{librarySchemaId}/restore": {
+      "post": {
+        "summary": "Restaurer une version antérieure d'un schéma de bibliothèque",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "organizationId",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "librarySchemaId",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LibraryRestoreInput"
               }
             }
           }

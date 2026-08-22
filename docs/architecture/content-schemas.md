@@ -200,6 +200,29 @@ Une organization tient une bibliothèque de schémas que ses projets copient.
   moteur de diff. ⚠️ Le troisième, `locally_modified`, confond « seule la copie
   a bougé » et « les deux ont bougé »
 
+### Ce qui est construit
+
+`library_schemas` et `library_schema_history` existent, avec le même
+versionnage que les types de contenu : empreinte, courant, journal en ajout
+seul, restauration par déplacement du pointeur. Reste la **copie** et le
+**diagnostic**.
+
+⚠️ **`schema_versions` est partagée avec `schemas`, le journal non.** Le
+partage n'est pas une économie de table : « le hachage de la copie est-il dans
+l'historique de la bibliothèque ? » n'a de sens que si les deux nomment les
+mêmes lignes de version. Le journal, lui, doit être une seconde table — une clé
+étrangère composite ne pointe que vers une table, et en faire une qui accepte
+les deux reviendrait à renoncer à la contrainte, donc au fait qu'une ligne de
+journal ne puisse pas nommer un schéma fantôme.
+
+⚠️ **Le versionnage des deux est écrit deux fois, explicitement.** Ce qu'il
+faudrait paramétrer pour le factoriser — table portante, colonne de
+rattachement, table de journal — coûterait plus à lire que les deux versions, et
+les deux cas divergent déjà : une bibliothèque n'a pas d'environnement, son
+unicité de nom porte sur l'organization, et elle n'aura jamais de documents.
+Ce qui *est* partagé l'est parce que c'est le même objet : `fingerprint` et la
+table des versions.
+
 ## Permissions
 
 - **Créer/modifier un schéma** : `owner`/`admin` (organization) uniquement —

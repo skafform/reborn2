@@ -1,20 +1,14 @@
 import { useEffect, useState } from "react";
-import {
-  Form,
-  Link,
-  useLocation,
-  useNavigate,
-  useNavigation,
-  useOutletContext,
-} from "react-router";
+import { Form, Link, useLocation, useNavigate, useNavigation } from "react-router";
 import { api, apiVoid, displayableError, postJson } from "../lib/api";
 import {
-  ContentTypeHistorySchema,
-  ContentTypesSchema,
-  CreatedContentTypeSchema,
-  NewContentTypeSchema,
-  RestoreContentTypeSchema,
-  RestoredContentTypeSchema,
+  CreatedLibrarySchemaSchema,
+  LibraryHistorySchema,
+  LibrarySchemasSchema,
+  MembershipSchema,
+  NewLibrarySchemaSchema,
+  RestoredLibrarySchemaSchema,
+  RestoreLibrarySchemaSchema,
 } from "../lib/api-contract";
 import { contentTypeBody } from "../lib/content-type-body";
 import { day } from "../lib/format";
@@ -29,39 +23,41 @@ import {
 } from "../ui/controls";
 import { Lineage } from "../ui/lineage";
 import { SchemaFields } from "../ui/schema-fields";
-import type { Route } from "./+types/project-content-types";
-import type { ProjectContext } from "./project";
+import type { Route } from "./+types/library";
 
 /**
- * Les types de contenu d'un projet, et la lignée de chacun.
+ * La bibliothèque de schémas de l'organization
+ * ([ADR 0018](../../../docs/adr/0018-bibliotheque-de-schemas-table-separee.md)).
  *
- * ⚠️ **Le mot « environnement » n'apparaît pas**, ici comme dans l'API : le
- * chemin nomme un projet, et `master` est résolu côté serveur
- * (architecture/environments.md).
+ * ⚠️ **Aucun projet dans l'adresse, et aucun environnement.** Une entrée de
+ * bibliothèque appartient à l'organization seule — c'est ce qui la distingue
+ * d'un type de contenu.
  *
- * ⚠️ **La lignée ouverte est un paramètre d'URL**, pas un état de composant.
- * L'ouvrir est une navigation, donc React Router recharge le chargeur et la
- * restauration passe par le même `clientAction` que le reste — pas de second
- * mécanisme de récupération à côté du premier. Et l'écran devient adressable.
+ * ⚠️ **Deux permissions, pas une** : `schema.read` pour regarder, et
+ * `library.write` pour curer. Elles sont distinctes parce que le défaut de la
+ * seconde sera probablement revisité — d'où une lecture large et une écriture
+ * qui a sa propre clé.
  */
 export async function clientLoader({ params, request }: Route.ClientLoaderArgs) {
-  const base = `/organizations/${params.organizationId}/projects/${params.projectId}/schemas`;
+  const base = `/organizations/${params.organizationId}/library`;
   const opened = new URL(request.url).searchParams.get("history");
 
-  const [contentTypes, history] = await Promise.all([
-    api(base, ContentTypesSchema),
-    opened ? api(`${base}/${opened}/history`, ContentTypeHistorySchema) : null,
+  const [schemas, membership, history] = await Promise.all([
+    api(base, LibrarySchemasSchema),
+    api(`/organizations/${params.organizationId}/me`, MembershipSchema),
+    opened ? api(`${base}/${opened}/history`, LibraryHistorySchema) : null,
   ]);
 
   return {
-    contentTypes,
+    schemas,
+    permissions: membership.permissions,
     history: opened && history ? { schemaId: opened, ...history } : null,
   };
 }
 
 export async function clientAction({ params, request }: Route.ClientActionArgs) {
   const form = await request.formData();
-  const base = `/organizations/${params.organizationId}/projects/${params.projectId}/schemas`;
+  const base = `/organizations/${params.organizationId}/library`;
 
   try {
     const deleteId = form.get("delete");
@@ -75,18 +71,18 @@ export async function clientAction({ params, request }: Route.ClientActionArgs) 
     if (typeof restore === "string" && typeof restoreId === "string") {
       await postJson(
         `${base}/${restoreId}/restore`,
-        RestoreContentTypeSchema,
+        RestoreLibrarySchemaSchema,
         { hash: restore },
-        RestoredContentTypeSchema,
+        RestoredLibrarySchemaSchema,
       );
       return { restored: true };
     }
 
     await postJson(
       base,
-      NewContentTypeSchema,
+      NewLibrarySchemaSchema,
       contentTypeBody(form),
-      CreatedContentTypeSchema,
+      CreatedLibrarySchemaSchema,
     );
     return { created: true };
   } catch (error) {
@@ -96,13 +92,9 @@ export async function clientAction({ params, request }: Route.ClientActionArgs) 
   }
 }
 
-export default function ProjectContentTypes({
-  loaderData,
-  actionData,
-}: Route.ComponentProps) {
+export default function Library({ loaderData, actionData }: Route.ComponentProps) {
   const busy = useNavigation().state !== "idle";
-  const { permissions } = useOutletContext<ProjectContext>();
-  const canWrite = permissions.includes("schema.write");
+  const canWrite = loaderData.permissions.includes("library.write");
   const navigate = useNavigate();
   const { pathname } = useLocation();
   const [open, setOpen] = useState(false);
@@ -112,34 +104,33 @@ export default function ProjectContentTypes({
   }, [actionData]);
 
   const { history } = loaderData;
-  const opened =
-    history && loaderData.contentTypes.find((t) => t.id === history.schemaId);
+  const opened = history && loaderData.schemas.find((s) => s.id === history.schemaId);
 
   return (
     <>
       <div className="console-page-header">
-        <h1>Content types</h1>
+        <h1>Library</h1>
         {canWrite && (
-          <HeaderAction onClick={() => setOpen(true)}>+ New content type</HeaderAction>
+          <HeaderAction onClick={() => setOpen(true)}>+ New schema</HeaderAction>
         )}
       </div>
 
       {actionData && "error" in actionData && (
         <Banner tone="error">{actionData.error}</Banner>
       )}
-      {actionData && "created" in actionData && <Banner>Content type created.</Banner>}
-      {actionData && "deleted" in actionData && <Banner>Content type deleted.</Banner>}
+      {actionData && "created" in actionData && <Banner>Schema added.</Banner>}
+      {actionData && "deleted" in actionData && <Banner>Schema removed.</Banner>}
       {actionData && "restored" in actionData && <Banner>Version restored.</Banner>}
 
       <Section
-        title="Types"
-        description="What a document of this project can be. A type's name is its storage key — it ends up in API addresses and generated types."
+        title="Shared schemas"
+        description="Models this organization offers its projects. Copying one into a project makes an independent copy — editing the library never changes what a project already has."
         first
       >
-        {loaderData.contentTypes.length === 0 ? (
+        {loaderData.schemas.length === 0 ? (
           <Empty>
-            No content type yet. One describes the fields a document carries — a title,
-            a body, a date.
+            Nothing in the library yet. A schema put here can be copied into any
+            project, as a starting point rather than a link.
           </Empty>
         ) : (
           <table className="console-table">
@@ -152,22 +143,26 @@ export default function ProjectContentTypes({
               </tr>
             </thead>
             <tbody>
-              {loaderData.contentTypes.map((type) => (
-                <tr key={type.id}>
+              {loaderData.schemas.map((schema) => (
+                <tr key={schema.id}>
                   <td>
                     <span className="console-identity">
-                      {type.label ?? type.name}
-                      {type.label && <code className="console-hint">{type.name}</code>}
+                      {schema.label ?? schema.name}
+                      {schema.label && (
+                        <code className="console-hint">{schema.name}</code>
+                      )}
                     </span>
                   </td>
                   <td className="console-muted">
-                    {type.definition.fields.map((f) => f.name).join(", ") || "—"}
+                    {schema.definition.fields.map((f) => f.name).join(", ") || "—"}
                   </td>
-                  <td className="console-muted">{day(type.updatedAt)}</td>
+                  <td className="console-muted">{day(schema.updatedAt)}</td>
                   <td>
                     <div className="console-row-actions">
-                      {/* Une navigation, pas un état : voir l'en-tête. */}
-                      <Link className="console-link-button" to={`?history=${type.id}`}>
+                      <Link
+                        className="console-link-button"
+                        to={`?history=${schema.id}`}
+                      >
                         History
                       </Link>
                       {canWrite && (
@@ -175,10 +170,10 @@ export default function ProjectContentTypes({
                           <RowAction
                             danger
                             name="delete"
-                            value={type.id}
+                            value={schema.id}
                             disabled={busy}
                           >
-                            Delete
+                            Remove
                           </RowAction>
                         </Form>
                       )}
@@ -191,14 +186,12 @@ export default function ProjectContentTypes({
         )}
       </Section>
 
-      <Modal open={open} onClose={() => setOpen(false)} title="New content type">
+      <Modal open={open} onClose={() => setOpen(false)} title="New library schema">
         <Form method="post" className="console-form">
-          {/* Remonté à chaque ouverture : sans ça, les lignes de champ ajoutées
-              lors de la création précédente resteraient là. */}
           <SchemaFields key={String(open)} />
           <div className="console-actions">
             <Button type="submit" variant="primary" disabled={busy}>
-              {busy ? "Creating…" : "Create"}
+              {busy ? "Adding…" : "Add"}
             </Button>
           </div>
         </Form>
@@ -207,7 +200,7 @@ export default function ProjectContentTypes({
       <Modal
         open={Boolean(history)}
         onClose={() => navigate(pathname, { replace: true })}
-        title={`History — ${opened ? (opened.label ?? opened.name) : "content type"}`}
+        title={`History — ${opened ? (opened.label ?? opened.name) : "schema"}`}
       >
         {history && (
           <Lineage

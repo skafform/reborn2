@@ -374,6 +374,7 @@ export const PostApiOrganizationsOrganizationIdRolesBody =
           "content.publish",
           "schema.read",
           "schema.write",
+          "library.write",
         ]),
       ),
     }),
@@ -477,6 +478,7 @@ export const PutApiOrganizationsOrganizationIdRolesRoleIdBody =
         "content.publish",
         "schema.read",
         "schema.write",
+        "library.write",
       ]),
     ),
   });
@@ -1295,6 +1297,532 @@ export const PostApiOrganizationsOrganizationIdProjectsProjectIdSchemasSchemaIdR
         .check(
           /*#__PURE__*/ zod.maxLength(
             postApiOrganizationsOrganizationIdProjectsProjectIdSchemasSchemaIdRestoreResponseDefinitionFieldsMax,
+          ),
+        ),
+    }),
+    createdAt: /*#__PURE__*/ zod.iso.datetime({ offset: true }),
+    updatedAt: /*#__PURE__*/ zod.iso.datetime({ offset: true }),
+  });
+
+/**
+ * @summary Les schémas de la bibliothèque
+ */
+export const GetApiOrganizationsOrganizationIdLibraryParams = /*#__PURE__*/ zod.object({
+  organizationId: /*#__PURE__*/ zod.uuid(),
+});
+
+export const getApiOrganizationsOrganizationIdLibraryResponseOneDefinitionFieldsItemNameMax = 64;
+
+export const getApiOrganizationsOrganizationIdLibraryResponseOneDefinitionFieldsItemNameRegExp =
+  /^[a-zA-Z_][a-zA-Z0-9_]*$/;
+export const getApiOrganizationsOrganizationIdLibraryResponseOneDefinitionFieldsItemLabelMax = 200;
+
+export const getApiOrganizationsOrganizationIdLibraryResponseOneDefinitionFieldsMax = 200;
+
+export const getApiOrganizationsOrganizationIdLibraryResponseTwoCurrentHashRegExp =
+  /^[a-z0-9-]+:[0-9a-f]{64}$/;
+
+export const GetApiOrganizationsOrganizationIdLibraryResponseItem =
+  /*#__PURE__*/ zod.intersection(
+    /*#__PURE__*/ zod.object({
+      id: /*#__PURE__*/ zod.uuid(),
+      name: /*#__PURE__*/ zod.string(),
+      label: /*#__PURE__*/ zod.nullable(/*#__PURE__*/ zod.string()),
+      definition: /*#__PURE__*/ zod.object({
+        fields: /*#__PURE__*/ zod
+          .array(
+            /*#__PURE__*/ zod.object({
+              name: /*#__PURE__*/ zod
+                .string()
+                .check(
+                  /*#__PURE__*/ zod.maxLength(
+                    getApiOrganizationsOrganizationIdLibraryResponseOneDefinitionFieldsItemNameMax,
+                  ),
+                )
+                .check(
+                  /*#__PURE__*/ zod.regex(
+                    getApiOrganizationsOrganizationIdLibraryResponseOneDefinitionFieldsItemNameRegExp,
+                  ),
+                ),
+              type: /*#__PURE__*/ zod.enum([
+                "text",
+                "longtext",
+                "number",
+                "boolean",
+                "date",
+              ]),
+              label: /*#__PURE__*/ zod.optional(
+                /*#__PURE__*/ zod
+                  .string()
+                  .check(/*#__PURE__*/ zod.minLength(1))
+                  .check(
+                    /*#__PURE__*/ zod.maxLength(
+                      getApiOrganizationsOrganizationIdLibraryResponseOneDefinitionFieldsItemLabelMax,
+                    ),
+                  ),
+              ),
+              validation: /*#__PURE__*/ zod.object({
+                required: /*#__PURE__*/ zod.boolean(),
+              }),
+            }),
+          )
+          .check(
+            /*#__PURE__*/ zod.maxLength(
+              getApiOrganizationsOrganizationIdLibraryResponseOneDefinitionFieldsMax,
+            ),
+          ),
+      }),
+      createdAt: /*#__PURE__*/ zod.iso.datetime({ offset: true }),
+      updatedAt: /*#__PURE__*/ zod.iso.datetime({ offset: true }),
+    }),
+    /*#__PURE__*/ zod.object({
+      currentHash: /*#__PURE__*/ zod
+        .string()
+        .check(
+          /*#__PURE__*/ zod.regex(
+            getApiOrganizationsOrganizationIdLibraryResponseTwoCurrentHashRegExp,
+          ),
+        ),
+    }),
+  );
+export const GetApiOrganizationsOrganizationIdLibraryResponse = /*#__PURE__*/ zod.array(
+  GetApiOrganizationsOrganizationIdLibraryResponseItem,
+);
+
+/**
+ * @summary Ajouter un schéma à la bibliothèque
+ */
+export const PostApiOrganizationsOrganizationIdLibraryParams = /*#__PURE__*/ zod.object(
+  {
+    organizationId: /*#__PURE__*/ zod.uuid(),
+  },
+);
+
+export const postApiOrganizationsOrganizationIdLibraryBodyNameMax = 64;
+
+export const postApiOrganizationsOrganizationIdLibraryBodyNameRegExp =
+  /^[a-zA-Z_][a-zA-Z0-9_]*$/;
+export const postApiOrganizationsOrganizationIdLibraryBodyLabelMax = 200;
+
+export const postApiOrganizationsOrganizationIdLibraryBodyDefinitionFieldsItemNameMax = 64;
+
+export const postApiOrganizationsOrganizationIdLibraryBodyDefinitionFieldsItemNameRegExp =
+  /^[a-zA-Z_][a-zA-Z0-9_]*$/;
+export const postApiOrganizationsOrganizationIdLibraryBodyDefinitionFieldsItemLabelMax = 200;
+
+export const postApiOrganizationsOrganizationIdLibraryBodyDefinitionFieldsMax = 200;
+
+export const PostApiOrganizationsOrganizationIdLibraryBody = /*#__PURE__*/ zod.object({
+  name: /*#__PURE__*/ zod
+    .string()
+    .check(
+      /*#__PURE__*/ zod.maxLength(postApiOrganizationsOrganizationIdLibraryBodyNameMax),
+    )
+    .check(
+      /*#__PURE__*/ zod.regex(postApiOrganizationsOrganizationIdLibraryBodyNameRegExp),
+    ),
+  label: /*#__PURE__*/ zod.nullable(
+    /*#__PURE__*/ zod
+      .string()
+      .check(/*#__PURE__*/ zod.minLength(1))
+      .check(
+        /*#__PURE__*/ zod.maxLength(
+          postApiOrganizationsOrganizationIdLibraryBodyLabelMax,
+        ),
+      ),
+  ),
+  definition: /*#__PURE__*/ zod.object({
+    fields: /*#__PURE__*/ zod
+      .array(
+        /*#__PURE__*/ zod.object({
+          name: /*#__PURE__*/ zod
+            .string()
+            .check(
+              /*#__PURE__*/ zod.maxLength(
+                postApiOrganizationsOrganizationIdLibraryBodyDefinitionFieldsItemNameMax,
+              ),
+            )
+            .check(
+              /*#__PURE__*/ zod.regex(
+                postApiOrganizationsOrganizationIdLibraryBodyDefinitionFieldsItemNameRegExp,
+              ),
+            ),
+          type: /*#__PURE__*/ zod.enum([
+            "text",
+            "longtext",
+            "number",
+            "boolean",
+            "date",
+          ]),
+          label: /*#__PURE__*/ zod.optional(
+            /*#__PURE__*/ zod
+              .string()
+              .check(/*#__PURE__*/ zod.minLength(1))
+              .check(
+                /*#__PURE__*/ zod.maxLength(
+                  postApiOrganizationsOrganizationIdLibraryBodyDefinitionFieldsItemLabelMax,
+                ),
+              ),
+          ),
+          validation: /*#__PURE__*/ zod.object({
+            required: /*#__PURE__*/ zod.boolean(),
+          }),
+        }),
+      )
+      .check(
+        /*#__PURE__*/ zod.maxLength(
+          postApiOrganizationsOrganizationIdLibraryBodyDefinitionFieldsMax,
+        ),
+      ),
+  }),
+});
+
+export const postApiOrganizationsOrganizationIdLibraryResponseDefinitionFieldsItemNameMax = 64;
+
+export const postApiOrganizationsOrganizationIdLibraryResponseDefinitionFieldsItemNameRegExp =
+  /^[a-zA-Z_][a-zA-Z0-9_]*$/;
+export const postApiOrganizationsOrganizationIdLibraryResponseDefinitionFieldsItemLabelMax = 200;
+
+export const postApiOrganizationsOrganizationIdLibraryResponseDefinitionFieldsMax = 200;
+
+export const PostApiOrganizationsOrganizationIdLibraryResponse =
+  /*#__PURE__*/ zod.object({
+    id: /*#__PURE__*/ zod.uuid(),
+    name: /*#__PURE__*/ zod.string(),
+    label: /*#__PURE__*/ zod.nullable(/*#__PURE__*/ zod.string()),
+    definition: /*#__PURE__*/ zod.object({
+      fields: /*#__PURE__*/ zod
+        .array(
+          /*#__PURE__*/ zod.object({
+            name: /*#__PURE__*/ zod
+              .string()
+              .check(
+                /*#__PURE__*/ zod.maxLength(
+                  postApiOrganizationsOrganizationIdLibraryResponseDefinitionFieldsItemNameMax,
+                ),
+              )
+              .check(
+                /*#__PURE__*/ zod.regex(
+                  postApiOrganizationsOrganizationIdLibraryResponseDefinitionFieldsItemNameRegExp,
+                ),
+              ),
+            type: /*#__PURE__*/ zod.enum([
+              "text",
+              "longtext",
+              "number",
+              "boolean",
+              "date",
+            ]),
+            label: /*#__PURE__*/ zod.optional(
+              /*#__PURE__*/ zod
+                .string()
+                .check(/*#__PURE__*/ zod.minLength(1))
+                .check(
+                  /*#__PURE__*/ zod.maxLength(
+                    postApiOrganizationsOrganizationIdLibraryResponseDefinitionFieldsItemLabelMax,
+                  ),
+                ),
+            ),
+            validation: /*#__PURE__*/ zod.object({
+              required: /*#__PURE__*/ zod.boolean(),
+            }),
+          }),
+        )
+        .check(
+          /*#__PURE__*/ zod.maxLength(
+            postApiOrganizationsOrganizationIdLibraryResponseDefinitionFieldsMax,
+          ),
+        ),
+    }),
+    createdAt: /*#__PURE__*/ zod.iso.datetime({ offset: true }),
+    updatedAt: /*#__PURE__*/ zod.iso.datetime({ offset: true }),
+  });
+
+/**
+ * @summary Modifier un schéma de la bibliothèque
+ */
+export const PutApiOrganizationsOrganizationIdLibraryLibrarySchemaIdParams =
+  /*#__PURE__*/ zod.object({
+    organizationId: /*#__PURE__*/ zod.uuid(),
+    librarySchemaId: /*#__PURE__*/ zod.uuid(),
+  });
+
+export const putApiOrganizationsOrganizationIdLibraryLibrarySchemaIdBodyNameMax = 64;
+
+export const putApiOrganizationsOrganizationIdLibraryLibrarySchemaIdBodyNameRegExp =
+  /^[a-zA-Z_][a-zA-Z0-9_]*$/;
+export const putApiOrganizationsOrganizationIdLibraryLibrarySchemaIdBodyLabelMax = 200;
+
+export const putApiOrganizationsOrganizationIdLibraryLibrarySchemaIdBodyDefinitionFieldsItemNameMax = 64;
+
+export const putApiOrganizationsOrganizationIdLibraryLibrarySchemaIdBodyDefinitionFieldsItemNameRegExp =
+  /^[a-zA-Z_][a-zA-Z0-9_]*$/;
+export const putApiOrganizationsOrganizationIdLibraryLibrarySchemaIdBodyDefinitionFieldsItemLabelMax = 200;
+
+export const putApiOrganizationsOrganizationIdLibraryLibrarySchemaIdBodyDefinitionFieldsMax = 200;
+
+export const PutApiOrganizationsOrganizationIdLibraryLibrarySchemaIdBody =
+  /*#__PURE__*/ zod.object({
+    name: /*#__PURE__*/ zod
+      .string()
+      .check(
+        /*#__PURE__*/ zod.maxLength(
+          putApiOrganizationsOrganizationIdLibraryLibrarySchemaIdBodyNameMax,
+        ),
+      )
+      .check(
+        /*#__PURE__*/ zod.regex(
+          putApiOrganizationsOrganizationIdLibraryLibrarySchemaIdBodyNameRegExp,
+        ),
+      ),
+    label: /*#__PURE__*/ zod.nullable(
+      /*#__PURE__*/ zod
+        .string()
+        .check(/*#__PURE__*/ zod.minLength(1))
+        .check(
+          /*#__PURE__*/ zod.maxLength(
+            putApiOrganizationsOrganizationIdLibraryLibrarySchemaIdBodyLabelMax,
+          ),
+        ),
+    ),
+    definition: /*#__PURE__*/ zod.object({
+      fields: /*#__PURE__*/ zod
+        .array(
+          /*#__PURE__*/ zod.object({
+            name: /*#__PURE__*/ zod
+              .string()
+              .check(
+                /*#__PURE__*/ zod.maxLength(
+                  putApiOrganizationsOrganizationIdLibraryLibrarySchemaIdBodyDefinitionFieldsItemNameMax,
+                ),
+              )
+              .check(
+                /*#__PURE__*/ zod.regex(
+                  putApiOrganizationsOrganizationIdLibraryLibrarySchemaIdBodyDefinitionFieldsItemNameRegExp,
+                ),
+              ),
+            type: /*#__PURE__*/ zod.enum([
+              "text",
+              "longtext",
+              "number",
+              "boolean",
+              "date",
+            ]),
+            label: /*#__PURE__*/ zod.optional(
+              /*#__PURE__*/ zod
+                .string()
+                .check(/*#__PURE__*/ zod.minLength(1))
+                .check(
+                  /*#__PURE__*/ zod.maxLength(
+                    putApiOrganizationsOrganizationIdLibraryLibrarySchemaIdBodyDefinitionFieldsItemLabelMax,
+                  ),
+                ),
+            ),
+            validation: /*#__PURE__*/ zod.object({
+              required: /*#__PURE__*/ zod.boolean(),
+            }),
+          }),
+        )
+        .check(
+          /*#__PURE__*/ zod.maxLength(
+            putApiOrganizationsOrganizationIdLibraryLibrarySchemaIdBodyDefinitionFieldsMax,
+          ),
+        ),
+    }),
+  });
+
+export const putApiOrganizationsOrganizationIdLibraryLibrarySchemaIdResponseDefinitionFieldsItemNameMax = 64;
+
+export const putApiOrganizationsOrganizationIdLibraryLibrarySchemaIdResponseDefinitionFieldsItemNameRegExp =
+  /^[a-zA-Z_][a-zA-Z0-9_]*$/;
+export const putApiOrganizationsOrganizationIdLibraryLibrarySchemaIdResponseDefinitionFieldsItemLabelMax = 200;
+
+export const putApiOrganizationsOrganizationIdLibraryLibrarySchemaIdResponseDefinitionFieldsMax = 200;
+
+export const PutApiOrganizationsOrganizationIdLibraryLibrarySchemaIdResponse =
+  /*#__PURE__*/ zod.object({
+    id: /*#__PURE__*/ zod.uuid(),
+    name: /*#__PURE__*/ zod.string(),
+    label: /*#__PURE__*/ zod.nullable(/*#__PURE__*/ zod.string()),
+    definition: /*#__PURE__*/ zod.object({
+      fields: /*#__PURE__*/ zod
+        .array(
+          /*#__PURE__*/ zod.object({
+            name: /*#__PURE__*/ zod
+              .string()
+              .check(
+                /*#__PURE__*/ zod.maxLength(
+                  putApiOrganizationsOrganizationIdLibraryLibrarySchemaIdResponseDefinitionFieldsItemNameMax,
+                ),
+              )
+              .check(
+                /*#__PURE__*/ zod.regex(
+                  putApiOrganizationsOrganizationIdLibraryLibrarySchemaIdResponseDefinitionFieldsItemNameRegExp,
+                ),
+              ),
+            type: /*#__PURE__*/ zod.enum([
+              "text",
+              "longtext",
+              "number",
+              "boolean",
+              "date",
+            ]),
+            label: /*#__PURE__*/ zod.optional(
+              /*#__PURE__*/ zod
+                .string()
+                .check(/*#__PURE__*/ zod.minLength(1))
+                .check(
+                  /*#__PURE__*/ zod.maxLength(
+                    putApiOrganizationsOrganizationIdLibraryLibrarySchemaIdResponseDefinitionFieldsItemLabelMax,
+                  ),
+                ),
+            ),
+            validation: /*#__PURE__*/ zod.object({
+              required: /*#__PURE__*/ zod.boolean(),
+            }),
+          }),
+        )
+        .check(
+          /*#__PURE__*/ zod.maxLength(
+            putApiOrganizationsOrganizationIdLibraryLibrarySchemaIdResponseDefinitionFieldsMax,
+          ),
+        ),
+    }),
+    createdAt: /*#__PURE__*/ zod.iso.datetime({ offset: true }),
+    updatedAt: /*#__PURE__*/ zod.iso.datetime({ offset: true }),
+  });
+
+/**
+ * @summary Retirer un schéma de la bibliothèque
+ */
+export const DeleteApiOrganizationsOrganizationIdLibraryLibrarySchemaIdParams =
+  /*#__PURE__*/ zod.object({
+    organizationId: /*#__PURE__*/ zod.uuid(),
+    librarySchemaId: /*#__PURE__*/ zod.uuid(),
+  });
+
+export const DeleteApiOrganizationsOrganizationIdLibraryLibrarySchemaIdResponse =
+  /*#__PURE__*/ zod.void();
+
+/**
+ * @summary La lignée d'un schéma de bibliothèque
+ */
+export const GetApiOrganizationsOrganizationIdLibraryLibrarySchemaIdHistoryParams =
+  /*#__PURE__*/ zod.object({
+    organizationId: /*#__PURE__*/ zod.uuid(),
+    librarySchemaId: /*#__PURE__*/ zod.uuid(),
+  });
+
+export const getApiOrganizationsOrganizationIdLibraryLibrarySchemaIdHistoryResponseCurrentHashRegExp =
+  /^[a-z0-9-]+:[0-9a-f]{64}$/;
+export const getApiOrganizationsOrganizationIdLibraryLibrarySchemaIdHistoryResponseEntriesItemHashRegExp =
+  /^[a-z0-9-]+:[0-9a-f]{64}$/;
+
+export const GetApiOrganizationsOrganizationIdLibraryLibrarySchemaIdHistoryResponse =
+  /*#__PURE__*/ zod.object({
+    currentHash: /*#__PURE__*/ zod
+      .string()
+      .check(
+        /*#__PURE__*/ zod.regex(
+          getApiOrganizationsOrganizationIdLibraryLibrarySchemaIdHistoryResponseCurrentHashRegExp,
+        ),
+      ),
+    entries: /*#__PURE__*/ zod.array(
+      /*#__PURE__*/ zod.object({
+        hash: /*#__PURE__*/ zod
+          .string()
+          .check(
+            /*#__PURE__*/ zod.regex(
+              getApiOrganizationsOrganizationIdLibraryLibrarySchemaIdHistoryResponseEntriesItemHashRegExp,
+            ),
+          ),
+        action: /*#__PURE__*/ zod.enum(["saved", "restored"]),
+        createdAt: /*#__PURE__*/ zod.iso.datetime({ offset: true }),
+        actorName: /*#__PURE__*/ zod.nullable(/*#__PURE__*/ zod.string()),
+        actorEmail: /*#__PURE__*/ zod.nullable(/*#__PURE__*/ zod.string()),
+        name: /*#__PURE__*/ zod.string(),
+        label: /*#__PURE__*/ zod.nullable(/*#__PURE__*/ zod.string()),
+      }),
+    ),
+  });
+
+/**
+ * @summary Restaurer une version antérieure d'un schéma de bibliothèque
+ */
+export const PostApiOrganizationsOrganizationIdLibraryLibrarySchemaIdRestoreParams =
+  /*#__PURE__*/ zod.object({
+    organizationId: /*#__PURE__*/ zod.uuid(),
+    librarySchemaId: /*#__PURE__*/ zod.uuid(),
+  });
+
+export const postApiOrganizationsOrganizationIdLibraryLibrarySchemaIdRestoreBodyHashRegExp =
+  /^[a-z0-9-]+:[0-9a-f]{64}$/;
+
+export const PostApiOrganizationsOrganizationIdLibraryLibrarySchemaIdRestoreBody =
+  /*#__PURE__*/ zod.object({
+    hash: /*#__PURE__*/ zod
+      .string()
+      .check(
+        /*#__PURE__*/ zod.regex(
+          postApiOrganizationsOrganizationIdLibraryLibrarySchemaIdRestoreBodyHashRegExp,
+        ),
+      ),
+  });
+
+export const postApiOrganizationsOrganizationIdLibraryLibrarySchemaIdRestoreResponseDefinitionFieldsItemNameMax = 64;
+
+export const postApiOrganizationsOrganizationIdLibraryLibrarySchemaIdRestoreResponseDefinitionFieldsItemNameRegExp =
+  /^[a-zA-Z_][a-zA-Z0-9_]*$/;
+export const postApiOrganizationsOrganizationIdLibraryLibrarySchemaIdRestoreResponseDefinitionFieldsItemLabelMax = 200;
+
+export const postApiOrganizationsOrganizationIdLibraryLibrarySchemaIdRestoreResponseDefinitionFieldsMax = 200;
+
+export const PostApiOrganizationsOrganizationIdLibraryLibrarySchemaIdRestoreResponse =
+  /*#__PURE__*/ zod.object({
+    id: /*#__PURE__*/ zod.uuid(),
+    name: /*#__PURE__*/ zod.string(),
+    label: /*#__PURE__*/ zod.nullable(/*#__PURE__*/ zod.string()),
+    definition: /*#__PURE__*/ zod.object({
+      fields: /*#__PURE__*/ zod
+        .array(
+          /*#__PURE__*/ zod.object({
+            name: /*#__PURE__*/ zod
+              .string()
+              .check(
+                /*#__PURE__*/ zod.maxLength(
+                  postApiOrganizationsOrganizationIdLibraryLibrarySchemaIdRestoreResponseDefinitionFieldsItemNameMax,
+                ),
+              )
+              .check(
+                /*#__PURE__*/ zod.regex(
+                  postApiOrganizationsOrganizationIdLibraryLibrarySchemaIdRestoreResponseDefinitionFieldsItemNameRegExp,
+                ),
+              ),
+            type: /*#__PURE__*/ zod.enum([
+              "text",
+              "longtext",
+              "number",
+              "boolean",
+              "date",
+            ]),
+            label: /*#__PURE__*/ zod.optional(
+              /*#__PURE__*/ zod
+                .string()
+                .check(/*#__PURE__*/ zod.minLength(1))
+                .check(
+                  /*#__PURE__*/ zod.maxLength(
+                    postApiOrganizationsOrganizationIdLibraryLibrarySchemaIdRestoreResponseDefinitionFieldsItemLabelMax,
+                  ),
+                ),
+            ),
+            validation: /*#__PURE__*/ zod.object({
+              required: /*#__PURE__*/ zod.boolean(),
+            }),
+          }),
+        )
+        .check(
+          /*#__PURE__*/ zod.maxLength(
+            postApiOrganizationsOrganizationIdLibraryLibrarySchemaIdRestoreResponseDefinitionFieldsMax,
           ),
         ),
     }),

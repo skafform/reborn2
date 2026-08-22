@@ -7,14 +7,14 @@ travail : où on en est, ce qui reste, par quoi commencer.
 
 Étapes 1 à 6a de la [feuille de route](roadmap.md), et beaucoup de socle
 depuis : rôles personnalisés, adhésions, routes de clés, chaîne du contrat,
-CI. **217 tests au vert**, typecheck et lint propres des deux côtés.
+CI. **225 tests au vert**, typecheck et lint propres des deux côtés.
 
 | | |
 |---|---|
 | Serveur | Hono + `@hono/zod-openapi`, validation d'environnement au démarrage |
 | Authentification | Better-Auth sur `pg.Pool`, confirmation d'adresse obligatoire, réinitialisation |
-| Multi-tenant | 13 tables sous RLS **activé et forcé**, point de passage `withContext` |
-| Autorisation | Rôles personnalisables par organization, 18 permissions, `can()`, garde-fous |
+| Multi-tenant | 15 tables sous RLS **activé et forcé**, point de passage `withContext` |
+| Autorisation | Rôles personnalisables par organization, 19 permissions, `can()`, garde-fous |
 | Invitations | Jeton haché, email verrouillé, usage unique, plafond par organization, Inbox |
 | Emails | Gabarits maison sans dépendance, prévisualisation sur `/dev/emails` |
 | Clés API | Publique · preview · secrète, par environnement |
@@ -168,6 +168,8 @@ planter.
 | `GET`/`POST …/projects/{pid}/api-keys` | `apikey.manage`, vérifié par le service |
 | `GET …/schemas/{id}/history` | `schema.read` — lire une lignée est une lecture de schéma |
 | `POST …/schemas/{id}/restore` | `schema.write` — restaurer en est une écriture |
+| `GET`/`POST `/organizations/{id}/library` | `schema.read` pour lire, `library.write` pour curer |
+| `PUT`/`DELETE …/library/{id}`, `…/history`, `…/restore` | idem — la lecture large, l'écriture à sa clé |
 | `POST …/api-keys/{id}/revoke`, `DELETE …/api-keys/{id}` | idem — et la suppression exige la révocation |
 
 `/me` existe parce que **le nom du rôle ne suffit pas** : les rôles sont
@@ -467,7 +469,8 @@ n'existe pas. Les ajouter n'invalidera aucune empreinte.
 | | |
 |---|---|
 | **2** | Versionnage — voir *Par quoi reprendre* ci-dessous |
-| **3** | `library_schemas`, la copie, la divergence à trois états |
+| **3a** | ✅ `library_schemas` — table, journal, versionnage, routes, écran |
+| **3b** | La copie dans un environnement, et la divergence à trois états |
 | **4** | `documents`, et les références **présentes dès sa conception** |
 
 ### Par quoi reprendre — l'étape 2, dans cet ordre
@@ -565,10 +568,45 @@ blanc n'aurait aucune façon de le dire.
 condensé hexadécimal », sans lequel — le tag existe précisément pour changer, et
 le graver obligerait à republier le contrat ce jour-là.
 
+### La bibliothèque de schémas — faite
+
+`library_schemas` et son journal (migration 0030), six routes sous
+`/organizations/{id}/library`, et un écran dans la barre latérale de
+l'organization. Les modèles qu'une organization propose à ses projets.
+
+⚠️ **`schema_versions` est partagée avec les types de contenu**, et ce n'est
+pas une économie de table : le diagnostic de divergence demande « le hachage de
+la copie est-il dans l'historique de la bibliothèque ? », question qui n'a de
+sens que si les deux nomment les mêmes lignes. Le **journal**, lui, est une
+seconde table — une clé composite ne pointe que vers une table, et y renoncer
+reviendrait à laisser une ligne nommer un schéma fantôme.
+
+⚠️ **`library.write` est une clé nouvelle, `owner` et `admin`** (ADR 0018).
+Lire la bibliothèque reste `schema.read` : une clé de lecture de plus ne
+réglerait aucun problème qu'on ait. Un test épingle les deux — un `viewer` lit
+et ne modifie pas.
+
+⚠️ **Les rôles personnalisés ne reçoivent rien**, contrairement à la migration
+0027. Là-bas la clé était *extraite* d'une autre qui portait déjà la capacité ;
+ici aucune clé existante ne l'impliquait — `schema.write` délibérément pas.
+
+Deux morceaux de console **extraits au deuxième consommateur**, comme
+`menu.tsx` l'avait été : `ui/schema-fields.tsx` (le formulaire) et
+`ui/lineage.tsx` (la table de lignée). ⚠️ Deux noms de champ font le contrat
+entre la lignée et son écran — `restore` et `schemaId` — et les deux
+`clientAction` les lisent sous ces noms-là.
+
 ### Par quoi reprendre — maintenant
 
-L'**étape 3** — `library_schemas`, la copie dans un environnement, et la
-divergence à trois états, qui se lit désormais par comparaison d'empreintes.
+**La copie et la divergence** : `schemas.copied_from` avec sa clé composite
+`(organization_id, copied_from)` — ⚠️ **le seul lien du modèle qui traverse
+deux niveaux de cadrage**, et ça doit se lire comme délibéré —, l'opération
+*copier dans un environnement*, et le diagnostic à trois états par comparaison
+d'empreintes.
+
+⚠️ Le troisième état s'appelle `locally_modified` et **non**
+`diverged_from_library` : il confond « seule la copie a bougé » et « les deux
+ont bougé », et aucun écran ne doit le survendre.
 
 ⚠️ Et un souhait resté en plan, qui aurait transformé une énigme en message :
 un contrôle au démarrage comparant le **registre de permissions** à la table
