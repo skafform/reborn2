@@ -13,13 +13,20 @@ tâches, elles vivent dans le [backlog](../backlog/).
 
 ## À trancher avant d'écrire la couche contenu
 
-### Références entre documents
+### Publier contre un brouillon
 
-Voir [content-schemas.md](./content-schemas.md#références-entre-documents--à-trancher)
-— recherche faite, options posées, piste privilégiée identifiée (`data` comme
-source de vérité + table d'index dérivée). Le point qui mérite débat : faut-il
-bloquer la publication d'un document qui référence un brouillon non publié,
-comme le fait Sanity ?
+⚠️ **Tout ce qui restait des références entre documents**, réduit à une phrase
+par [ADR 0020](../adr/0020-references-entre-documents.md) :
+
+> Faut-il bloquer la publication d'un document qui référence un brouillon non
+> publié, comme le fait Sanity ?
+
+Une clé étrangère garantit l'existence, jamais l'état de publication. C'est une
+règle applicative, au point d'émission d'événements — pas une contrainte de
+base.
+
+**Ne bloque pas l'étape 4** : elle s'y décide, avec un cas concret sous les
+yeux.
 
 ## À trancher plus tard, sans coût de retard
 

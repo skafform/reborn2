@@ -455,9 +455,10 @@ maintenant, et c'est ce que le hachage figera à l'étape suivante :
 | `validation` | Objet imbriqué, `required` toujours présent |
 | L'ordre des champs | **Significatif** : c'est la disposition du formulaire |
 
-⚠️ **`reference` et `asset` sont absents, chacun bloqué** — le premier par la
-dernière décision ouverte, le second par un stockage objet qui n'existe pas.
-Les ajouter plus tard n'invalidera aucune empreinte.
+⚠️ **`reference` et `asset` sont absents de l'écran, pour des raisons
+différentes.** `reference` est **décidé** ([ADR 0020](adr/0020-references-entre-documents.md))
+mais naît avec `documents`, à l'étape 4 ; `asset` attend un stockage objet qui
+n'existe pas. Les ajouter n'invalidera aucune empreinte.
 
 ### Ce qui reste
 
@@ -465,7 +466,7 @@ Les ajouter plus tard n'invalidera aucune empreinte.
 |---|---|
 | **2** | Versionnage — voir *Par quoi reprendre* ci-dessous |
 | **3** | `library_schemas`, la copie, la divergence à trois états |
-| **4** | `documents` — ⚠️ bloquée par les références entre documents |
+| **4** | `documents`, et les références **présentes dès sa conception** |
 
 ### Par quoi reprendre — l'étape 2, dans cet ordre
 
@@ -505,7 +506,11 @@ Rappels structurants :
 - `documents` porte déjà `locale` et `translation_group_id`
 - Le contenu est rattaché à `environment_id`, jamais à `project_id`
 - L'API de lecture reste en **GET avec paramètres d'URL** — sinon plus de cache
-- Toute écriture passe par un **point d'émission d'événements unique**
+- Toute écriture passe par un **point d'émission d'événements unique** — c'est
+  là que se décidera le refus de publier contre un brouillon
+- ⚠️ **La table d'index des références naît avec `documents`**, jamais avant :
+  une table de références sans documents à indexer est l'erreur qu'un projet
+  précédent a déjà faite
 
 ## Backlog ouvert
 
