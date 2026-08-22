@@ -448,6 +448,7 @@ Rappels structurants :
 | [0012](backlog/0012-la-console-n-a-aucun-test.md) | La console n'a aucun test | Avec la CI — les deux se décident ensemble |
 | [0014](backlog/0014-frontiere-du-socle.md) | Frontière du socle : `src/cms/` + règle d'import | 🔴 Au premier fichier de 6b |
 | [0015](backlog/0015-avatar-choisi-par-la-personne.md) | L'avatar n'est pas choisi par la personne | 🟢 L'étape 7 ne le livrera **pas** au passage |
+| [0016](backlog/0016-alerte-esbuild-inexploitable-ici.md) | Alerte esbuild | 🟢 Laissée ouverte **exprès** — la faille est dans `esbuild serve`, jamais lancé |
 
 Dix items clos.
 
