@@ -2,7 +2,12 @@ import { randomUUID } from "node:crypto";
 import { and, eq, isNull, sql } from "drizzle-orm";
 import { union } from "drizzle-orm/pg-core";
 import { type Actor, can } from "../auth/authorization.ts";
-import { type Permission, SYSTEM_ROLES } from "../config/permissions.ts";
+import {
+  PERMISSIONS,
+  type Permission,
+  permissionsOf,
+  SYSTEM_ROLES,
+} from "../config/permissions.ts";
 import { type Transaction, withContext } from "../db/client.ts";
 import {
   environments,
@@ -80,11 +85,15 @@ async function seedSystemRoles(
 
   const byName = new Map(inserted.map((role) => [role.name, role.id]));
 
+  // ⚠️ Les permissions viennent du **registre**, pas d'une liste écrite ici :
+  // c'est ce qui permet au CMS d'accorder les siennes sans que le socle les
+  // nomme. Le registre n'est complet que si son module a été chargé — vérifié
+  // au démarrage par `db/preconditions.ts`, jamais supposé.
   await tx.insert(rolePermissions).values(
     SYSTEM_ROLES.flatMap((role) => {
       const roleId = byName.get(role.name);
       if (!roleId) throw new Error(`role ${role.name} was not inserted`);
-      return role.permissions.map((permissionKey) => ({
+      return permissionsOf(role.name).map((permissionKey) => ({
         roleId,
         permissionKey,
       }));
@@ -294,7 +303,7 @@ export async function listProjects(actor: Actor, organizationId: string) {
       .from(projects)
       .where(eq(projects.organizationId, organizationId)),
   );
-  return rows.filter((project) => can(actor, "content.read", project.id));
+  return rows.filter((project) => can(actor, PERMISSIONS.contentRead, project.id));
 }
 
 /**
@@ -321,7 +330,7 @@ export async function findProject(
       ),
   );
   if (!project) return null;
-  return can(actor, "content.read", project.id) ? project : null;
+  return can(actor, PERMISSIONS.contentRead, project.id) ? project : null;
 }
 
 /**

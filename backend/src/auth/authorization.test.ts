@@ -3,7 +3,7 @@ import { randomUUID } from "node:crypto";
 import { after, before, describe, it } from "node:test";
 import { and, eq } from "drizzle-orm";
 import { auth } from "../auth.ts";
-import { PERMISSION_KEYS } from "../config/permissions.ts";
+import { PERMISSIONS, permissionKeys } from "../config/permissions.ts";
 import { closePool, withContext } from "../db/client.ts";
 import {
   organizationMembers,
@@ -149,7 +149,7 @@ describe("autorisation", () => {
     it("donne au owner tout le catalogue, sur toute l'organization", async () => {
       const actor = await resolveActor(owner, organizationId);
       assert.equal(actor.grant?.scope, "organization");
-      assert.equal(actor.grant?.permissions.size, PERMISSION_KEYS.length);
+      assert.equal(actor.grant?.permissions.size, permissionKeys().length);
     });
 
     it("ne rattache pas un étranger à l'organization", async () => {
@@ -165,24 +165,24 @@ describe("autorisation", () => {
   describe("can()", () => {
     it("laisse le owner écrire et publier", async () => {
       const actor = await resolveActor(owner, organizationId);
-      assert.equal(can(actor, "content.write"), true);
-      assert.equal(can(actor, "content.publish"), true);
-      assert.equal(can(actor, "org.delete"), true);
+      assert.equal(can(actor, PERMISSIONS.contentWrite), true);
+      assert.equal(can(actor, PERMISSIONS.contentPublish), true);
+      assert.equal(can(actor, PERMISSIONS.orgDelete), true);
     });
 
     it("empêche un viewer d'écrire", async () => {
       const actor = await resolveActor(viewer, organizationId);
-      assert.equal(can(actor, "content.read"), true);
-      assert.equal(can(actor, "content.read_draft"), true);
-      assert.equal(can(actor, "content.write"), false);
-      assert.equal(can(actor, "content.publish"), false);
-      assert.equal(can(actor, "project.create"), false);
-      assert.equal(can(actor, "org.settings"), false);
+      assert.equal(can(actor, PERMISSIONS.contentRead), true);
+      assert.equal(can(actor, PERMISSIONS.contentReadDraft), true);
+      assert.equal(can(actor, PERMISSIONS.contentWrite), false);
+      assert.equal(can(actor, PERMISSIONS.contentPublish), false);
+      assert.equal(can(actor, PERMISSIONS.projectCreate), false);
+      assert.equal(can(actor, PERMISSIONS.orgSettings), false);
     });
 
     it("refuse tout à un acteur sans rattachement", async () => {
       const actor = await resolveActor(outsider, organizationId);
-      for (const permission of PERMISSION_KEYS) {
+      for (const permission of permissionKeys()) {
         assert.equal(can(actor, permission), false, permission);
       }
     });
@@ -212,9 +212,9 @@ describe("autorisation", () => {
     it("accorde ses droits dans le projet assigné", async () => {
       const actor = await resolveActor(contributor, organizationId);
       assert.equal(actor.grant?.scope, "project");
-      assert.equal(can(actor, "content.write", projectId), true);
+      assert.equal(can(actor, PERMISSIONS.contentWrite, projectId), true);
       assert.equal(
-        can(actor, "content.publish", projectId),
+        can(actor, PERMISSIONS.contentPublish, projectId),
         false,
         "un contributor ne publie pas",
       );
@@ -222,13 +222,13 @@ describe("autorisation", () => {
 
     it("les refuse dans un autre projet de la même organization", async () => {
       const actor = await resolveActor(contributor, organizationId);
-      assert.equal(can(actor, "content.write", otherProjectId), false);
+      assert.equal(can(actor, PERMISSIONS.contentWrite, otherProjectId), false);
     });
 
     it("les refuse pour une action portant sur l'organization entière", async () => {
       const actor = await resolveActor(contributor, organizationId);
       assert.equal(
-        can(actor, "content.write"),
+        can(actor, PERMISSIONS.contentWrite),
         false,
         "sans projet cible, l'action vise l'organization",
       );
@@ -239,7 +239,7 @@ describe("autorisation", () => {
     it("empêche d'accorder une permission non détenue", async () => {
       const actor = await resolveActor(viewer, organizationId);
       assert.throws(
-        () => requireCanDefineRole(actor, ["org.delete"]),
+        () => requireCanDefineRole(actor, [PERMISSIONS.orgDelete]),
         (error: unknown) => {
           assert.ok(error instanceof AuthorizationError);
           assert.equal(error.status, 403);
@@ -259,9 +259,13 @@ describe("autorisation", () => {
       await addMember(organizationId, owner, admin, "admin");
       const actor = await resolveActor(admin, organizationId);
 
-      assert.equal(can(actor, "role.manage"), false, "role creation is owner-only");
+      assert.equal(
+        can(actor, PERMISSIONS.roleManage),
+        false,
+        "role creation is owner-only",
+      );
       assert.throws(
-        () => requireCanDefineRole(actor, ["content.write"]),
+        () => requireCanDefineRole(actor, [PERMISSIONS.contentWrite]),
         /role\.manage/,
         "refused for lacking role.manage, not for over-granting",
       );
@@ -276,15 +280,21 @@ describe("autorisation", () => {
     it("keeps a delegate inside what they hold", async () => {
       const delegate = await makeUser("delegate");
       const roleId = await customRole(organizationId, owner, "role-keeper", [
-        "role.manage",
-        "content.write",
+        PERMISSIONS.roleManage,
+        PERMISSIONS.contentWrite,
       ]);
       await addMemberWithRole(organizationId, owner, delegate, roleId);
       const actor = await resolveActor(delegate, organizationId);
 
-      assert.doesNotThrow(() => requireCanDefineRole(actor, ["content.write"]));
+      assert.doesNotThrow(() =>
+        requireCanDefineRole(actor, [PERMISSIONS.contentWrite]),
+      );
       assert.throws(
-        () => requireCanDefineRole(actor, ["content.write", "org.delete"]),
+        () =>
+          requireCanDefineRole(actor, [
+            PERMISSIONS.contentWrite,
+            PERMISSIONS.orgDelete,
+          ]),
         /org\.delete/,
         "a delegate cannot grant beyond the delegation",
       );
@@ -293,7 +303,10 @@ describe("autorisation", () => {
     it("laisse le owner définir un rôle avec ce qu'il détient", async () => {
       const actor = await resolveActor(owner, organizationId);
       assert.doesNotThrow(() =>
-        requireCanDefineRole(actor, ["content.read", "content.write"]),
+        requireCanDefineRole(actor, [
+          PERMISSIONS.contentRead,
+          PERMISSIONS.contentWrite,
+        ]),
       );
     });
 
@@ -312,7 +325,7 @@ describe("autorisation", () => {
           requireCanAssignRole(admin, {
             name: "admin",
             isSystem: true,
-            permissions: ["content.read"],
+            permissions: [PERMISSIONS.contentRead],
           }),
         /member\.manage_admin/,
       );
@@ -322,7 +335,7 @@ describe("autorisation", () => {
           requireCanAssignRole(admin, {
             name: "viewer",
             isSystem: true,
-            permissions: ["content.read"],
+            permissions: [PERMISSIONS.contentRead],
           }),
         "un admin assigne bien les rôles non privilégiés",
       );
@@ -333,7 +346,7 @@ describe("autorisation", () => {
     it("échoue en 403 quand la ressource est visible mais l'action interdite", async () => {
       const actor = await resolveActor(viewer, organizationId);
       assert.throws(
-        () => requirePermission(actor, "content.write"),
+        () => requirePermission(actor, PERMISSIONS.contentWrite),
         (error: unknown) => {
           assert.ok(error instanceof AuthorizationError);
           assert.equal(error.status, 403);

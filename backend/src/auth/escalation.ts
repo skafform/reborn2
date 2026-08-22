@@ -1,4 +1,4 @@
-import type { Permission } from "../config/permissions.ts";
+import { PERMISSIONS, type Permission } from "../config/permissions.ts";
 import { ServiceError } from "../services/service-error.ts";
 import { type Actor, can, heldPermissions } from "./authorization.ts";
 
@@ -67,7 +67,7 @@ export function requireCanDefineRole(
   actor: Actor,
   permissions: Iterable<Permission>,
 ): void {
-  requirePermission(actor, "role.manage");
+  requirePermission(actor, PERMISSIONS.roleManage);
   requireCanGrant(actor, permissions);
 }
 
@@ -104,7 +104,7 @@ export function canAssignRole(actor: Actor, role: AssignableRole): boolean {
  */
 function requiredToTouch(role: { name: string; isSystem: boolean }): Permission {
   const privileged = role.isSystem && (role.name === "owner" || role.name === "admin");
-  return privileged ? "member.manage_admin" : "member.manage";
+  return privileged ? PERMISSIONS.memberManageAdmin : PERMISSIONS.memberManage;
 }
 
 /**

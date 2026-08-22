@@ -5,6 +5,7 @@ import { and, eq } from "drizzle-orm";
 import { keyCan, resolveActor } from "../auth/authorization.ts";
 import { AuthorizationError } from "../auth/escalation.ts";
 import { auth } from "../auth.ts";
+import { PERMISSIONS } from "../config/permissions.ts";
 import { closePool, withContext } from "../db/client.ts";
 import { organizationMembers, roles } from "../db/schema.ts";
 import { destroyOrganization, destroyUsers } from "../test-support/cleanup.ts";
@@ -102,26 +103,26 @@ describe("clés API", () => {
       const { token } = await create("public");
       const actor = await resolveApiKey(token);
       assert.ok(actor);
-      assert.equal(keyCan(actor, "content.read"), true);
-      assert.equal(keyCan(actor, "content.read_draft"), false);
-      assert.equal(keyCan(actor, "content.write"), false);
+      assert.equal(keyCan(actor, PERMISSIONS.contentRead), true);
+      assert.equal(keyCan(actor, PERMISSIONS.contentReadDraft), false);
+      assert.equal(keyCan(actor, PERMISSIONS.contentWrite), false);
     });
 
     it("la clé preview voit les brouillons, sans écrire", async () => {
       const { token } = await create("preview");
       const actor = await resolveApiKey(token);
       assert.ok(actor);
-      assert.equal(keyCan(actor, "content.read_draft"), true);
-      assert.equal(keyCan(actor, "content.write"), false);
+      assert.equal(keyCan(actor, PERMISSIONS.contentReadDraft), true);
+      assert.equal(keyCan(actor, PERMISSIONS.contentWrite), false);
     });
 
     it("la clé secrète écrit et publie", async () => {
       const { token } = await create("secret");
       const actor = await resolveApiKey(token);
       assert.ok(actor);
-      assert.equal(keyCan(actor, "content.write"), true);
-      assert.equal(keyCan(actor, "content.publish"), true);
-      assert.equal(keyCan(actor, "schema.write"), true);
+      assert.equal(keyCan(actor, PERMISSIONS.contentWrite), true);
+      assert.equal(keyCan(actor, PERMISSIONS.contentPublish), true);
+      assert.equal(keyCan(actor, PERMISSIONS.schemaWrite), true);
     });
 
     it("aucune clé ne touche à l'administration", async () => {
@@ -129,10 +130,10 @@ describe("clés API", () => {
       const actor = await resolveApiKey(token);
       assert.ok(actor);
       for (const permission of [
-        "member.manage",
-        "role.manage",
-        "apikey.manage",
-        "org.delete",
+        PERMISSIONS.memberManage,
+        PERMISSIONS.roleManage,
+        PERMISSIONS.apiKeyManage,
+        PERMISSIONS.orgDelete,
       ] as const) {
         assert.equal(keyCan(actor, permission), false, permission);
       }

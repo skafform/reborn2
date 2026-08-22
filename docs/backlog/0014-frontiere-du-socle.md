@@ -53,15 +53,36 @@ Le motif `**/cms/**` attrape les chemins relatifs quelle que soit leur
 profondeur — `./cms/x`, `../cms/x`, `../../cms/x` — donc la règle ne se
 contourne pas en déplaçant un fichier.
 
-## 2 — Le catalogue composable
+## 2 — Le catalogue composable — **fait**
 
-Le seul vrai travail de conception. `can()` est typé sur `Permission`, qui est
-`keyof typeof PERMISSIONS` : pour que le CMS ajoute `content.publish` sans que
-le socle le connaisse, le catalogue doit se composer.
+✅ Le mécanisme est en place : `Permission` est un type marqué dont
+`definePermission` est la seule source
+([ADR 0019](../adr/0019-catalogue-de-permissions-par-fabrique.md)). Le socle
+n'a plus besoin de nommer une clé du CMS pour que `can()` l'accepte.
 
-⚠️ **À faire avec la première permission de 6b, pas après.** C'est le seul
-moment où le coût est faible : le typage de `Permission` remonte jusqu'à
-`can()`, donc jusqu'à tout.
+## 2 bis — ⚠️ Sortir le vocabulaire du contenu : ce n'est pas un déplacement
+
+**Découvert en tentant de le faire.** Le socle ne se contente pas de
+*contenir* `content.*` et `schema.*` : deux de ses services s'en **servent**.
+
+| Où | Ce qu'il en fait |
+|---|---|
+| `services/api-keys.ts` | `API_KEY_PERMISSIONS` — la portée d'une clé publique, preview ou secrète **est** une liste de permissions de contenu |
+| `services/organizations.ts` | `listProjects` et `findProject` gardent la visibilité d'un projet sur `content.read` |
+
+Déplacer les clés casse donc le socle. Ce qu'il faut trancher d'abord :
+
+- **La table des portées de clés** appartient-elle au CMS ? Une clé API est de
+  l'infrastructure, mais ce qu'elle *ouvre* est du contenu. L'y sortir demande
+  un second registre — et c'est là que la ligne du « pas de système de
+  plugins » se pose vraiment
+- **La visibilité d'un projet** doit-elle rester gardée par `content.read` ? La
+  vraie question du socle est « cet acteur atteint-il ce projet ? », et
+  `content.read` n'en est qu'un proxy hérité
+
+⚠️ **Tant que ce n'est pas tranché, `src/cms/` n'a pas de premier fichier** —
+et la règle d'import ci-dessus n'a rien à garder. Elle est écrite, éprouvée,
+et attend.
 
 Aujourd'hui `config/permissions.ts` mélange les deux mondes — `member.manage`
 et `org.delete` sont du socle, `content.publish` et `schema.write` sont du CMS.

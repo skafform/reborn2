@@ -12,7 +12,12 @@ import {
   DESCRIPTION_MAX_LENGTH,
   NAME_MAX_LENGTH,
 } from "../config/constants.ts";
-import { PERMISSION_KEYS, PERMISSIONS } from "../config/permissions.ts";
+import {
+  PERMISSIONS,
+  permissionCatalogue,
+  permissionKeys,
+  toPermissions,
+} from "../config/permissions.ts";
 import {
   createApiKey,
   deleteApiKey,
@@ -259,7 +264,7 @@ managementRoutes.openapi(
   async (c) => {
     const { organizationId } = c.req.valid("param");
     const { name } = c.req.valid("json");
-    requirePermission(c.get("actor"), "project.create");
+    requirePermission(c.get("actor"), PERMISSIONS.projectCreate);
     const project = await createProject({
       userId: c.get("userId"),
       organizationId,
@@ -447,7 +452,7 @@ managementRoutes.openapi(
     if (!project) throw new HTTPException(404, { message: "introuvable" });
 
     return c.json({
-      permissions: PERMISSION_KEYS.filter((key) => can(actor, key, projectId)),
+      permissions: permissionKeys().filter((key) => can(actor, key, projectId)),
     });
   },
 );
@@ -477,7 +482,7 @@ managementRoutes.openapi(
     const project = await findProject(actor, organizationId, projectId);
     if (!project) throw new HTTPException(404, { message: "introuvable" });
 
-    requirePermission(actor, "member.read", projectId);
+    requirePermission(actor, PERMISSIONS.memberRead, projectId);
     const members = await listProjectMembers(
       c.get("userId"),
       organizationId,
@@ -521,7 +526,7 @@ managementRoutes.openapi(
   // l'organization. `can()` répond exactement ça, et reste seul juge.
   (c) => {
     const actor = c.get("actor");
-    return c.json({ permissions: PERMISSION_KEYS.filter((key) => can(actor, key)) });
+    return c.json({ permissions: permissionKeys().filter((key) => can(actor, key)) });
   },
 );
 
@@ -549,7 +554,7 @@ managementRoutes.openapi(
   async (c) => {
     const { organizationId } = c.req.valid("param");
     const actor = c.get("actor");
-    requirePermission(actor, "member.read");
+    requirePermission(actor, PERMISSIONS.memberRead);
     const members = await listMembers(c.get("userId"), organizationId);
     return c.json(members.map(withManageable(actor)));
   },
@@ -608,7 +613,7 @@ managementRoutes.openapi(
   async (c) => {
     const { organizationId } = c.req.valid("param");
     const actor = c.get("actor");
-    requirePermission(actor, "member.manage");
+    requirePermission(actor, PERMISSIONS.memberManage);
 
     const [roles, holders] = await Promise.all([
       listRoles(c.get("userId"), organizationId),
@@ -673,7 +678,7 @@ managementRoutes.openapi(
     // `member.manage`, pas `member.read` : une invitation en attente relève du
     // recrutement, pas de l'annuaire. Un `viewer` voit qui est dans l'équipe,
     // pas qui est en train d'y être admis.
-    requirePermission(c.get("actor"), "member.manage");
+    requirePermission(c.get("actor"), PERMISSIONS.memberManage);
     // `null` : seulement celles de l'organization. Celles d'un projet
     // appartiennent à l'équipe de ce projet.
     return c.json(await listPendingInvitations(c.get("userId"), organizationId, null));
@@ -749,9 +754,7 @@ managementRoutes.openapi(
     },
   }),
   (c) =>
-    c.json(
-      PERMISSION_KEYS.map((key) => ({ key, description: PERMISSIONS[key] as string })),
-    ),
+    c.json(permissionCatalogue().map(({ key, description }) => ({ key, description }))),
 );
 
 /**
@@ -766,7 +769,7 @@ const roleParams = z.object({ organizationId: z.uuid(), roleId: z.uuid() });
 const RoleInput = z
   .object({
     name: z.string().min(1).max(200),
-    permissions: z.array(z.enum(PERMISSION_KEYS)),
+    permissions: z.array(z.enum(permissionCatalogue().map((entry) => entry.key))),
   })
   .openapi("RoleInput");
 
@@ -799,7 +802,9 @@ managementRoutes.openapi(
       organizationId,
       scope,
       name,
-      permissions,
+      // Les clés viennent du corps de la requête : elles franchissent la
+      // frontière du type ici, en étant vérifiées contre le registre.
+      permissions: toPermissions(permissions),
     });
     return c.json(created, 201);
   },
@@ -825,7 +830,7 @@ managementRoutes.openapi(
       organizationId,
       roleId,
       name,
-      permissions,
+      permissions: toPermissions(permissions),
     });
     return c.body(null, 204);
   },
@@ -1179,7 +1184,7 @@ managementRoutes.openapi(
     const project = await findProject(actor, organizationId, projectId);
     if (!project) throw new HTTPException(404, { message: "introuvable" });
 
-    requirePermission(actor, "member.manage", projectId);
+    requirePermission(actor, PERMISSIONS.memberManage, projectId);
     return c.json(
       await listPendingInvitations(c.get("userId"), organizationId, projectId),
     );
@@ -1240,7 +1245,7 @@ managementRoutes.openapi(
   }),
   async (c) => {
     const { organizationId, invitationId } = c.req.valid("param");
-    requirePermission(c.get("actor"), "member.manage");
+    requirePermission(c.get("actor"), PERMISSIONS.memberManage);
     await cancelInvitation({ actor: c.get("actor"), organizationId, invitationId });
     return c.body(null, 204);
   },

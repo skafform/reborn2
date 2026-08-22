@@ -8,7 +8,7 @@ import { and, eq } from "drizzle-orm";
  */
 import { heldPermissions, resolveActor } from "../auth/authorization.ts";
 import { auth } from "../auth.ts";
-import { PERMISSION_KEYS } from "../config/permissions.ts";
+import { permissionKeys } from "../config/permissions.ts";
 import { closePool, withContext } from "../db/client.ts";
 import {
   organizationMembers,
@@ -83,7 +83,7 @@ describe("createOrganization", () => {
     const actor = await resolveActor(alice, org.id);
     assert.deepEqual(
       [...heldPermissions(actor)].sort(),
-      [...PERMISSION_KEYS].sort(),
+      [...permissionKeys()].sort(),
       "sans quoi un owner ne pourrait pas accorder ce qu'il ne détient pas",
     );
   });

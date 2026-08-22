@@ -3,7 +3,7 @@ import { and, eq, isNull, or } from "drizzle-orm";
 import type { Actor, KeyActor } from "../auth/authorization.ts";
 import { requirePermission } from "../auth/escalation.ts";
 import { API_KEY_TOKEN_BYTES } from "../config/constants.ts";
-import type { Permission } from "../config/permissions.ts";
+import { PERMISSIONS, type Permission } from "../config/permissions.ts";
 import { withContext } from "../db/client.ts";
 import { apiKeys, environments, projects } from "../db/schema.ts";
 import { ServiceError } from "./service-error.ts";
@@ -20,17 +20,21 @@ export type ApiKeyKind = "public" | "preview" | "secret";
 
 export const API_KEY_PERMISSIONS: Record<ApiKeyKind, readonly Permission[]> = {
   /** Sites consommateurs : contenu publié seulement. */
-  public: ["content.read", "schema.read"],
+  public: [PERMISSIONS.contentRead, PERMISSIONS.schemaRead],
   /** Prévisualisation : y compris les brouillons. */
-  preview: ["content.read", "content.read_draft", "schema.read"],
+  preview: [
+    PERMISSIONS.contentRead,
+    PERMISSIONS.contentReadDraft,
+    PERMISSIONS.schemaRead,
+  ],
   /** Scripts de migration : lecture, écriture, publication et schémas. */
   secret: [
-    "content.read",
-    "content.read_draft",
-    "content.write",
-    "content.publish",
-    "schema.read",
-    "schema.write",
+    PERMISSIONS.contentRead,
+    PERMISSIONS.contentReadDraft,
+    PERMISSIONS.contentWrite,
+    PERMISSIONS.contentPublish,
+    PERMISSIONS.schemaRead,
+    PERMISSIONS.schemaWrite,
   ],
 };
 
@@ -60,7 +64,7 @@ export async function createApiKey(input: {
   kind: ApiKeyKind;
   name: string;
 }): Promise<{ id: string; token: string }> {
-  requirePermission(input.actor, "apikey.manage");
+  requirePermission(input.actor, PERMISSIONS.apiKeyManage);
 
   const token = `${PREFIX[input.kind]}${randomBytes(API_KEY_TOKEN_BYTES).toString("base64url")}`;
   const secret = input.kind === "secret";
@@ -104,7 +108,7 @@ export function listApiKeys(
   organizationId: string,
   environmentId: string,
 ) {
-  requirePermission(actor, "apikey.manage");
+  requirePermission(actor, PERMISSIONS.apiKeyManage);
   return withContext({ userId: actor.userId, organizationId }, (tx) =>
     tx
       .select({
@@ -130,7 +134,7 @@ export async function revokeApiKey(input: {
   organizationId: string;
   apiKeyId: string;
 }): Promise<void> {
-  requirePermission(input.actor, "apikey.manage");
+  requirePermission(input.actor, PERMISSIONS.apiKeyManage);
 
   await withContext(
     { userId: input.actor.userId, organizationId: input.organizationId },
@@ -164,7 +168,7 @@ export async function deleteApiKey(input: {
   organizationId: string;
   apiKeyId: string;
 }): Promise<void> {
-  requirePermission(input.actor, "apikey.manage");
+  requirePermission(input.actor, PERMISSIONS.apiKeyManage);
 
   await withContext(
     { userId: input.actor.userId, organizationId: input.organizationId },

@@ -1,6 +1,7 @@
 import { and, eq, isNull, ne, sql } from "drizzle-orm";
 import type { Actor } from "../auth/authorization.ts";
 import { requirePermission } from "../auth/escalation.ts";
+import { PERMISSIONS } from "../config/permissions.ts";
 import { withContext } from "../db/client.ts";
 import {
   apiKeys,
@@ -55,11 +56,11 @@ export async function updateOrganization(input: {
   // ⚠️ Owner only. What belongs to the organization — its name, its billing,
   // its existence — belongs to whoever owns it; delegation goes through a
   // custom role that says so, the same shape as ADR 0014 for `role.manage`.
-  requirePermission(actor, "org.settings");
+  requirePermission(actor, PERMISSIONS.orgSettings);
 
   const { billingAddress, ...rest } = settings;
   const touchesBilling = billingAddress !== undefined;
-  if (touchesBilling) requirePermission(actor, "org.billing");
+  if (touchesBilling) requirePermission(actor, PERMISSIONS.orgBilling);
 
   return withContext({ userId: actor.userId, organizationId }, async (tx) => {
     const [updated] = await tx
@@ -96,7 +97,7 @@ export async function deleteOrganization(input: {
   organizationId: string;
 }): Promise<void> {
   const { actor, organizationId } = input;
-  requirePermission(actor, "org.delete");
+  requirePermission(actor, PERMISSIONS.orgDelete);
 
   await withContext({ userId: actor.userId, organizationId }, async (tx) => {
     const [remaining] = await tx
@@ -145,7 +146,7 @@ export async function readBillingAddress(input: {
   organizationId: string;
 }): Promise<{ billingAddress: string | null }> {
   const { actor, organizationId } = input;
-  requirePermission(actor, "org.billing");
+  requirePermission(actor, PERMISSIONS.orgBilling);
 
   return withContext({ userId: actor.userId, organizationId }, async (tx) => {
     const [found] = await tx
@@ -169,7 +170,7 @@ export async function updateProject(input: {
   // when organization settings became owner-only, keeping it would have taken
   // renaming away from the admins who create projects and run them
   // (migration 0027, architecture/roles-permissions.md).
-  requirePermission(actor, "project.settings");
+  requirePermission(actor, PERMISSIONS.projectSettings);
 
   return withContext({ userId: actor.userId, organizationId }, async (tx) => {
     const [updated] = await tx
@@ -207,7 +208,7 @@ export async function deleteProject(input: {
   projectId: string;
 }): Promise<void> {
   const { actor, organizationId, projectId } = input;
-  requirePermission(actor, "project.delete");
+  requirePermission(actor, PERMISSIONS.projectDelete);
 
   await withContext({ userId: actor.userId, organizationId }, async (tx) => {
     const [project] = await tx
