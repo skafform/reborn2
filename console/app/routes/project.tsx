@@ -1,4 +1,4 @@
-import { KeyRound, LayoutDashboard, Settings, Users } from "lucide-react";
+import { KeyRound, LayoutDashboard, Settings, Shapes, Users } from "lucide-react";
 import { Link, Outlet, useOutletContext } from "react-router";
 import type * as z from "zod/mini";
 import { api } from "../lib/api";
@@ -51,6 +51,16 @@ export default function ProjectLayout({ loaderData }: Route.ComponentProps) {
 
   const sections = [
     { to: base, label: "Overview", end: true, needs: null, icon: LayoutDashboard },
+    // Le premier écran de CMS. Il vit sous `schema.read`, que tout rôle
+    // système détient — voir ce qu'un projet peut contenir n'est pas le
+    // modifier.
+    {
+      to: `${base}/content-types`,
+      label: "Content types",
+      end: false,
+      needs: "schema.read",
+      icon: Shapes,
+    },
     {
       to: `${base}/team`,
       label: "Team",

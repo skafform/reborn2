@@ -439,7 +439,35 @@ pas `src/cms/`, il importe le bootstrap.
 Ce que la pose a révélé — quatre découvertes, dont un vrai défaut — est dans
 [backlog #0014](backlog/0014-frontiere-du-socle.md#4--️-ce-que-poser-la-frontière-a-révélé).
 
-## Étape 6b — là où le CMS commence
+## Étape 6b — commencée
+
+**`schemas` existe.** La table, ses policies, ses routes, son écran — le
+premier objet du CMS, et le premier que la frontière garde.
+
+La forme d'une définition n'était spécifiée nulle part ; elle l'est
+maintenant, et c'est ce que le hachage figera à l'étape suivante :
+
+| | |
+|---|---|
+| Cinq scalaires | `text`, `longtext`, `number`, `boolean`, `date` |
+| `name` d'un champ | La clé de stockage. Contrainte d'identifiant **dès maintenant** |
+| `label` | Facultatif, affichage seul — c'est ce qu'on renomme |
+| `validation` | Objet imbriqué, `required` toujours présent |
+| L'ordre des champs | **Significatif** : c'est la disposition du formulaire |
+
+⚠️ **`reference` et `asset` sont absents, chacun bloqué** — le premier par la
+dernière décision ouverte, le second par un stockage objet qui n'existe pas.
+Les ajouter plus tard n'invalidera aucune empreinte.
+
+### Ce qui reste
+
+| | |
+|---|---|
+| **2** | Versionnage — la normalisation canonique **d'abord, seule, exhaustivement testée** |
+| **3** | `library_schemas`, la copie, la divergence à trois états |
+| **4** | `documents` — ⚠️ bloquée par les références entre documents |
+
+## Repères de l'étape 6b
 
 `schemas`, `documents`, API de livraison. **Trois décisions à prendre avant**,
 détaillées dans [architecture/decisions-ouvertes.md](architecture/decisions-ouvertes.md) :

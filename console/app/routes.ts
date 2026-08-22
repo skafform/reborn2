@@ -59,6 +59,7 @@ export default [
     route("projects/:projectId", "routes/project.tsx", [
       index("routes/project-overview.tsx"),
       route("team", "routes/project-team.tsx"),
+      route("content-types", "routes/project-content-types.tsx"),
       route("api-keys", "routes/project-api-keys.tsx"),
       route("settings", "routes/project-settings.tsx"),
     ]),

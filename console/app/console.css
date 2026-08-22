@@ -635,6 +635,36 @@ body {
   color: var(--console-danger);
 }
 
+/* Une ligne de champ dans l'éditeur de type de contenu : le nom prend la place
+   qui reste, le type et la case gardent la leur. */
+.console-field-row {
+  display: grid;
+  grid-template-columns: 1fr auto auto;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.console-field-row .console-input {
+  max-width: none;
+}
+
+.console-checkbox {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: var(--console-font-size-sm);
+  white-space: nowrap;
+}
+
+/* La clé de stockage, montrée à côté du libellé qu'on a choisi : c'est elle
+   qui finit dans les adresses d'API, et elle ne se renomme pas. */
+.console-hint {
+  font-family: var(--console-font-mono);
+  font-size: var(--console-font-size-xs);
+  color: var(--console-foreground-muted);
+}
+
 /* Des boutons pleine largeur empilés. Sans écart ils se touchent, et deux
    bordures adjacentes se lisent comme un seul contrôle coupé en deux. */
 .console-stack {

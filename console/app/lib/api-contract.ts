@@ -16,6 +16,8 @@ import {
   GetApiOrganizationsOrganizationIdProjectsProjectIdMembersResponse,
   GetApiOrganizationsOrganizationIdProjectsProjectIdMeResponse,
   GetApiOrganizationsOrganizationIdProjectsProjectIdResponse,
+  GetApiOrganizationsOrganizationIdProjectsProjectIdSchemasResponse,
+  type GetApiOrganizationsOrganizationIdProjectsProjectIdSchemasResponseItem,
   GetApiOrganizationsOrganizationIdProjectsResponse,
   type GetApiOrganizationsOrganizationIdProjectsResponseItem,
   GetApiOrganizationsOrganizationIdRolesResponse,
@@ -34,6 +36,8 @@ import {
   PostApiOrganizationsOrganizationIdProjectsProjectIdApiKeysResponse,
   PostApiOrganizationsOrganizationIdProjectsProjectIdInvitationsBody,
   PostApiOrganizationsOrganizationIdProjectsProjectIdInvitationsResponse,
+  PostApiOrganizationsOrganizationIdProjectsProjectIdSchemasBody,
+  PostApiOrganizationsOrganizationIdProjectsProjectIdSchemasResponse,
   PostApiOrganizationsOrganizationIdProjectsResponse,
   PostApiOrganizationsOrganizationIdRolesBody,
   PostApiOrganizationsOrganizationIdRolesResponse,
@@ -142,6 +146,25 @@ export const NewApiKeySchema =
 /** Le jeton en clair — la seule fois qu'on le voit, pour une clé secrète. */
 export const CreatedApiKeySchema =
   PostApiOrganizationsOrganizationIdProjectsProjectIdApiKeysResponse;
+
+/**
+ * Les types de contenu d'un projet.
+ *
+ * ⚠️ Le contrat porte les contraintes du serveur — l'expression régulière des
+ * identifiants, les plafonds de longueur, la liste des cinq types scalaires.
+ * La console ne les redéclare pas : les recopier serait exactement la dérive
+ * que ce contrat élimine.
+ */
+export const ContentTypesSchema =
+  GetApiOrganizationsOrganizationIdProjectsProjectIdSchemasResponse;
+export type ContentType = z.infer<
+  typeof GetApiOrganizationsOrganizationIdProjectsProjectIdSchemasResponseItem
+>;
+
+export const NewContentTypeSchema =
+  PostApiOrganizationsOrganizationIdProjectsProjectIdSchemasBody;
+export const CreatedContentTypeSchema =
+  PostApiOrganizationsOrganizationIdProjectsProjectIdSchemasResponse;
 
 export const MembershipSchema = GetApiOrganizationsOrganizationIdMeResponse;
 export type Membership = z.infer<typeof GetApiOrganizationsOrganizationIdMeResponse>;
