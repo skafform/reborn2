@@ -1,9 +1,9 @@
 # Roadmap
 
-**Position actuelle : étapes 1 à 6a faites — le socle est complet — et
-l'étape 8 (admin UI) devancée, en cours.** L'étape 6b, où le CMS commence,
-n'est pas entamée. Voir [etat.md](etat.md) pour la marche à suivre en
-reprenant le travail.
+**Position actuelle : le socle est complet (étapes 1 à 6a et au-delà),
+l'étape 8 (admin UI) a été devancée, et l'étape 6b — le CMS — est presque
+faite : il ne lui manque que l'écran des entries.** Voir [etat.md](etat.md)
+pour la marche à suivre en reprenant le travail.
 
 Le détail des décisions techniques vit dans
 [architecture/overview.md](architecture/overview.md).
@@ -14,10 +14,11 @@ Rien dans ces étapes ne parle de CMS. C'est la partie extractible — et elle n
 s'arrête pas à l'étape 6a : les rôles personnalisés, les adhésions et la
 chaîne du contrat en font partie aussi.
 
-⚠️ Sa frontière se taguera au **début de l'étape 6b**, seul point qui ne
-périmera pas. Un tag posé plus tôt cesse de décrire le socle dès que celui-ci
-continue de grandir — c'est ce qui est arrivé au premier, retiré depuis
-([etat.md](etat.md)).
+⚠️ Sa frontière est **posée et tenue mécaniquement** : le CMS vit dans
+`src/cms/`, qu'une règle Biome interdit au reste de `src/` d'importer, et le
+tag `avant-cms` marque le dernier commit qui la précède. Un tag posé plus tôt
+cesse de décrire le socle dès que celui-ci continue de grandir — c'est ce qui
+est arrivé au premier, retiré depuis ([etat.md](etat.md)).
 
 ### 1 — Squelette ✅
 
@@ -65,9 +66,12 @@ Les trois décisions qui la précédaient sont **prises**, chacune avec son ADR 
 l'[invariant de clôture](adr/0021-ensemble-publie-clos-par-reference.md) qui en
 découle. `decisions-ouvertes.md` n'a plus rien avant la couche de contenu.
 
-Faits : `schemas`, puis le **versionnage** — forme canonique, empreinte,
-versions, journal, restauration. Restent la **bibliothèque de schémas** de
-l'organization et les **documents**. Le détail vit dans [etat.md](etat.md).
+Faits : `schemas` et leur **versionnage**, la **bibliothèque** de
+l'organization avec sa copie et son diagnostic de divergence, et les
+**documents** — deux pointeurs, états dérivés, références et clôture du publié.
+
+Reste l'**écran** des entries dans la console : les routes existent, l'écran
+non. Le détail vit dans [etat.md](etat.md).
 
 ### 7 — API de livraison de contenu
 

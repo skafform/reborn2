@@ -274,6 +274,50 @@ le service, et un test l'épingle en 400.
 porte son `currentHash`. Sans lui, un écran ne saurait pas quelle entrée est
 l'état courant — et proposerait de restaurer celui où l'on est déjà.
 
+## Entries — et la forme d'un refus
+
+Six routes sous `…/projects/{pid}/documents`. Le **vocabulaire produit dit
+*entry***, la route dit `documents` (voir [admin-ui.md](./admin-ui.md)).
+
+| | |
+|---|---|
+| `GET`/`POST …/documents` | Lister (filtrable par `schemaId`), créer |
+| `PUT`/`DELETE …/documents/{id}` | Enregistrer, supprimer |
+| `POST …/documents/{id}/discard` | Abandonner les modifications en attente |
+| `POST …/documents/publish` · `…/unpublish` | ⚠️ **Des routes de projet**, dont le corps porte `documentIds` |
+
+⚠️ **Publier n'est pas une route d'entry**, et ce n'est pas une commodité : la
+publication groupée est la seule issue aux cycles
+([ADR 0021](../adr/0021-ensemble-publie-clos-par-reference.md)). Une route au
+singulier obligerait à en ajouter une seconde le jour du premier A↔B.
+
+**La réponse porte l'état dérivé, jamais les pointeurs.** `state` vaut `draft`,
+`published` ou `changed` ; `current_hash` et `published_hash` sont de la
+machinerie, et un écran n'a rien à en faire.
+
+### ⚠️ Un refus porte des faits, dans `details`
+
+`ServiceError` peut transporter une charge structurée, que `onError` sérialise
+**seulement si elle existe** — une clé vide serait une chose de plus à ignorer
+partout :
+
+```json
+{ "error": "…", "reason": "references_unpublished",
+  "details": { "references": [
+    { "documentId": "…", "contentTypeId": "…", "fieldName": "author",
+      "fromDocumentId": "…" } ] } }
+```
+
+⚠️ **Des identités machine, jamais des libellés.** Le titre d'une entry est une
+**convention de console** — premier champ `text`, puis premier champ tout
+court, puis *Untitled*. Le résoudre côté serveur ferait fuir cette convention
+dans le contrat : le jour où un `displayField` explicite arrive, la forme du
+corps changerait. Le serveur énonce, chaque consommateur habille — et l'API de
+livraison reçoit le même corps sans hériter d'une décision d'interface.
+
+`fromDocumentId` dit **lequel des membres** d'un ensemble bloque, ce qu'un seul
+`documentId` ne dirait pas.
+
 ## Clés API
 
 Trois **types** de clés, et autant de clés qu'on veut de chaque type — chacune

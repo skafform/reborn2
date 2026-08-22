@@ -30,13 +30,37 @@ décrite plus bas :
 - Versionnage **adressé par contenu** — forme canonique RFC 8785, empreinte
   `sha256-1:`, versions dédupliquées par organization, journal en ajout seul,
   restauration par déplacement du pointeur ([ADR 0016](docs/adr/0016-versionnage-des-schemas-adresse-par-contenu.md))
-- Bibliothèque de schémas de l'organization, versionnée de même
+- Bibliothèque de schémas de l'organization, versionnée de même, **copiable**
+  dans un environnement, avec son **diagnostic de divergence à trois états** lu
+  par comparaison d'empreintes
   ([ADR 0018](docs/adr/0018-bibliotheque-de-schemas-table-separee.md))
+- **Documents** : une ligne, **deux pointeurs** (`current_hash`,
+  `published_hash`), Draft / Published / Changed **dérivés et jamais stockés**
+  ([ADR 0022](docs/adr/0022-document-a-deux-pointeurs.md))
+- **Références** entre documents : `data` fait foi, `document_references` en est
+  l'index **dérivé**, et l'invariant de clôture — *ce qui est publié ne pointe
+  que vers du publié* — garde les deux portes de la publication
+  ([ADR 0020](docs/adr/0020-references-entre-documents.md),
+  [ADR 0021](docs/adr/0021-ensemble-publie-clos-par-reference.md))
 
-**Pas encore** : la copie d'un schéma de bibliothèque dans un environnement et
-son diagnostic de divergence, puis les **documents** — avec les références
-entre eux, décidées mais non construites ([ADR 0020](docs/adr/0020-references-entre-documents.md),
-[ADR 0021](docs/adr/0021-ensemble-publie-clos-par-reference.md)).
+**Pas encore** : l'**écran** des entries dans la console (les routes existent),
+puis l'API de livraison (étape 7).
+
+⚠️ **Trois pièges du contenu, qui ne se devinent pas :**
+
+1. **Le nettoyage des versions de documents est synchrone**, dans la
+   transaction d'écriture — le contenu change des ordres de grandeur plus
+   souvent que les schémas, donc un « GC plus tard » serait une dette qui
+   grossit au rythme de l'usage. La **course perdue** (suppression refusée par
+   la clé étrangère) est un **succès silencieux**, et le `SAVEPOINT` est ce qui
+   permet à la transaction d'y survivre
+2. **Publier et dépublier portent sur un *ensemble***, même à un membre : deux
+   documents qui se référencent ne peuvent être publiés — ni dépubliés — un par
+   un
+3. **La validation a deux moments** : la **forme** à l'enregistrement, la
+   **complétude** (`required`) à la publication — deux modes Zod d'une seule
+   définition. Un brouillon au champ requis vide est l'état normal du travail
+   éditorial ([ADR 0017](docs/adr/0017-validation-a-l-ecriture-seulement.md))
 
 ⚠️ **La normalisation canonique et l'empreinte sont gelées.** `normalise.ts` et
 `fingerprint.ts` portent l'identité de chaque version stockée : un test qui
