@@ -11,7 +11,11 @@ import { createVerifiedUser } from "../test-support/users.ts";
 import {
   createDocument,
   deleteDocument,
+  discardDraft,
+  documentState,
   listDocuments,
+  publishDocuments,
+  unpublishDocuments,
   updateDocument,
 } from "./documents.ts";
 import { documentFingerprint } from "./fingerprint.ts";
@@ -21,9 +25,10 @@ import { deleteSchema } from "./schemas.ts";
 /**
  * Les documents (ADR 0022), contre la vraie base.
  *
- * ⚠️ **Aucune route ne les expose encore** — le jalon 6 les révélera. Ce qui
- * est éprouvé ici est le modèle, la transaction, et surtout le **nettoyage
- * synchrone** : sans lui, le magasin croîtrait sans borne dès le premier jour.
+ * ⚠️ **Aucune route ne les expose encore** — l'écran les révélera. Ce qui est
+ * éprouvé ici est le modèle et la transaction : le **nettoyage synchrone**,
+ * sans lequel le magasin croîtrait sans borne dès le premier jour, et les
+ * **trois états dérivés** de deux pointeurs.
  */
 
 describe("documents", () => {
@@ -344,6 +349,179 @@ describe("documents", () => {
     });
     assert.ok(listed.length > 0);
     assert.ok(listed.every((entry) => entry.schemaId === schemaId));
+  });
+
+  describe("les trois états, dérivés de deux pointeurs", () => {
+    const publish = (documentIds: readonly string[]) =>
+      publishDocuments({ actor, organizationId, environmentId, documentIds });
+
+    const stateOf = (row: { currentHash: string; publishedHash: string | null }) =>
+      documentState(row.currentHash, row.publishedHash);
+
+    it("va de brouillon à publié, puis à modifié, puis revient", async () => {
+      const created = await write({ title: "Cycle", words: 1 });
+      assert.equal(stateOf(created), "draft");
+
+      const [published] = await publish([created.id]);
+      assert.ok(published);
+      assert.equal(stateOf(published), "published");
+      assert.equal(published.publishedHash, created.currentHash);
+
+      const changed = await updateDocument({
+        actor,
+        organizationId,
+        environmentId,
+        documentId: created.id,
+        data: { title: "Cycle remanié", words: 2 },
+      });
+      assert.equal(stateOf(changed), "changed", "publié *et* modifié — le cas central");
+
+      const [again] = await publish([created.id]);
+      assert.ok(again);
+      assert.equal(stateOf(again), "published");
+    });
+
+    /**
+     * ⚠️ **Ce que le premier remaniement d'un document publié fait au
+     * nettoyage** : l'ancien `current_hash` est encore le `published_hash` de
+     * la **même ligne**. Un `DELETE` nu lèverait ici, à chaque sauvegarde —
+     * c'est le cas qui justifie le `NOT EXISTS` à côté de la clé étrangère.
+     */
+    it("garde la version publiée quand le brouillon s'en détache", async () => {
+      const created = await write({ title: "Servie", words: 1 });
+      const [published] = await publish([created.id]);
+      assert.ok(published);
+
+      await updateDocument({
+        actor,
+        organizationId,
+        environmentId,
+        documentId: created.id,
+        data: { title: "Servie, mais retouchée", words: 1 },
+      });
+
+      assert.equal(
+        (await versionsOf(published.publishedHash ?? "")).length,
+        1,
+        "le public la sert encore : elle doit vivre",
+      );
+    });
+
+    /**
+     * ⚠️ **La porte de complétude** (ADR 0017 raffiné) : un champ requis vide
+     * est l'état normal d'un brouillon, et ce qui interdit de le **servir**.
+     */
+    it("refuse de publier un document incomplet, en nommant le champ", async () => {
+      const incomplete = await write({ words: 9 });
+      await assert.rejects(
+        publish([incomplete.id]),
+        (error: Error & { status?: number; reason?: string; message: string }) =>
+          error.status === 422 &&
+          error.reason === "incomplete_document" &&
+          error.message.includes("title"),
+      );
+    });
+
+    it("refuse aussi un texte requis réduit à des espaces", async () => {
+      const blank = await write({ title: "   " });
+      await assert.rejects(
+        publish([blank.id]),
+        (error: Error & { reason?: string }) => error.reason === "incomplete_document",
+      );
+    });
+
+    /**
+     * ⚠️ **L'ensemble est publié ou ne l'est pas** — c'est ce qui rendra la
+     * publication groupée possible le jour d'un cycle (ADR 0021). Ici, un seul
+     * document incomplet suffit à ce que rien ne bouge.
+     */
+    it("ne publie rien du tout si un membre de l'ensemble est incomplet", async () => {
+      const good = await write({ title: "Prêt" });
+      const bad = await write({ words: 3 });
+
+      await assert.rejects(publish([good.id, bad.id]));
+
+      const [after] = await listDocuments({
+        actor,
+        organizationId,
+        environmentId,
+        schemaId,
+      }).then((rows) => rows.filter((row) => row.id === good.id));
+      assert.equal(stateOf(after ?? good), "draft", "la transaction a tout annulé");
+    });
+
+    it("dépublie, et oublie ce que plus personne ne sert", async () => {
+      const created = await write({ title: "Retirée" });
+      const [published] = await publish([created.id]);
+      assert.ok(published);
+
+      await updateDocument({
+        actor,
+        organizationId,
+        environmentId,
+        documentId: created.id,
+        data: { title: "Retirée, et remaniée" },
+      });
+
+      const [unpublished] = await unpublishDocuments({
+        actor,
+        organizationId,
+        environmentId,
+        documentIds: [created.id],
+      });
+      assert.ok(unpublished);
+      assert.equal(stateOf(unpublished), "draft");
+      assert.equal(
+        (await versionsOf(published.publishedHash ?? "")).length,
+        0,
+        "plus aucun pointeur ne la nomme",
+      );
+    });
+  });
+
+  describe("abandonner les modifications", () => {
+    it("remet le brouillon sur l'état publié, et oublie le sien", async () => {
+      const created = await write({ title: "Officielle" });
+      await publishDocuments({
+        actor,
+        organizationId,
+        environmentId,
+        documentIds: [created.id],
+      });
+
+      const changed = await updateDocument({
+        actor,
+        organizationId,
+        environmentId,
+        documentId: created.id,
+        data: { title: "Brouillon regretté" },
+      });
+      const abandoned = changed.currentHash;
+
+      const restored = await discardDraft({
+        actor,
+        organizationId,
+        environmentId,
+        documentId: created.id,
+      });
+
+      assert.deepEqual(restored.data, { title: "Officielle" });
+      assert.equal(restored.currentHash, restored.publishedHash);
+      assert.equal(
+        documentState(restored.currentHash, restored.publishedHash),
+        "published",
+      );
+      assert.equal((await versionsOf(abandoned)).length, 0, "le brouillon est oublié");
+    });
+
+    it("refuse quand rien n'a jamais été publié", async () => {
+      const created = await write({ title: "Jamais servie" });
+      await assert.rejects(
+        discardDraft({ actor, organizationId, environmentId, documentId: created.id }),
+        (error: Error & { status?: number; reason?: string }) =>
+          error.status === 409 && error.reason === "nothing_published",
+      );
+    });
   });
 
   /**

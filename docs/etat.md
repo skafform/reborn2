@@ -7,7 +7,7 @@ travail : où on en est, ce qui reste, par quoi commencer.
 
 Étapes 1 à 6a de la [feuille de route](roadmap.md), et beaucoup de socle
 depuis : rôles personnalisés, adhésions, routes de clés, chaîne du contrat,
-CI. **270 tests au vert**, typecheck et lint propres des deux côtés.
+CI. **278 tests au vert**, typecheck et lint propres des deux côtés.
 
 | | |
 |---|---|
@@ -705,6 +705,40 @@ sans le contrôle applicatif le refus remonterait en 500.
 documents — reliées par cette clé `RESTRICT`. Un test épingle que supprimer un
 projet fonctionne quand même, plutôt que de le découvrir au nettoyage d'une
 suite.
+
+**Jalon 4 fait** : `published_hash` bouge, les trois états sont **dérivés**
+(`documentState`), et les trois gestes existent — publier, dépublier,
+abandonner. 21 tests sur le module.
+
+⚠️ **Publier et dépublier prennent un ensemble dès aujourd'hui**, comme
+[ADR 0021](adr/0021-ensemble-publie-clos-par-reference.md) l'exige. L'ensemble
+n'a qu'un membre, mais la signature singulière obligerait à réécrire **les
+deux** gestes au premier cycle A↔B : ni A ni B ne peut alors être publié *ni
+dépublié* seul. Un test épingle la conséquence : un seul membre incomplet et
+**rien** ne bouge.
+
+⚠️ **Abandonner reste singulier**, et c'est le même argument retourné : ce
+geste ne change rien à l'ensemble publié, donc il n'a besoin ni d'en être un
+ni du contrôle de clôture.
+
+⚠️ **La clôture des références est la seule chose qui manque** — sa place est
+nommée dans `publishDocuments` et `unpublishDocuments`, entre les contrôles et
+le déplacement des pointeurs. Elle arrive avec les références.
+
+⚠️ **La porte de complétude est branchée** : `documentValidators().completeness`
+refuse un requis vide *ou réduit à des espaces*, en nommant le champ **et** le
+document.
+
+### Le jalon suivant — les références
+
+[ADR 0020](adr/0020-references-entre-documents.md) porte tout : sixième type de
+champ, `to` **par nom**, `data` fait foi, index dérivé, `RESTRICT` qui nomme
+les référents.
+
+⚠️ **Une précision que l'ADR ne dit pas** et qu'il faut tenir : la clé
+composite garantit que la cible **existe** et qu'elle est du **même
+environnement** — jamais que son type correspond au `to` du champ. C'est un
+contrôle applicatif à l'écriture.
 
 ⚠️ Quatre contraintes à ne pas perdre en l'écrivant :
 

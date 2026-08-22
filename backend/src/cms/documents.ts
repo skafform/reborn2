@@ -1,4 +1,4 @@
-import { and, asc, eq, sql } from "drizzle-orm";
+import { and, asc, eq, inArray, sql } from "drizzle-orm";
 import type { Actor } from "../auth/authorization.ts";
 import { requirePermission } from "../auth/escalation.ts";
 import { type Transaction, withContext } from "../db/client.ts";
@@ -13,11 +13,13 @@ import { documentValidators } from "./validate.ts";
  * Les documents d'un environnement : une ligne, deux pointeurs, aucun statut
  * stocké ([ADR 0022](../../../docs/adr/0022-document-a-deux-pointeurs.md)).
  *
- * ⚠️ **Ce module ne publie pas encore.** `published_hash` existe et sa clé
- * étrangère aussi, mais seul le jalon suivant le déplace — donc tout document
- * est ici un brouillon, et « abandonner les modifications » n'aurait rien à
- * abandonner. Ce qui vit ici : créer, enregistrer, lister, supprimer, et le
- * **nettoyage synchrone** qui accompagne les deux derniers.
+ * Créer, enregistrer, lister, supprimer, publier, dépublier, abandonner — et
+ * le **nettoyage synchrone** qui accompagne chaque déplacement de pointeur.
+ *
+ * ⚠️ **La clôture des références n'y est pas encore**, et c'est la seule
+ * chose qui manque : aucune référence n'existe avant le jalon des `documents`
+ * référencés. Sa place est nommée dans `publishDocuments` et
+ * `unpublishDocuments`, entre les contrôles et le déplacement.
  */
 
 export class DocumentError extends ServiceError {
@@ -262,5 +264,245 @@ export async function deleteDocument(input: {
     if (deleted.publishedHash && deleted.publishedHash !== deleted.currentHash) {
       await forgetVersion(tx, organizationId, deleted.publishedHash);
     }
+  });
+}
+
+/**
+ * L'état de publication, **dérivé** de la comparaison des deux pointeurs
+ * (ADR 0022). Jamais stocké : une colonne `status` ne pourrait pas exprimer
+ * *changed*, qui est le cas central du travail éditorial.
+ */
+export const DOCUMENT_STATES = ["draft", "published", "changed"] as const;
+export type DocumentState = (typeof DOCUMENT_STATES)[number];
+
+export function documentState(
+  currentHash: string,
+  publishedHash: string | null,
+): DocumentState {
+  if (!publishedHash) return "draft";
+  return publishedHash === currentHash ? "published" : "changed";
+}
+
+/**
+ * ⚠️ **La complétude, et elle seule, appartient à ce moment.** La forme a été
+ * vérifiée à l'enregistrement ; ce qui est demandé ici, c'est qu'un champ
+ * requis soit renseigné — mais le validateur de complétude **inclut** la
+ * forme, parce qu'un brouillon écrit sous une définition antérieure doit
+ * repasser la définition courante avant d'être servi au public
+ * ([ADR 0017](../../../docs/adr/0017-validation-a-l-ecriture-seulement.md)).
+ */
+async function rejectIncomplete(
+  tx: Transaction,
+  environmentId: string,
+  entries: readonly { id: string; schemaId: string; data: DocumentData }[],
+) {
+  for (const entry of entries) {
+    const [schema] = await tx
+      .select({ definition: schemas.definition })
+      .from(schemas)
+      .where(
+        and(eq(schemas.id, entry.schemaId), eq(schemas.environmentId, environmentId)),
+      );
+    if (!schema) {
+      throw new DocumentError(404, "unknown_schema", "type de contenu introuvable");
+    }
+
+    const result = documentValidators(schema.definition).completeness.safeParse(
+      entry.data,
+    );
+    if (!result.success) {
+      const named = result.error.issues
+        .map((issue) => issue.path.join(".") || "(racine)")
+        .join(", ");
+      throw new DocumentError(
+        422,
+        "incomplete_document",
+        `${entry.id} : champs manquants ou refusés — ${named}`,
+      );
+    }
+  }
+}
+
+/** Les documents nommés, ou un 404 qui dit lesquels manquent. */
+async function loadAll(
+  tx: Transaction,
+  environmentId: string,
+  documentIds: readonly string[],
+) {
+  const rows = await tx
+    .select(columns)
+    .from(documents)
+    .where(
+      and(
+        eq(documents.environmentId, environmentId),
+        inArray(documents.id, [...documentIds]),
+      ),
+    );
+
+  if (rows.length !== documentIds.length) {
+    const found = new Set(rows.map((row) => row.id));
+    const missing = documentIds.filter((id) => !found.has(id));
+    throw new DocumentError(
+      404,
+      "unknown_document",
+      `introuvable : ${missing.join(", ")}`,
+    );
+  }
+  return rows;
+}
+
+/**
+ * Publier : `published_hash := current_hash`, pour **un ensemble**.
+ *
+ * ⚠️ **L'ensemble n'est pas une anticipation, c'est la forme du contrôle**
+ * ([ADR 0021](../../../docs/adr/0021-ensemble-publie-clos-par-reference.md)).
+ * L'invariant est *ce qui est publié ne pointe que vers du publié* ; deux
+ * documents qui se référencent mutuellement ne peuvent être publiés que d'un
+ * seul geste, en vérifiant la clôture sur le **résultat** plutôt que document
+ * par document. Écrire ce service au singulier obligerait à le réécrire le
+ * jour du premier cycle — et à réécrire la dépublication avec, puisque ni A ni
+ * B ne pourrait alors être dépublié seul.
+ *
+ * ⚠️ **La seconde porte — la clôture — arrive avec les références** (jalon 5).
+ * Aucune référence n'existe encore : la vérifier aujourd'hui serait un contrôle
+ * sans rien à contrôler. Sa place est ici, entre la complétude et le
+ * déplacement des pointeurs.
+ */
+export async function publishDocuments(input: {
+  actor: Actor;
+  organizationId: string;
+  environmentId: string;
+  documentIds: readonly string[];
+}) {
+  const { actor, organizationId, environmentId, documentIds } = input;
+  requirePermission(actor, CMS_PERMISSIONS.contentPublish);
+  if (documentIds.length === 0) return [];
+
+  return withContext({ userId: actor.userId, organizationId }, async (tx) => {
+    const before = await loadAll(tx, environmentId, documentIds);
+    await rejectIncomplete(tx, environmentId, before);
+
+    const published = [];
+    for (const document of before) {
+      if (document.publishedHash === document.currentHash) {
+        published.push(document);
+        continue;
+      }
+
+      const [updated] = await tx
+        .update(documents)
+        .set({ publishedHash: document.currentHash, updatedAt: new Date() })
+        .where(eq(documents.id, document.id))
+        .returning(columns);
+      if (!updated) throw new DocumentError(404, "unknown_document", "introuvable");
+      published.push(updated);
+
+      // Ce que le public servait jusqu'ici peut n'être plus nommé par personne.
+      if (document.publishedHash) {
+        await forgetVersion(tx, organizationId, document.publishedHash);
+      }
+    }
+    return published;
+  });
+}
+
+/**
+ * Dépublier : `published_hash := NULL`, pour un ensemble — l'autre porte du
+ * même invariant.
+ *
+ * ⚠️ **Le refus de dépublier est la moitié qu'une formulation en règle aurait
+ * manquée** (ADR 0021) : « ne pas publier contre un brouillon » ne dit rien de
+ * la dépublication, et c'est pourtant le même trou par l'autre bout. Le
+ * contrôle arrive avec les références, ici même.
+ */
+export async function unpublishDocuments(input: {
+  actor: Actor;
+  organizationId: string;
+  environmentId: string;
+  documentIds: readonly string[];
+}) {
+  const { actor, organizationId, environmentId, documentIds } = input;
+  requirePermission(actor, CMS_PERMISSIONS.contentPublish);
+  if (documentIds.length === 0) return [];
+
+  return withContext({ userId: actor.userId, organizationId }, async (tx) => {
+    const before = await loadAll(tx, environmentId, documentIds);
+
+    const unpublished = [];
+    for (const document of before) {
+      if (!document.publishedHash) {
+        unpublished.push(document);
+        continue;
+      }
+
+      const [updated] = await tx
+        .update(documents)
+        .set({ publishedHash: null, updatedAt: new Date() })
+        .where(eq(documents.id, document.id))
+        .returning(columns);
+      if (!updated) throw new DocumentError(404, "unknown_document", "introuvable");
+      unpublished.push(updated);
+
+      await forgetVersion(tx, organizationId, document.publishedHash);
+    }
+    return unpublished;
+  });
+}
+
+/**
+ * Abandonner les modifications : `current_hash := published_hash`.
+ *
+ * ⚠️ **Aucun contrôle de clôture ici**, et ce n'est pas un oubli : ce geste ne
+ * change **rien à ce qui est publié**. L'ensemble publié est le même avant et
+ * après, donc l'invariant ne peut pas être rompu.
+ *
+ * ⚠️ **Singulier, contrairement aux deux gestes ci-dessus** — et c'est le même
+ * argument retourné : c'est parce qu'il ne touche pas l'ensemble publié qu'il
+ * n'a aucun besoin d'en être un.
+ */
+export async function discardDraft(input: {
+  actor: Actor;
+  organizationId: string;
+  environmentId: string;
+  documentId: string;
+}) {
+  const { actor, organizationId, environmentId, documentId } = input;
+  requirePermission(actor, CMS_PERMISSIONS.contentWrite);
+
+  return withContext({ userId: actor.userId, organizationId }, async (tx) => {
+    const [before] = await tx
+      .select(columns)
+      .from(documents)
+      .where(
+        and(eq(documents.id, documentId), eq(documents.environmentId, environmentId)),
+      );
+    if (!before) throw new DocumentError(404, "unknown_document", "introuvable");
+
+    if (!before.publishedHash) {
+      // Rien n'a jamais été publié : il n'y a pas d'état où revenir. Un 409
+      // plutôt qu'un no-op, parce que l'écran n'aurait pas dû l'offrir.
+      throw new DocumentError(409, "nothing_published", "aucun état publié où revenir");
+    }
+    if (before.publishedHash === before.currentHash) return before;
+
+    const [version] = await tx
+      .select({ data: documentVersions.data })
+      .from(documentVersions)
+      .where(eq(documentVersions.hash, before.publishedHash));
+    if (!version) throw new Error("published version missing from the store");
+
+    const [restored] = await tx
+      .update(documents)
+      .set({
+        data: version.data,
+        currentHash: before.publishedHash,
+        updatedAt: new Date(),
+      })
+      .where(eq(documents.id, documentId))
+      .returning(columns);
+    if (!restored) throw new DocumentError(404, "unknown_document", "introuvable");
+
+    await forgetVersion(tx, organizationId, before.currentHash);
+    return restored;
   });
 }
