@@ -237,7 +237,8 @@ export function listDocuments(input: {
   actor: Actor;
   organizationId: string;
   environmentId: string;
-  schemaId?: string;
+  /** Filtrer par type de contenu, ou tout rendre. */
+  schemaId?: string | undefined;
 }) {
   const { actor, organizationId, environmentId, schemaId } = input;
   // ⚠️ `content.read_draft`, pas `content.read` : cette liste est celle de la
@@ -357,17 +358,20 @@ export async function updateDocument(input: {
 async function rejectReferencedTarget(tx: Transaction, documentId: string) {
   const referrers = await tx
     .select({
-      source: documentReferences.sourceDocumentId,
-      field: documentReferences.fieldName,
+      documentId: documentReferences.sourceDocumentId,
+      contentTypeId: documents.schemaId,
+      fieldName: documentReferences.fieldName,
     })
     .from(documentReferences)
+    .innerJoin(documents, eq(documents.id, documentReferences.sourceDocumentId))
     .where(eq(documentReferences.targetDocumentId, documentId));
 
   if (referrers.length > 0) {
     throw new DocumentError(
       409,
       "referenced",
-      `référencé par ${referrers.map((r) => `${r.source}.${r.field}`).join(", ")}`,
+      `référencé par ${referrers.length} document(s)`,
+      { references: referrers },
     );
   }
 }
@@ -530,9 +534,10 @@ async function rejectUnclosedPublication(
 ) {
   const dangling = await tx
     .select({
-      source: documentReferences.sourceDocumentId,
-      field: documentReferences.fieldName,
-      target: documentReferences.targetDocumentId,
+      documentId: documentReferences.targetDocumentId,
+      contentTypeId: documents.schemaId,
+      fieldName: documentReferences.fieldName,
+      fromDocumentId: documentReferences.sourceDocumentId,
     })
     .from(documentReferences)
     .innerJoin(documents, eq(documents.id, documentReferences.targetDocumentId))
@@ -550,9 +555,8 @@ async function rejectUnclosedPublication(
     throw new DocumentError(
       409,
       "references_unpublished",
-      `pointe vers du non publié : ${dangling
-        .map((row) => `${row.source}.${row.field} → ${row.target}`)
-        .join(", ")}`,
+      `pointe vers ${dangling.length} document(s) non publié(s)`,
+      { references: dangling },
     );
   }
 }
@@ -568,9 +572,10 @@ async function rejectUnclosedUnpublication(
 ) {
   const orphaning = await tx
     .select({
-      source: documentReferences.sourceDocumentId,
-      field: documentReferences.fieldName,
-      target: documentReferences.targetDocumentId,
+      documentId: documentReferences.sourceDocumentId,
+      contentTypeId: documents.schemaId,
+      fieldName: documentReferences.fieldName,
+      toDocumentId: documentReferences.targetDocumentId,
     })
     .from(documentReferences)
     .innerJoin(documents, eq(documents.id, documentReferences.sourceDocumentId))
@@ -588,9 +593,8 @@ async function rejectUnclosedUnpublication(
     throw new DocumentError(
       409,
       "referenced_by_published",
-      `référencé depuis du publié : ${orphaning
-        .map((row) => `${row.source}.${row.field} → ${row.target}`)
-        .join(", ")}`,
+      `référencé depuis ${orphaning.length} document(s) publié(s)`,
+      { references: orphaning },
     );
   }
 }

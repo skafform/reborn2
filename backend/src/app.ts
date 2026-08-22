@@ -37,7 +37,16 @@ app.onError((error, c) => {
   // énumérait les classes et en avait déjà oublié une, ce qui transformait
   // chaque refus des clés API en 500 (services/service-error.ts).
   if (error instanceof ServiceError) {
-    return c.json({ error: error.message, reason: error.reason }, error.status);
+    // `details` ne sort que s'il existe : un refus sans faits ne doit pas
+    // porter une clé vide que chaque consommateur devrait apprendre à ignorer.
+    return c.json(
+      {
+        error: error.message,
+        reason: error.reason,
+        ...(error.details === undefined ? {} : { details: error.details }),
+      },
+      error.status,
+    );
   }
   // Définir `onError` retire à Hono le traitement par défaut : les
   // HTTPException doivent être reconverties explicitement, sinon elles

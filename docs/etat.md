@@ -7,7 +7,7 @@ travail : où on en est, ce qui reste, par quoi commencer.
 
 Étapes 1 à 6a de la [feuille de route](roadmap.md), et beaucoup de socle
 depuis : rôles personnalisés, adhésions, routes de clés, chaîne du contrat,
-CI. **290 tests au vert**, typecheck et lint propres des deux côtés.
+CI. **293 tests au vert**, typecheck et lint propres des deux côtés.
 
 | | |
 |---|---|
@@ -757,6 +757,52 @@ viser lui-même dès sa création.
 **`rebuildReferenceIndex` existe**, sans route : c'est ce qui rend « dette
 réparable » réel plutôt que théorique, et l'exploitation est un geste local
 ([ADR 0015](adr/0015-exploitation-hors-ligne-jamais-dans-l-application.md)).
+
+**Jalon 6, commit 1 fait** : le contrat d'erreur et les six routes
+`…/projects/{pid}/documents`. 44 chemins dans la spec, contrat régénéré.
+
+⚠️ **`ServiceError` porte désormais un `details` optionnel**, sérialisé par
+`onError` **seulement s'il existe** — une clé vide serait à ignorer partout.
+Il porte des **identités machine, jamais des libellés** : le titre d'une entry
+est une *convention de console*, et le résoudre côté serveur la ferait fuir
+dans le contrat d'API — le jour où un `displayField` explicite arrive, la forme
+du corps changerait. Le serveur énonce, chaque consommateur habille.
+
+⚠️ **Publier et dépublier sont des routes de projet, pas d'entry** : le corps
+porte `documentIds`, parce que la publication groupée est la seule issue aux
+cycles. Une route au singulier obligerait à en ajouter une seconde.
+
+⚠️ **`fromDocumentId` dans le refus de clôture** dit *lequel* des membres de
+l'ensemble bloque — ce qu'un seul `documentId` ne dirait pas.
+
+### Par quoi reprendre — l'écran (jalon 6, commit 2)
+
+Une section **Content** dans la barre latérale du projet, gardée par
+`content.read_draft`, **naviguée par type** : cliquer « Articles » → ses
+entries → l'éditeur. *Content types* reste l'administration de la structure.
+
+**Pourquoi séparées** : `schema.write` est tenu par `owner`/`admin`
+(organization) ; `content.write` l'est aussi par `editor`/`contributor`
+(**projet**) — deux populations distinctes se connectent, dont des externes au
+projet. Vérifié en base, pas supposé.
+
+⚠️ **Le rôle se manifeste par ce qui existe, jamais par ce qui est grisé** —
+c'est déjà la pratique (5 points de rendu en `canWrite &&`, aucun `disabled`),
+et le nouvel écran la continue.
+
+⚠️ **Le titre d'une entry, trois barreaux** : premier champ `text` → **premier
+champ tout court, rendu en chaîne** (« 2043 » distingue deux factures mieux que
+« Untitled a3f2 ») → *Untitled* + id court. Un `displayField` explicite est un
+ajout ultérieur, sans invalidation d'empreinte.
+
+⚠️ **L'URL d'un type porte son `id`**, jamais son nom — le nom se renomme.
+
+⚠️ **La console résout les titres du refus elle-même**, depuis `details`, avec
+la convention qu'elle possède. Une requête de plus est la frontière au bon
+endroit, pas un défaut.
+
+Reste aussi l'éditeur de champ `reference` dans le formulaire de content type
+(un sélecteur de type visé), et le sélecteur d'entry dans l'éditeur d'entry.
 
 ⚠️ Quatre contraintes à ne pas perdre en l'écrivant :
 

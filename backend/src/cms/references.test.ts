@@ -36,6 +36,7 @@ describe("références entre documents", () => {
   let authorType = "";
   let articleType = "";
   let schemaBase = "";
+  let documentBase = "";
   let cookie = "";
 
   const call = (path: string, cookie: string, init: RequestInit = {}) =>
@@ -89,6 +90,7 @@ describe("références entre documents", () => {
     const { id: projectId } = (await project.json()) as { id: string };
     environmentId = await masterEnvironment(userId, organizationId, projectId);
     schemaBase = `/api/organizations/${organizationId}/projects/${projectId}/schemas`;
+    documentBase = `/api/organizations/${organizationId}/projects/${projectId}/documents`;
     actor = await resolveActor(userId, organizationId);
 
     const author = await createSchema({
@@ -276,10 +278,12 @@ describe("références entre documents", () => {
           environmentId,
           documentId: hugo.id,
         }),
-        (error: Error & { status?: number; reason?: string; message: string }) =>
+        (error: Error & { status?: number; reason?: string; details?: unknown }) =>
           error.status === 409 &&
           error.reason === "referenced" &&
-          error.message.includes(article.id),
+          // ⚠️ Les faits vivent dans `details`, jamais dans la phrase : le
+          // message est pour un développeur, les identités pour un programme.
+          JSON.stringify(error.details).includes(article.id),
       );
     });
 
@@ -324,10 +328,10 @@ describe("références entre documents", () => {
           environmentId,
           documentIds: [article.id],
         }),
-        (error: Error & { status?: number; reason?: string; message: string }) =>
+        (error: Error & { status?: number; reason?: string; details?: unknown }) =>
           error.status === 409 &&
           error.reason === "references_unpublished" &&
-          error.message.includes(hugo.id),
+          JSON.stringify(error.details).includes(hugo.id),
       );
     });
 
@@ -417,10 +421,10 @@ describe("références entre documents", () => {
           environmentId,
           documentIds: [hugo.id],
         }),
-        (error: Error & { status?: number; reason?: string; message: string }) =>
+        (error: Error & { status?: number; reason?: string; details?: unknown }) =>
           error.status === 409 &&
           error.reason === "referenced_by_published" &&
-          error.message.includes(article.id),
+          JSON.stringify(error.details).includes(article.id),
       );
 
       const both = await unpublishDocuments({
@@ -430,6 +434,67 @@ describe("références entre documents", () => {
         documentIds: [hugo.id, article.id],
       });
       assert.equal(both.length, 2, "ensemble, plus rien de publié ne pointe vers eux");
+    });
+  });
+
+  /**
+   * Les routes, et surtout **la forme du refus**.
+   *
+   * ⚠️ **Des identités machine, jamais des libellés.** Le titre d'une entry est
+   * une *convention de console* — premier champ texte, puis premier champ tout
+   * court, puis « Untitled ». Le résoudre côté serveur la ferait fuir dans le
+   * contrat d'API, et le jour où un `displayField` explicite arrive, la forme
+   * du corps d'erreur changerait. Le serveur énonce, chaque consommateur
+   * habille.
+   */
+  describe("par la route", () => {
+    it("publie un ensemble et rend l'état dérivé", async () => {
+      const hugo = await write(authorType, { fullName: "Par la route" });
+      const response = await call(`${documentBase}/publish`, cookie, {
+        method: "POST",
+        body: JSON.stringify({ documentIds: [hugo.id] }),
+      });
+      assert.equal(response.status, 200);
+      const rows = (await response.json()) as { id: string; state: string }[];
+      assert.deepEqual(rows, [{ ...rows[0], id: hugo.id, state: "published" }]);
+      assert.ok(!("currentHash" in (rows[0] ?? {})), "les pointeurs ne sortent pas");
+    });
+
+    it("refuse en portant les faits, pas une phrase à découper", async () => {
+      const hugo = await write(authorType, { fullName: "Cité" });
+      const article = await write(articleType, { title: "Cite", author: hugo.id });
+
+      const response = await call(`${documentBase}/publish`, cookie, {
+        method: "POST",
+        body: JSON.stringify({ documentIds: [article.id] }),
+      });
+      assert.equal(response.status, 409);
+
+      const body = (await response.json()) as {
+        reason: string;
+        details?: { references: Record<string, string>[] };
+      };
+      assert.equal(body.reason, "references_unpublished");
+      // ⚠️ `fromDocumentId` compte : en publiant un ensemble, il dit **lequel**
+      // des membres bloque, ce qu'un seul `documentId` ne dirait pas.
+      assert.deepEqual(body.details?.references, [
+        {
+          documentId: hugo.id,
+          contentTypeId: authorType,
+          fieldName: "author",
+          fromDocumentId: article.id,
+        },
+      ]);
+    });
+
+    it("ne porte pas de `details` quand le refus n'a pas de faits", async () => {
+      const response = await call(`${documentBase}`, cookie, {
+        method: "POST",
+        body: JSON.stringify({ schemaId: articleType, data: { title: 42 } }),
+      });
+      assert.equal(response.status, 422);
+      const body = (await response.json()) as Record<string, unknown>;
+      assert.ok(!("details" in body), "une clé vide serait à ignorer partout");
     });
   });
 });

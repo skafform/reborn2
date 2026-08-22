@@ -7,6 +7,17 @@ import {
 import { masterEnvironment } from "../services/api-keys.ts";
 import { DefinitionSchema } from "./definition.ts";
 import {
+  createDocument,
+  DOCUMENT_STATES,
+  deleteDocument,
+  discardDraft,
+  documentState,
+  listDocuments,
+  publishDocuments,
+  unpublishDocuments,
+  updateDocument,
+} from "./documents.ts";
+import {
   createLibrarySchema,
   deleteLibrarySchema,
   listLibrarySchemaHistory,
@@ -497,6 +508,231 @@ cmsRoutes.openapi(
       actor: c.get("actor"),
       organizationId,
       librarySchemaId,
+    });
+    return c.body(null, 204);
+  },
+);
+
+/**
+ * Les entries d'un projet — le vocabulaire produit dit *entry*, la route dit
+ * `documents` (architecture/admin-ui.md).
+ */
+const documentParams = projectParams.extend({ documentId: z.uuid() });
+
+const DocumentSchema = z
+  .object({
+    id: z.uuid(),
+    schemaId: z.uuid(),
+    data: z.record(z.string(), z.unknown()),
+    /** ⚠️ Dérivé de la comparaison des deux pointeurs, jamais stocké. */
+    state: z.enum(DOCUMENT_STATES),
+    createdAt: z.date(),
+    updatedAt: z.date(),
+  })
+  .openapi("Document");
+
+const DocumentInput = z
+  .object({ data: z.record(z.string(), z.unknown()) })
+  .openapi("DocumentInput");
+
+/** Ce que la console reçoit, l'état dérivé posé une seule fois. */
+const withState = <T extends { currentHash: string; publishedHash: string | null }>(
+  row: T,
+) => {
+  const { currentHash, publishedHash, ...rest } = row;
+  return { ...rest, state: documentState(currentHash, publishedHash) };
+};
+
+cmsRoutes.openapi(
+  createRoute({
+    method: "get",
+    path: "/organizations/{organizationId}/projects/{projectId}/documents",
+    summary: "Les entries d'un projet",
+    middleware: [requireSession, requireOrganization] as const,
+    request: {
+      params: projectParams,
+      query: z.object({ schemaId: z.uuid().optional() }),
+    },
+    responses: { 200: json(z.array(DocumentSchema), "Liste") },
+  }),
+  async (c) => {
+    const { organizationId, projectId } = c.req.valid("param");
+    const environmentId = await masterEnvironment(
+      c.get("userId"),
+      organizationId,
+      projectId,
+    );
+    const rows = await listDocuments({
+      actor: c.get("actor"),
+      organizationId,
+      environmentId,
+      ...c.req.valid("query"),
+    });
+    return c.json(rows.map(withState));
+  },
+);
+
+cmsRoutes.openapi(
+  createRoute({
+    method: "post",
+    path: "/organizations/{organizationId}/projects/{projectId}/documents",
+    summary: "Créer une entry",
+    middleware: [requireSession, requireOrganization] as const,
+    request: {
+      params: projectParams,
+      body: {
+        content: {
+          "application/json": {
+            schema: DocumentInput.extend({ schemaId: z.uuid() }).openapi(
+              "NewDocumentInput",
+            ),
+          },
+        },
+      },
+    },
+    responses: { 201: json(DocumentSchema, "Créée") },
+  }),
+  async (c) => {
+    const { organizationId, projectId } = c.req.valid("param");
+    const environmentId = await masterEnvironment(
+      c.get("userId"),
+      organizationId,
+      projectId,
+    );
+    const created = await createDocument({
+      actor: c.get("actor"),
+      organizationId,
+      environmentId,
+      ...c.req.valid("json"),
+    });
+    return c.json(withState(created), 201);
+  },
+);
+
+cmsRoutes.openapi(
+  createRoute({
+    method: "put",
+    path: "/organizations/{organizationId}/projects/{projectId}/documents/{documentId}",
+    summary: "Enregistrer une entry",
+    middleware: [requireSession, requireOrganization] as const,
+    request: {
+      params: documentParams,
+      body: { content: { "application/json": { schema: DocumentInput } } },
+    },
+    responses: { 200: json(DocumentSchema, "Enregistrée") },
+  }),
+  async (c) => {
+    const { organizationId, projectId, documentId } = c.req.valid("param");
+    const environmentId = await masterEnvironment(
+      c.get("userId"),
+      organizationId,
+      projectId,
+    );
+    const updated = await updateDocument({
+      actor: c.get("actor"),
+      organizationId,
+      environmentId,
+      documentId,
+      data: c.req.valid("json").data,
+    });
+    return c.json(withState(updated));
+  },
+);
+
+/**
+ * ⚠️ **Le corps porte une liste, pas un identifiant** — l'adresse nomme le
+ * projet et non une entry. La publication groupée est la seule issue aux
+ * cycles ([ADR 0021](../../../docs/adr/0021-ensemble-publie-clos-par-reference.md)),
+ * et une route au singulier obligerait à en ajouter une seconde le jour venu.
+ */
+const documentSetInput = z
+  .object({ documentIds: z.array(z.uuid()).min(1).max(200) })
+  .openapi("DocumentSetInput");
+
+for (const gesture of [
+  { path: "publish", summary: "Publier des entries", run: publishDocuments },
+  { path: "unpublish", summary: "Dépublier des entries", run: unpublishDocuments },
+] as const) {
+  cmsRoutes.openapi(
+    createRoute({
+      method: "post",
+      path: `/organizations/{organizationId}/projects/{projectId}/documents/${gesture.path}`,
+      summary: gesture.summary,
+      middleware: [requireSession, requireOrganization] as const,
+      request: {
+        params: projectParams,
+        body: { content: { "application/json": { schema: documentSetInput } } },
+      },
+      responses: { 200: json(z.array(DocumentSchema), "L'ensemble") },
+    }),
+    async (c) => {
+      const { organizationId, projectId } = c.req.valid("param");
+      const environmentId = await masterEnvironment(
+        c.get("userId"),
+        organizationId,
+        projectId,
+      );
+      const rows = await gesture.run({
+        actor: c.get("actor"),
+        organizationId,
+        environmentId,
+        documentIds: c.req.valid("json").documentIds,
+      });
+      return c.json(rows.map(withState));
+    },
+  );
+}
+
+cmsRoutes.openapi(
+  createRoute({
+    method: "post",
+    path: "/organizations/{organizationId}/projects/{projectId}/documents/{documentId}/discard",
+    summary: "Abandonner les modifications d'une entry",
+    middleware: [requireSession, requireOrganization] as const,
+    request: { params: documentParams },
+    responses: { 200: json(DocumentSchema, "Revenue à l'état publié") },
+  }),
+  async (c) => {
+    const { organizationId, projectId, documentId } = c.req.valid("param");
+    const environmentId = await masterEnvironment(
+      c.get("userId"),
+      organizationId,
+      projectId,
+    );
+    return c.json(
+      withState(
+        await discardDraft({
+          actor: c.get("actor"),
+          organizationId,
+          environmentId,
+          documentId,
+        }),
+      ),
+    );
+  },
+);
+
+cmsRoutes.openapi(
+  createRoute({
+    method: "delete",
+    path: "/organizations/{organizationId}/projects/{projectId}/documents/{documentId}",
+    summary: "Supprimer une entry",
+    middleware: [requireSession, requireOrganization] as const,
+    request: { params: documentParams },
+    responses: { 204: { description: "Supprimée" } },
+  }),
+  async (c) => {
+    const { organizationId, projectId, documentId } = c.req.valid("param");
+    const environmentId = await masterEnvironment(
+      c.get("userId"),
+      organizationId,
+      projectId,
+    );
+    await deleteDocument({
+      actor: c.get("actor"),
+      organizationId,
+      environmentId,
+      documentId,
     });
     return c.body(null, 204);
   },

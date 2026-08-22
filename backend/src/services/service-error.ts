@@ -19,11 +19,27 @@ import type { ContentfulStatusCode } from "hono/utils/http-status";
 export class ServiceError extends Error {
   readonly status: ContentfulStatusCode;
   readonly reason: string;
+  /**
+   * Les **faits** du refus, quand il en a — jamais sa mise en forme.
+   *
+   * ⚠️ **Des identités machine, jamais des libellés.** « Référencé par ces
+   * documents-ci, par ces champs-là » est un fait ; le titre qu'un écran leur
+   * donne est une **convention de console**. Résoudre les titres ici les
+   * ferait fuir dans le contrat d'API, et la forme du corps changerait le jour
+   * où la convention change. Le serveur énonce, chaque consommateur habille.
+   */
+  readonly details?: unknown;
 
-  constructor(status: ContentfulStatusCode, reason: string, message: string) {
+  constructor(
+    status: ContentfulStatusCode,
+    reason: string,
+    message: string,
+    details?: unknown,
+  ) {
     super(message);
     this.name = new.target.name;
     this.status = status;
     this.reason = reason;
+    if (details !== undefined) this.details = details;
   }
 }
