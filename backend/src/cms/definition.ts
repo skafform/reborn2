@@ -24,6 +24,14 @@ import { z } from "@hono/zod-openapi";
  * longueur maximale plausible contre aucune, un champ filtrable contre un
  * corps de texte. Un drapeau `multiline` ferait rendre un même type de deux
  * façons : un indice d'affichage déguisé en type.
+ *
+ * ⚠️ **`date` est une date de calendrier, `YYYY-MM-DD`, jamais un datetime** —
+ * la même doctrine, prise par l'autre bout : accepter les deux écritures
+ * ferait un type à deux formes, dont chaque consommateur (le sélecteur, le
+ * tri, les filtres de plage) devrait deviner laquelle il tient. `datetime`
+ * sera un **futur type de champ** quand un cas réel le demandera — strict
+ * aujourd'hui s'élargit à coût nul, permissif aujourd'hui se resserre en
+ * migrant des données clients (`validate.ts`).
  */
 export const FIELD_TYPES = ["text", "longtext", "number", "boolean", "date"] as const;
 

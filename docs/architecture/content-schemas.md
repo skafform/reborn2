@@ -23,11 +23,25 @@
     ignorées tant qu'il n'y a qu'une langue — voir
     [localisation.md](./localisation.md)
 
-- La validation d'un document se fait côté API via un schéma Zod généré
-  dynamiquement à partir de la définition stockée dans `schemas`
-- ⚠️ **À l'écriture seulement, jamais à la lecture**
-  ([ADR 0017](../adr/0017-validation-a-l-ecriture-seulement.md)) — une lecture
-  rend ce qui est stocké
+- La validation d'un document se fait côté API via **deux schémas Zod générés
+  d'une seule traversée** de la définition stockée (`src/cms/validate.ts`) :
+  la **forme** à l'enregistrement, la **complétude** à la publication
+  ([ADR 0017](../adr/0017-validation-a-l-ecriture-seulement.md), raffiné)
+- ⚠️ **À l'écriture seulement, jamais à la lecture** — une lecture rend ce qui
+  est stocké
+- ⚠️ **Le vide est par type** : un `text`/`longtext` requis doit être non vide
+  *après trim* pour publier — sinon la règle se contourne d'un coup de barre
+  d'espace — mais `0` est un number complet et `false` un boolean complet.
+  Jamais de check falsy générique
+- ⚠️ **`date` est une date de calendrier** (`YYYY-MM-DD`, calendrier réel
+  vérifié), jamais un datetime — « le type décide du widget », et `datetime`
+  sera un futur type de champ. Une date malformée est une erreur de **forme**,
+  refusée à l'enregistrement
+- ⚠️ Un champ non renseigné est **absent, jamais `null`** — un `null` est
+  refusé bruyamment à la frontière, pas réécrit — et une clé hors définition
+  est **refusée en la nommant**, jamais supprimée en silence. Les validateurs
+  ne transforment rien : la sortie du parse est l'entrée, octet pour octet,
+  parce que l'empreinte du `data` est son identité
 
 ## Le schéma vit en base, pas dans le code
 

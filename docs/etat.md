@@ -7,7 +7,7 @@ travail : où on en est, ce qui reste, par quoi commencer.
 
 Étapes 1 à 6a de la [feuille de route](roadmap.md), et beaucoup de socle
 depuis : rôles personnalisés, adhésions, routes de clés, chaîne du contrat,
-CI. **239 tests au vert**, typecheck et lint propres des deux côtés.
+CI. **257 tests au vert**, typecheck et lint propres des deux côtés.
 
 | | |
 |---|---|
@@ -658,6 +658,25 @@ colonne se contredisent ; un `data` n'a pas de colonne avec laquelle être en
 désaccord. La règle « un champ non renseigné est **absent**, jamais `null` »
 appartient au validateur généré (jalon 2), qui refusera un `null` **à la
 frontière** plutôt que de le réécrire en silence.
+
+**Jalon 2 fait** : `src/cms/validate.ts` — les deux validateurs d'une seule
+traversée, 18 tests, aucun consommateur encore (le jalon 3 le branche). Deux
+décisions de contrat prises en discussion et gravées :
+
+- **`date` = date seule** (`YYYY-MM-DD`, calendrier réel vérifié — bissextiles
+  comprises). « Le type décide du widget », le précédent `text`/`longtext`
+  appliqué une fois de plus ; `datetime` sera un futur type de champ. Strict
+  s'élargit à coût nul, permissif se resserre en migrant des données clients
+- **`required` vide = incomplet, par type** : trim puis non-vide pour les
+  chaînes, et **jamais un check falsy générique** — `0` et `false` sont
+  complets. Les tests anti-falsy l'épinglent
+
+⚠️ Et trois refus qui font le contrat : `null` n'est jamais « non renseigné »
+(absent seulement), une clé hors définition est refusée **en la nommant**
+(jamais `z.object` nu, qui la supprimerait en silence), et **la complétude
+inclut la forme** — un brouillon enregistré sous une ancienne définition
+repasse la forme courante au moment de publier. Aucun transform nulle part :
+l'empreinte du `data` est son identité.
 
 ⚠️ Quatre contraintes à ne pas perdre en l'écrivant :
 
