@@ -1,6 +1,6 @@
 import { createHash, randomBytes } from "node:crypto";
 import { and, eq, isNull, or } from "drizzle-orm";
-import type { Actor, KeyActor } from "../auth/authorization.ts";
+import type { Actor } from "../auth/authorization.ts";
 import { requirePermission } from "../auth/escalation.ts";
 import { API_KEY_TOKEN_BYTES } from "../config/constants.ts";
 import { PERMISSIONS, type Permission } from "../config/permissions.ts";
@@ -18,6 +18,25 @@ import { ServiceError } from "./service-error.ts";
 
 export type ApiKeyKind = "public" | "preview" | "secret";
 
+/**
+ * Ce qu'une clé présentée identifie : un locataire, un environnement, et son
+ * type. Pas ses capacités — voir `resolveApiKey`.
+ */
+export type ResolvedApiKey = {
+  apiKeyId: string;
+  environmentId: string;
+  organizationId: string;
+  kind: ApiKeyKind;
+};
+
+/**
+ * Ce qu'un type de clé accorde.
+ *
+ * ⚠️ **Plus lu par ce module.** `resolveApiKey` rend désormais le `kind` sans
+ * l'interpréter : ce qu'un type de clé *veut dire* est une question de
+ * contenu, tranchée là où elle est vérifiée. La table attend son unique
+ * consommateur, l'API de livraison.
+ */
 export const API_KEY_PERMISSIONS: Record<ApiKeyKind, readonly Permission[]> = {
   /** Sites consommateurs : contenu publié seulement. */
   public: [PERMISSIONS.contentRead, PERMISSIONS.schemaRead],
@@ -228,8 +247,14 @@ export function masterEnvironment(
  * comme le jeton d'invitation, et la policy correspondante l'exprime.
  *
  * Une clé révoquée ne résout rien.
+ *
+ * ⚠️ **Rend le `kind`, sans l'interpréter.** Un type de clé est de
+ * l'infrastructure — trois chaînes dans une colonne — alors que ce qu'il
+ * *accorde* est du vocabulaire de contenu. Le socle stocke des types qu'il ne
+ * lit pas : c'est la bonne sorte d'ignorance, et elle vaut indépendamment de
+ * la frontière qu'elle permet.
  */
-export async function resolveApiKey(presented: string): Promise<KeyActor | null> {
+export async function resolveApiKey(presented: string): Promise<ResolvedApiKey | null> {
   const hashed = hashToken(presented);
 
   return withContext(
@@ -255,7 +280,7 @@ export async function resolveApiKey(presented: string): Promise<KeyActor | null>
         apiKeyId: row.id,
         environmentId: row.environmentId,
         organizationId: row.organizationId,
-        permissions: new Set(API_KEY_PERMISSIONS[row.kind]),
+        kind: row.kind,
       };
     },
   );

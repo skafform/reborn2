@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 import { after, before, describe, it } from "node:test";
 import { and, eq } from "drizzle-orm";
-import { keyCan, resolveActor } from "../auth/authorization.ts";
+import { resolveActor } from "../auth/authorization.ts";
 import { AuthorizationError } from "../auth/escalation.ts";
 import { auth } from "../auth.ts";
 import { PERMISSIONS } from "../config/permissions.ts";
@@ -10,6 +10,7 @@ import { closePool, withContext } from "../db/client.ts";
 import { organizationMembers, roles } from "../db/schema.ts";
 import { destroyOrganization, destroyUsers } from "../test-support/cleanup.ts";
 import {
+  API_KEY_PERMISSIONS,
   ApiKeyError,
   createApiKey,
   deleteApiKey,
@@ -98,44 +99,46 @@ describe("clés API", () => {
     });
   });
 
+  /**
+   * ⚠️ **Une table de correspondance, testée comme telle.** Ces quatre
+   * vérifications créaient une vraie clé et touchaient la base pour lire un
+   * `Record` de trois entrées — le fixture n'existait que pour atteindre une
+   * constante. Depuis que `resolveApiKey` rend le `kind` sans l'interpréter,
+   * ce qu'un type accorde se vérifie sans organization, sans projet et sans
+   * jeton.
+   */
   describe("capacités", () => {
-    it("la clé publique lit, mais n'écrit pas et ne voit pas les brouillons", async () => {
-      const { token } = await create("public");
-      const actor = await resolveApiKey(token);
-      assert.ok(actor);
-      assert.equal(keyCan(actor, PERMISSIONS.contentRead), true);
-      assert.equal(keyCan(actor, PERMISSIONS.contentReadDraft), false);
-      assert.equal(keyCan(actor, PERMISSIONS.contentWrite), false);
+    it("la clé publique lit, mais n'écrit pas et ne voit pas les brouillons", () => {
+      const granted = new Set(API_KEY_PERMISSIONS.public);
+      assert.equal(granted.has(PERMISSIONS.contentRead), true);
+      assert.equal(granted.has(PERMISSIONS.contentReadDraft), false);
+      assert.equal(granted.has(PERMISSIONS.contentWrite), false);
     });
 
-    it("la clé preview voit les brouillons, sans écrire", async () => {
-      const { token } = await create("preview");
-      const actor = await resolveApiKey(token);
-      assert.ok(actor);
-      assert.equal(keyCan(actor, PERMISSIONS.contentReadDraft), true);
-      assert.equal(keyCan(actor, PERMISSIONS.contentWrite), false);
+    it("la clé preview voit les brouillons, sans écrire", () => {
+      const granted = new Set(API_KEY_PERMISSIONS.preview);
+      assert.equal(granted.has(PERMISSIONS.contentReadDraft), true);
+      assert.equal(granted.has(PERMISSIONS.contentWrite), false);
     });
 
-    it("la clé secrète écrit et publie", async () => {
-      const { token } = await create("secret");
-      const actor = await resolveApiKey(token);
-      assert.ok(actor);
-      assert.equal(keyCan(actor, PERMISSIONS.contentWrite), true);
-      assert.equal(keyCan(actor, PERMISSIONS.contentPublish), true);
-      assert.equal(keyCan(actor, PERMISSIONS.schemaWrite), true);
+    it("la clé secrète écrit et publie", () => {
+      const granted = new Set(API_KEY_PERMISSIONS.secret);
+      assert.equal(granted.has(PERMISSIONS.contentWrite), true);
+      assert.equal(granted.has(PERMISSIONS.contentPublish), true);
+      assert.equal(granted.has(PERMISSIONS.schemaWrite), true);
     });
 
-    it("aucune clé ne touche à l'administration", async () => {
-      const { token } = await create("secret");
-      const actor = await resolveApiKey(token);
-      assert.ok(actor);
-      for (const permission of [
-        PERMISSIONS.memberManage,
-        PERMISSIONS.roleManage,
-        PERMISSIONS.apiKeyManage,
-        PERMISSIONS.orgDelete,
-      ] as const) {
-        assert.equal(keyCan(actor, permission), false, permission);
+    it("aucune clé ne touche à l'administration", () => {
+      for (const kind of ["public", "preview", "secret"] as const) {
+        const granted = new Set(API_KEY_PERMISSIONS[kind]);
+        for (const permission of [
+          PERMISSIONS.memberManage,
+          PERMISSIONS.roleManage,
+          PERMISSIONS.apiKeyManage,
+          PERMISSIONS.orgDelete,
+        ] as const) {
+          assert.equal(granted.has(permission), false, `${kind} / ${permission}`);
+        }
       }
     });
   });
@@ -143,13 +146,14 @@ describe("clés API", () => {
   describe("résolution", () => {
     it("une clé se résout sans contexte d'organization", async () => {
       const { token } = await create("public");
-      const actor = await resolveApiKey(token);
+      const resolved = await resolveApiKey(token);
       assert.equal(
-        actor?.organizationId,
+        resolved?.organizationId,
         organizationId,
         "la clé détermine le locataire, elle ne le suppose pas",
       );
-      assert.equal(actor?.environmentId, environmentId);
+      assert.equal(resolved?.environmentId, environmentId);
+      assert.equal(resolved?.kind, "public", "le type est rendu, pas interprété");
     });
 
     it("un jeton inconnu ne résout rien", async () => {
