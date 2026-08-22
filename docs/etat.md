@@ -7,7 +7,7 @@ travail : où on en est, ce qui reste, par quoi commencer.
 
 Étapes 1 à 6a de la [feuille de route](roadmap.md), et beaucoup de socle
 depuis : rôles personnalisés, adhésions, routes de clés, chaîne du contrat,
-CI. **190 tests au vert**, typecheck et lint propres des deux côtés.
+CI. **201 tests au vert**, typecheck et lint propres des deux côtés.
 
 | | |
 |---|---|
@@ -492,8 +492,24 @@ l'identité de chaque version.
    divergence, jamais une perte — et c'est ce que le tag rattrape si on change
    d'avis. Sa suite de tests **est la spécification** : un test qui rougit est
    un changement de format, donc un nouveau tag, pas une attente corrigée
-2. **Le hachage, avec son tag** : `sha256-1:<hex>`, jamais l'hexadécimal nu
-   ([ADR 0016](adr/0016-versionnage-des-schemas-adresse-par-contenu.md))
+2. ✅ **`src/cms/fingerprint.ts`** — fait, 11 tests dont des **vecteurs
+   littéraux** : une entrée en clair, un condensé en clair, tous deux vérifiés
+   hors du code (`printf … | sha256sum`) avant d'être écrits. C'est ce qui tient
+   `normalise.ts` et le tag d'accord, la séparation des deux fichiers étant
+   voulue.
+
+   ⚠️ **L'empreinte couvre `name`, `label` et `definition`** — pas la seule
+   définition, comme la documentation le laissait entendre. Les deux fonctions
+   du versionnage l'exigent : `label` est le champ conçu pour être modifié,
+   donc l'exclure protégerait le moins ce qui bouge le plus ; et une copie de
+   bibliothèque dont l'agence a localisé un libellé se lirait « identique ».
+   Le raisonnement complet est dans
+   [content-schemas.md](architecture/content-schemas.md#ce-qui-entre-dans-lempreinte).
+
+   ⚠️ **`label` est ramené à `null` dans `fingerprint.ts`**, jamais dans
+   `normalise.ts` : « un libellé absent vaut `null` » est une connaissance du
+   domaine schéma, et l'apprendre à la forme canonique la rendrait
+   particulière
 3. **`schema_versions`** — clé `(organization_id, hash)`, déduplication **par
    organization**, jamais globale
 4. **`schema_history`** — journal par schéma, en ajout seul. La lignée vit

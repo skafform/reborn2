@@ -70,6 +70,61 @@ plutôt qu'un détail :
 3. Le hachage porte un **tag d'algorithme** (`sha256-1:`) — geler la
    normalisation sans lui est une décision qui ne peut être fausse qu'une fois
 
+### Ce qui entre dans l'empreinte
+
+**Les trois : `name`, `label`, `definition`.** Ce document disait « sa
+définition normalisée », ce qui laissait entendre le seul JSONB — c'était un
+trou, et le combler n'est pas une préférence : les deux fonctions du
+versionnage l'exigent chacune.
+
+**La restauration.** Le motif fondateur est *« quelqu'un a cassé quelque chose
+par erreur, on restaure l'état exact »*. Or `label` est le champ conçu pour
+être modifié — il a été séparé de `name` exactement pour ça. Un versionnage qui
+ne couvre pas le champ le plus édité protège le moins ce qui bouge le plus. Une
+version qui ne peut pas restaurer le libellé n'est pas une version de l'état,
+c'est une version d'un fragment.
+
+**La divergence**, et c'est l'argument décisif. Le diagnostic à trois états lit
+l'égalité de hachage comme « identique ». Une copie de bibliothèque dont
+l'agence a localisé un libellé — `"Author"` devenu `"Auteur"`, le geste le plus
+banal qui soit — se lirait « identique » avec la définition seule. Un
+instrument aveugle à la personnalisation légitime la plus courante est faussé
+dès la première mesure.
+
+⚠️ **Ne pas confondre deux questions.** `definition.ts` porte le commentaire
+« ce schéma est hachable » : il parle de la **forme** d'une définition — pas de
+`Date`, pas de trou de tableau, pas deux écritures pour un sens — jamais du
+**périmètre** d'une version. Le commentaire répond à la première question ; ce
+paragraphe-ci répond à la seconde.
+
+### Où ça vit, et ce que le tag versionne
+
+| Fichier | Rôle |
+|---|---|
+| `src/cms/normalise.ts` | La forme canonique, **RFC 8785 (JCS)**. Générique, gelée, ignorante du CMS |
+| `src/cms/fingerprint.ts` | Le périmètre, la canonisation du libellé, le condensé et son tag |
+
+⚠️ **`label` est ramené à `null` dans `fingerprint.ts`, jamais dans
+`normalise.ts`.** L'API dit `string | undefined`, la colonne dit
+`string | null` : deux écritures d'un sens, donc deux empreintes si l'une ne
+l'emporte pas avant le hachage. Et « un libellé absent vaut `null` » est une
+connaissance du domaine schéma — l'apprendre à la forme canonique est
+exactement ce qui la rendrait particulière.
+
+⚠️ **Le tag `-1` versionne les deux ensemble.** Il ne nomme pas SHA-256, il
+nomme SHA-256 **et** la forme canonique. Si l'un ou l'autre change de sens,
+c'est le même incrément. Les deux fichiers sont séparés pour garder
+`normalise.ts` générique ; ce qui les tient d'accord n'est pas la cohabitation
+mais les **vecteurs littéraux** de `fingerprint.test.ts` — une entrée écrite en
+clair, un condensé écrit en clair, vérifiables hors du code :
+
+```
+printf '%s' '{"definition":{"fields":[]},"label":null,"name":"article"}' | sha256sum
+```
+
+Un vecteur qui rougit est un **changement de format**, donc un nouveau tag —
+jamais une attente corrigée.
+
 ## Bibliothèque de schémas de l'organization
 
 Une organization tient une bibliothèque de schémas que ses projets copient.

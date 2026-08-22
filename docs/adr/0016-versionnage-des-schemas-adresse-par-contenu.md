@@ -110,6 +110,19 @@ faux dès qu'il en manque un.
 sérialisation stable, **ordre des tableaux préservé** — c'est de la donnée. Sa
 suite de tests est ce qui protège tous les hachages déjà écrits.
 
+⚠️ **Précision apportée à l'implémentation (2026-08-22)** : « sa définition
+normalisée » se lit comme la définition seule, et c'est faux. L'empreinte
+couvre **`name`, `label` et `definition`** — les deux fonctions décrites
+ci-dessus l'exigent chacune : un libellé écrasé doit être restaurable, et une
+copie de bibliothèque dont le libellé a été localisé a divergé. Le périmètre
+exact et sa canonisation sont dans
+[content-schemas.md](../architecture/content-schemas.md#ce-qui-entre-dans-lempreinte).
+
+**La forme canonique est RFC 8785 (JCS)**, pas une règle maison — le format
+doit survivre à une réécriture dans un autre langage. Le tag `-1` versionne
+l'ensemble « SHA-256 + forme canonique », pas seulement l'algorithme de
+hachage.
+
 **Un retour accidentel à une définition antérieure produit le même hachage.**
 L'historique montre alors A → B → A, et le `created_at` de la version reste
 celui de sa **première** apparition. C'est voulu : la version est un contenu,
