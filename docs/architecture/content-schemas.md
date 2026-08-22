@@ -125,6 +125,65 @@ printf '%s' '{"definition":{"fields":[]},"label":null,"name":"article"}' | sha25
 Un vecteur qui rougit est un **changement de format**, donc un nouveau tag —
 jamais une attente corrigée.
 
+### Ce que le modèle rend structurel
+
+Chaque invariant conçu est devenu une contrainte, pas une discipline :
+
+| Invariant | Ce qui le tient |
+|---|---|
+| Le courant pointe toujours sur une version réelle | `schemas.current_hash` **`NOT NULL`** + clé étrangère composite vers `schema_versions` |
+| L'historique ne nomme jamais une version fantôme | Clé étrangère composite `(organization_id, hash)` sur le journal |
+| L'identité est le contenu | **Pas d'`id`** sur `schema_versions` : la clé primaire est `(organization_id, hash)` |
+| Rien ne traverse deux cadrages | `schemas (id, organization_id)` en unicité, cible de la clé du journal |
+
+⚠️ **Les deux tables n'ont que des policies `SELECT` et `INSERT`.** Une version
+est immuable, un journal est en ajout seul — l'absence de policy `UPDATE` ou
+`DELETE` le rend vrai plutôt que promis. La cascade fonctionne quand même :
+l'intégrité référentielle contourne RLS, et c'est **vérifié par un test**, pas
+supposé.
+
+⚠️ **`seq`, une colonne d'identité, porte l'ordre du journal** — pas
+`created_at`, qui vaut `now()`, l'horodatage de *début de transaction* que deux
+enregistrements concurrents peuvent partager. Elle n'est **jamais renvoyée** :
+une séquence globale dirait le volume d'écriture de la plateforme.
+
+### Trois conséquences à connaître
+
+**Restaurer, c'est remettre un état que *ce* schéma a eu.** Les versions étant
+dédupliquées par organization, une empreinte peut exister sans avoir jamais
+appartenu au schéma visé ; y aller serait une **affectation**, pas une
+restauration. Le service exige donc que le journal du schéma la nomme. Copier
+le modèle d'un autre est le rôle de la bibliothèque, avec sa propre notion de
+copie.
+
+⚠️ **Le nom fait partie de la version**, donc une restauration peut être
+refusée en 409 : un schéma créé entre-temps sous l'ancien nom occupe la place.
+
+**Le journal enregistre les changements d'état, pas les gestes.** Enregistrer
+une définition inchangée est un **no-op complet** — ni version, ni ligne, ni
+déplacement, et `updated_at` ne bouge pas. Quelqu'un qui clique « enregistrer »
+sans rien modifier ne laisse aucune trace dans la lignée. C'est voulu : un
+journal de gestes vides est du bruit, et la trace du geste appartient au
+journal d'audit ([ADR 0008](../adr/0008-point-d-emission-d-evenements-unique.md)).
+
+**Les versions survivent à leur schéma.** Supprimer un schéma emporte son
+journal en cascade, jamais ses versions : elles sont du contenu partagé par
+l'organization, et un autre schéma peut pointer sur la même ligne. C'est ce que
+Git fait de ses blobs.
+
+### L'acteur, et pourquoi il recoupe l'audit
+
+`schema_history` porte `actor_user_id`, ce qui recoupe le journal d'audit. Le
+recoupement est **assumé** : l'historique répond « quel état, dans quel ordre »,
+l'audit « qui a fait quoi » — mais un écran de lignée incapable de dire qui a
+restauré est inutilisable, et une jointure applicative vers l'audit par ligne
+d'écran paierait la pureté conceptuelle en complexité réelle. C'est de la
+dénormalisation d'usage, pas une duplication de responsabilité.
+
+`ON DELETE SET NULL` : l'histoire survit aux comptes. ⚠️ **L'écran doit donc
+afficher « utilisateur supprimé » plutôt qu'un blanc** — sinon le `SET NULL`
+ressemblera à un bug la première fois qu'il servira.
+
 ## Bibliothèque de schémas de l'organization
 
 Une organization tient une bibliothèque de schémas que ses projets copient.

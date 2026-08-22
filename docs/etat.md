@@ -7,7 +7,7 @@ travail : où on en est, ce qui reste, par quoi commencer.
 
 Étapes 1 à 6a de la [feuille de route](roadmap.md), et beaucoup de socle
 depuis : rôles personnalisés, adhésions, routes de clés, chaîne du contrat,
-CI. **201 tests au vert**, typecheck et lint propres des deux côtés.
+CI. **211 tests au vert**, typecheck et lint propres des deux côtés.
 
 | | |
 |---|---|
@@ -510,15 +510,47 @@ l'identité de chaque version.
    `normalise.ts` : « un libellé absent vaut `null` » est une connaissance du
    domaine schéma, et l'apprendre à la forme canonique la rendrait
    particulière
-3. **`schema_versions`** — clé `(organization_id, hash)`, déduplication **par
-   organization**, jamais globale
-4. **`schema_history`** — journal par schéma, en ajout seul. La lignée vit
-   ici, **jamais** en `parent_hash` sur la version
-5. **`schemas.current_hash`**, et la restauration : déplacer le pointeur,
-   ajouter une ligne d'historique, ne jamais réécrire le journal
+3. ✅ **`schema_versions`, `schema_history`, `schemas.current_hash`** — faits
+   **d'un seul geste** (migration 0029, 10 tests). Les trois ne se séparaient
+   pas : une table de versions que rien n'écrit est l'erreur que ce projet
+   nomme déjà — « créée, jamais remplie » — et restaurer, c'est déplacer le
+   pointeur **et** ajouter une ligne, un déplacement sans ligne étant une
+   réécriture silencieuse du journal.
 
-**Rien à rattraper** : aucun schéma n'existe encore chez personne. La version
+   Chaque invariant conçu est devenu **structurel** : le courant pointe
+   toujours sur une version réelle (`NOT NULL` + clé composite), l'historique
+   ne nomme jamais une version fantôme (clé composite), l'identité est le
+   contenu (pas d'`id` sur les versions). Détail dans
+   [content-schemas.md](architecture/content-schemas.md#ce-que-le-modèle-rend-structurel).
+
+   ⚠️ **Deux mécanismes vérifiés plutôt que supposés**, tous deux par un test :
+   une colonne d'identité écrite par le rôle applicatif — ni propriétaire, ni
+   superuser — et la **cascade qui traverse une table sans policy `DELETE`**.
+   Les deux tables n'ont que `SELECT` et `INSERT` : l'immuabilité d'une version
+   et le caractère « ajout seul » d'un journal sont vrais, pas promis.
+
+   ⚠️ **Restaurer exige que le journal de *ce* schéma nomme l'empreinte.** Les
+   versions étant dédupliquées par organization, aller vers une empreinte que
+   ce schéma n'a jamais eue serait une **affectation**, pas une restauration.
+
+   ⚠️ **Aucune route n'expose encore l'historique ni la restauration** — elles
+   viendront avec l'écran, comme le reste de l'API. `createSchema` et
+   `updateSchema`, eux, versionnent déjà par leurs routes existantes.
+
+**Rien à rattraper** : `select count(*) from schemas` rendait **0**, vérifié
+avant d'écrire `current_hash NOT NULL` sans valeur de repli. La version
 initiale et sa ligne d'historique font partie de la création.
+
+### Par quoi reprendre — maintenant
+
+**L'écran de lignée**, et les deux routes qu'il révélera : lire l'historique,
+restaurer une version. Aucune permission à ajouter — lire l'historique est une
+lecture de schéma, restaurer une écriture de schéma. ⚠️ L'écran doit afficher
+« utilisateur supprimé » quand `actor_user_id` est `NULL`, sinon le
+`ON DELETE SET NULL` ressemblera à un bug la première fois qu'il servira.
+
+Puis l'**étape 3** — `library_schemas`, la copie dans un environnement, et la
+divergence à trois états, qui se lit désormais par comparaison d'empreintes.
 
 ⚠️ Et un souhait resté en plan, qui aurait transformé une énigme en message :
 un contrôle au démarrage comparant le **registre de permissions** à la table
