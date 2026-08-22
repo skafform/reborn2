@@ -1,15 +1,20 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import type { Definition } from "./definition.ts";
-import { FINGERPRINT_TAG, fingerprint, type VersionedContent } from "./fingerprint.ts";
+import {
+  documentFingerprint,
+  FINGERPRINT_TAG,
+  fingerprint,
+  type VersionedContent,
+} from "./fingerprint.ts";
 import { normalise } from "./normalise.ts";
 
 /**
  * ⚠️ **The vectors below are the format, not examples of it.**
  *
- * A fingerprint is the identity of a stored schema version (ADR 0016), so a
- * digest that changes is a format change: it needs a new algorithm tag, never
- * a corrected expectation. The literals here are what makes that mechanical —
+ * A fingerprint is the identity of a stored version — of a schema (ADR 0016)
+ * or of a document (ADR 0022) — so a digest that changes is a format change:
+ * it needs a new algorithm tag, never a corrected expectation. The literals here are what makes that mechanical —
  * they are the only thing standing between an innocent edit to `normalise.ts`
  * and every fingerprint in every customer database meaning something else.
  *
@@ -190,6 +195,105 @@ describe("fingerprint — what does not move it", () => {
     assert.equal(
       fingerprint(JSON.parse(JSON.stringify(article))),
       fingerprint(article),
+    );
+  });
+});
+
+/**
+ * L'empreinte d'un document — le second périmètre, le même tag
+ * (ADR 0022). Mêmes règles qu'au-dessus : ces vecteurs **sont** le format, et
+ * chacun est vérifiable hors du code.
+ */
+describe("documentFingerprint — known answers", () => {
+  it("hashes an empty document", () => {
+    assert.equal(normalise({}), "{}");
+    assert.equal(
+      documentFingerprint({}),
+      "sha256-1:44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+    );
+  });
+
+  it("hashes a document with fields", () => {
+    const data = { title: "Hello", published: true, words: 42 };
+
+    assert.equal(normalise(data), '{"published":true,"title":"Hello","words":42}');
+    assert.equal(
+      documentFingerprint(data),
+      "sha256-1:91402fe26e1e461f955e7158f5afaa513102e40e5426782c62126700a55b6ff4",
+    );
+  });
+
+  /**
+   * ⚠️ **Le même tag que les schémas, et c'est voulu** : les deux empreintes
+   * sont SHA-256 sur la même forme canonique, donc elles s'incrémentent
+   * ensemble. Deux tags dériveraient.
+   */
+  it("carries the same tag as a schema fingerprint", () => {
+    assert.match(documentFingerprint({ a: 1 }), /^sha256-1:[0-9a-f]{64}$/);
+    assert.equal(FINGERPRINT_TAG, "sha256-1");
+  });
+});
+
+describe("documentFingerprint — what moves it", () => {
+  it("moves on any change to a value", () => {
+    const base = documentFingerprint({ title: "Hello" });
+    assert.notEqual(documentFingerprint({ title: "hello" }), base);
+    assert.notEqual(documentFingerprint({ title: "Hello!" }), base);
+    assert.notEqual(documentFingerprint({ heading: "Hello" }), base);
+    assert.notEqual(documentFingerprint({ title: "Hello", extra: null }), base);
+  });
+
+  /**
+   * ⚠️ **Absent et `null` sont deux empreintes**, contrairement au `label`
+   * d'un schéma — et c'est délibéré. Un `data` n'a pas de colonne avec
+   * laquelle être en désaccord : la règle « un champ non renseigné est absent,
+   * jamais `null` » appartient au validateur généré, qui refuse un `null` à la
+   * frontière plutôt que de le réécrire ici en silence.
+   */
+  it("keeps an absent key distinct from a null one", () => {
+    assert.notEqual(documentFingerprint({ subtitle: null }), documentFingerprint({}));
+  });
+});
+
+describe("documentFingerprint — what does not move it", () => {
+  it("ignores the order the keys were written in", () => {
+    assert.equal(
+      documentFingerprint({ words: 42, title: "Hello", published: true }),
+      documentFingerprint({ title: "Hello", published: true, words: 42 }),
+    );
+  });
+
+  /**
+   * Ce qu'une ligne relue de Postgres a traversé. Sans ça, un document
+   * s'empreindrait différemment à l'aller et au retour, et chaque document
+   * stocké paraîtrait modifié en permanence.
+   */
+  it("survives a JSON round trip", () => {
+    const data = { title: "Hello", tags: ["a", "b"], meta: { pinned: false } };
+    assert.equal(
+      documentFingerprint(JSON.parse(JSON.stringify(data))),
+      documentFingerprint(data),
+    );
+  });
+
+  /**
+   * ⚠️ **L'adressage dit *où* est le contenu, pas *ce qu'il est*** (ADR 0022).
+   * `locale` et `translation_group_id` sont des colonnes de la ligne : les
+   * inclure re-hacherait un contenu inchangé au premier changement de locale.
+   * Ce test épingle le périmètre en le passant à côté du `data`.
+   */
+  it("is unmoved by the addressing that surrounds the data", () => {
+    const data = { title: "Bonjour" };
+    const row = { data, locale: "fr", translationGroupId: "g-1" };
+
+    assert.equal(
+      documentFingerprint(row.data),
+      documentFingerprint({ title: "Bonjour" }),
+    );
+    assert.notEqual(
+      documentFingerprint(row.data),
+      documentFingerprint({ ...data, locale: "fr" }),
+      "la locale dans le `data` serait un autre contenu — elle n'a rien à y faire",
     );
   });
 });

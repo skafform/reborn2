@@ -7,7 +7,7 @@ travail : où on en est, ce qui reste, par quoi commencer.
 
 Étapes 1 à 6a de la [feuille de route](roadmap.md), et beaucoup de socle
 depuis : rôles personnalisés, adhésions, routes de clés, chaîne du contrat,
-CI. **231 tests au vert**, typecheck et lint propres des deux côtés.
+CI. **239 tests au vert**, typecheck et lint propres des deux côtés.
 
 | | |
 |---|---|
@@ -646,6 +646,18 @@ L'**étape 4** : les `documents`. Le modèle est **décidé**
 (`current_hash`, `published_hash`) vers un magasin `document_versions`,
 Draft/Published/Changed **dérivés**, jamais stockés. La livraison lit un champ,
 la console lit l'autre, zéro conditionnelle.
+
+**Jalon 1 fait** : `documentFingerprint` vit dans `fingerprint.ts`, à côté de
+celle des schémas — **même tag**, parce que les deux sont SHA-256 sur la même
+forme canonique et doivent s'incrémenter ensemble. Vecteurs littéraux vérifiés
+par `sha256sum` hors du code, comme les précédents.
+
+⚠️ **Pas de canonisation, contrairement à `fingerprint`** — et l'absence est une
+décision. Un `label` de schéma arrive en deux écritures parce que l'API et la
+colonne se contredisent ; un `data` n'a pas de colonne avec laquelle être en
+désaccord. La règle « un champ non renseigné est **absent**, jamais `null` »
+appartient au validateur généré (jalon 2), qui refusera un `null` **à la
+frontière** plutôt que de le réécrire en silence.
 
 ⚠️ Quatre contraintes à ne pas perdre en l'écrivant :
 

@@ -87,8 +87,9 @@ vigilance, et le test de concurrence qui le prouve vaut la peine d'exister.
 `translation_group_id` sont des colonnes de la ligne ; les mettre dans
 l'empreinte re-hacherait un contenu inchangé au premier changement de locale.
 Même famille que `label ?? null` : le périmètre est une connaissance du
-domaine, il vit dans un `documentFingerprint` à part, et `normalise.ts` — gelé
-— ne bouge pas.
+domaine, il vit dans une fonction `documentFingerprint` **distincte de celle
+des schémas** — mais sous le même tag, voir *Conséquences* — et
+`normalise.ts`, gelé, ne bouge pas.
 
 ### ⚠️ `data` sur la ligne et la version pointée sont le même contenu
 
@@ -128,6 +129,23 @@ additif plus tard.
 **Un magasin `document_versions`**, de la forme de `schema_versions` — cadré
 `(organization_id, hash)`, dédupliqué par organization pour la même raison de
 canal auxiliaire.
+
+⚠️ **Une table à part, et non `schema_versions` réutilisée**, alors que les
+deux ont la même forme et la même empreinte. La raison est le nettoyage : une
+version de schéma est retenue **pour toujours** par un journal en ajout seul ;
+une version de document n'est retenue que par deux pointeurs, et disparaît dès
+qu'ils la lâchent. Dans une table commune, le nettoyage des documents
+buterait sur les clés du journal des schémas — donc ne s'exécuterait jamais,
+en silence. Deux durées de vie, deux tables.
+
+⚠️ Une collision d'empreintes entre les deux est donc sans effet : les mêmes
+octets dans deux tables sont deux lignes, et rien ne les confond.
+
+**L'empreinte d'un document et celle d'un schéma partagent le tag**, et le même
+fichier : les deux sont SHA-256 sur la même forme canonique, donc elles
+s'incrémentent ensemble. Ce qui les distingue est le **périmètre**, qui est du
+domaine — la raison pour laquelle ni l'une ni l'autre ne vit dans
+`normalise.ts`.
 
 **Publier est le moment des deux vérifications** — complétude des champs
 ([ADR 0017](0017-validation-a-l-ecriture-seulement.md), raffiné en même temps

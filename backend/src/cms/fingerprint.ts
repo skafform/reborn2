@@ -3,8 +3,16 @@ import type { Definition } from "./definition.ts";
 import { normalise } from "./normalise.ts";
 
 /**
- * The identity of a schema version
- * ([ADR 0016](../../../docs/adr/0016-versionnage-des-schemas-adresse-par-contenu.md)).
+ * The identity of a stored version — of a schema
+ * ([ADR 0016](../../../docs/adr/0016-versionnage-des-schemas-adresse-par-contenu.md))
+ * or of a document
+ * ([ADR 0022](../../../docs/adr/0022-document-a-deux-pointeurs.md)).
+ *
+ * ⚠️ **Two scopes, one tag, one file.** Both fingerprints are SHA-256 over the
+ * same canonical form, so they must bump together; putting one of them in
+ * another module would put the tag out of sight of the function it governs.
+ * What differs between them is only the **scope** — which is domain knowledge,
+ * and why neither of them lives in `normalise.ts`.
  *
  * ⚠️ **The tag is not decoration.** `sha256-1:<hex>`, never bare hex. Freezing
  * a canonical form is a decision that can only be wrong once: a Unicode case
@@ -63,11 +71,36 @@ export type VersionedContent = {
  * general.
  */
 export function fingerprint(content: VersionedContent): string {
-  const canonical = normalise({
-    name: content.name,
-    label: content.label ?? null,
-    definition: content.definition,
-  });
-
-  return `${FINGERPRINT_TAG}:${createHash("sha256").update(canonical, "utf8").digest("hex")}`;
+  return digest(
+    normalise({
+      name: content.name,
+      label: content.label ?? null,
+      definition: content.definition,
+    }),
+  );
 }
+
+/**
+ * The identity of a document version: **its `data`, and nothing else**
+ * ([ADR 0022](../../../docs/adr/0022-document-a-deux-pointeurs.md)).
+ *
+ * ⚠️ **`locale` and `translation_group_id` are out, deliberately.** Addressing
+ * says *where* the content is, not *what it is* — putting them in would
+ * re-hash unchanged content the day a row's locale changes. That criterion is
+ * the reusable one; it is the same reasoning that keeps the schema scope to
+ * what a restore has to put back.
+ *
+ * ⚠️ **No canonicalisation here, unlike `fingerprint` above**, and the absence
+ * is a decision rather than an omission. A schema's `label` arrives in two
+ * writings because the API and the column disagree, so one has to win before
+ * hashing. A document's `data` has no column to disagree with: the rule that
+ * an unset optional field is **absent, never `null`** belongs to the validator
+ * generated from the definition, where a `null` is refused out loud at the
+ * boundary instead of being quietly rewritten here.
+ */
+export function documentFingerprint(data: Record<string, unknown>): string {
+  return digest(normalise(data));
+}
+
+const digest = (canonical: string) =>
+  `${FINGERPRINT_TAG}:${createHash("sha256").update(canonical, "utf8").digest("hex")}`;
