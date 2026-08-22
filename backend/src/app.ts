@@ -12,8 +12,13 @@ import { auth } from "./auth.ts";
  *
  * Le supprimer ne casse aucun typage. Ce qui l'attrape est le test de
  * `GET /api/permissions`, qui exige d'y voir `content.publish`.
+ *
+ * `cms/routes.ts` charge ce module par la chaîne d'imports, mais l'import
+ * explicite reste : il dit ce qui doit être enregistré, plutôt que de le faire
+ * dépendre d'un chemin d'import qui pourrait changer.
  */
 import "./cms/permissions.ts";
+import { cmsRoutes } from "./cms/routes.ts";
 import { env } from "./config/env.ts";
 import { managementRoutes } from "./http/routes.ts";
 import { previewRoutes } from "./mail/preview.ts";
@@ -73,6 +78,10 @@ const healthRoute = createRoute({
 app.openapi(healthRoute, (c) => c.json({ status: "ok" as const }));
 
 app.route("/api", managementRoutes);
+
+// ⚠️ Sous le même préfixe, et c'est voulu : un client ne voit qu'une API. La
+// séparation est une frontière de code, pas une frontière d'adresse.
+app.route("/api", cmsRoutes);
 
 // Prévisualisation des emails : jamais en production, elle expose la
 // structure des gabarits sans raison.

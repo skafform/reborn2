@@ -356,12 +356,6 @@ export const PostApiOrganizationsOrganizationIdRolesBody =
         ),
       permissions: /*#__PURE__*/ zod.array(
         /*#__PURE__*/ zod.enum([
-          "content.read",
-          "content.read_draft",
-          "content.write",
-          "content.publish",
-          "schema.read",
-          "schema.write",
           "member.read",
           "member.manage",
           "member.manage_admin",
@@ -374,6 +368,12 @@ export const PostApiOrganizationsOrganizationIdRolesBody =
           "org.billing",
           "org.transfer",
           "org.delete",
+          "content.read",
+          "content.read_draft",
+          "content.write",
+          "content.publish",
+          "schema.read",
+          "schema.write",
         ]),
       ),
     }),
@@ -459,12 +459,6 @@ export const PutApiOrganizationsOrganizationIdRolesRoleIdBody =
       ),
     permissions: /*#__PURE__*/ zod.array(
       /*#__PURE__*/ zod.enum([
-        "content.read",
-        "content.read_draft",
-        "content.write",
-        "content.publish",
-        "schema.read",
-        "schema.write",
         "member.read",
         "member.manage",
         "member.manage_admin",
@@ -477,6 +471,12 @@ export const PutApiOrganizationsOrganizationIdRolesRoleIdBody =
         "org.billing",
         "org.transfer",
         "org.delete",
+        "content.read",
+        "content.read_draft",
+        "content.write",
+        "content.publish",
+        "schema.read",
+        "schema.write",
       ]),
     ),
   });
@@ -777,3 +777,399 @@ export const PostApiInboxInvitationIdAcceptResponse = /*#__PURE__*/ zod.object({
   organizationId: /*#__PURE__*/ zod.uuid(),
   projectId: /*#__PURE__*/ zod.nullable(/*#__PURE__*/ zod.uuid()),
 });
+
+/**
+ * @summary Les types de contenu d'un projet
+ */
+export const GetApiOrganizationsOrganizationIdProjectsProjectIdSchemasParams =
+  /*#__PURE__*/ zod.object({
+    organizationId: /*#__PURE__*/ zod.uuid(),
+    projectId: /*#__PURE__*/ zod.uuid(),
+  });
+
+export const getApiOrganizationsOrganizationIdProjectsProjectIdSchemasResponseDefinitionFieldsItemNameMax = 64;
+
+export const getApiOrganizationsOrganizationIdProjectsProjectIdSchemasResponseDefinitionFieldsItemNameRegExp =
+  /^[a-zA-Z_][a-zA-Z0-9_]*$/;
+export const getApiOrganizationsOrganizationIdProjectsProjectIdSchemasResponseDefinitionFieldsItemLabelMax = 200;
+
+export const getApiOrganizationsOrganizationIdProjectsProjectIdSchemasResponseDefinitionFieldsMax = 200;
+
+export const GetApiOrganizationsOrganizationIdProjectsProjectIdSchemasResponseItem =
+  /*#__PURE__*/ zod.object({
+    id: /*#__PURE__*/ zod.uuid(),
+    name: /*#__PURE__*/ zod.string(),
+    label: /*#__PURE__*/ zod.nullable(/*#__PURE__*/ zod.string()),
+    definition: /*#__PURE__*/ zod.object({
+      fields: /*#__PURE__*/ zod
+        .array(
+          /*#__PURE__*/ zod.object({
+            name: /*#__PURE__*/ zod
+              .string()
+              .check(
+                /*#__PURE__*/ zod.maxLength(
+                  getApiOrganizationsOrganizationIdProjectsProjectIdSchemasResponseDefinitionFieldsItemNameMax,
+                ),
+              )
+              .check(
+                /*#__PURE__*/ zod.regex(
+                  getApiOrganizationsOrganizationIdProjectsProjectIdSchemasResponseDefinitionFieldsItemNameRegExp,
+                ),
+              ),
+            type: /*#__PURE__*/ zod.enum([
+              "text",
+              "longtext",
+              "number",
+              "boolean",
+              "date",
+            ]),
+            label: /*#__PURE__*/ zod.optional(
+              /*#__PURE__*/ zod
+                .string()
+                .check(/*#__PURE__*/ zod.minLength(1))
+                .check(
+                  /*#__PURE__*/ zod.maxLength(
+                    getApiOrganizationsOrganizationIdProjectsProjectIdSchemasResponseDefinitionFieldsItemLabelMax,
+                  ),
+                ),
+            ),
+            validation: /*#__PURE__*/ zod.object({
+              required: /*#__PURE__*/ zod.boolean(),
+            }),
+          }),
+        )
+        .check(
+          /*#__PURE__*/ zod.maxLength(
+            getApiOrganizationsOrganizationIdProjectsProjectIdSchemasResponseDefinitionFieldsMax,
+          ),
+        ),
+    }),
+    createdAt: /*#__PURE__*/ zod.iso.datetime({ offset: true }),
+    updatedAt: /*#__PURE__*/ zod.iso.datetime({ offset: true }),
+  });
+export const GetApiOrganizationsOrganizationIdProjectsProjectIdSchemasResponse =
+  /*#__PURE__*/ zod.array(
+    GetApiOrganizationsOrganizationIdProjectsProjectIdSchemasResponseItem,
+  );
+
+/**
+ * @summary Créer un type de contenu
+ */
+export const PostApiOrganizationsOrganizationIdProjectsProjectIdSchemasParams =
+  /*#__PURE__*/ zod.object({
+    organizationId: /*#__PURE__*/ zod.uuid(),
+    projectId: /*#__PURE__*/ zod.uuid(),
+  });
+
+export const postApiOrganizationsOrganizationIdProjectsProjectIdSchemasBodyNameMax = 64;
+
+export const postApiOrganizationsOrganizationIdProjectsProjectIdSchemasBodyNameRegExp =
+  /^[a-zA-Z_][a-zA-Z0-9_]*$/;
+export const postApiOrganizationsOrganizationIdProjectsProjectIdSchemasBodyLabelMax = 200;
+
+export const postApiOrganizationsOrganizationIdProjectsProjectIdSchemasBodyDefinitionFieldsItemNameMax = 64;
+
+export const postApiOrganizationsOrganizationIdProjectsProjectIdSchemasBodyDefinitionFieldsItemNameRegExp =
+  /^[a-zA-Z_][a-zA-Z0-9_]*$/;
+export const postApiOrganizationsOrganizationIdProjectsProjectIdSchemasBodyDefinitionFieldsItemLabelMax = 200;
+
+export const postApiOrganizationsOrganizationIdProjectsProjectIdSchemasBodyDefinitionFieldsMax = 200;
+
+export const PostApiOrganizationsOrganizationIdProjectsProjectIdSchemasBody =
+  /*#__PURE__*/ zod.object({
+    name: /*#__PURE__*/ zod
+      .string()
+      .check(
+        /*#__PURE__*/ zod.maxLength(
+          postApiOrganizationsOrganizationIdProjectsProjectIdSchemasBodyNameMax,
+        ),
+      )
+      .check(
+        /*#__PURE__*/ zod.regex(
+          postApiOrganizationsOrganizationIdProjectsProjectIdSchemasBodyNameRegExp,
+        ),
+      ),
+    label: /*#__PURE__*/ zod.nullable(
+      /*#__PURE__*/ zod
+        .string()
+        .check(/*#__PURE__*/ zod.minLength(1))
+        .check(
+          /*#__PURE__*/ zod.maxLength(
+            postApiOrganizationsOrganizationIdProjectsProjectIdSchemasBodyLabelMax,
+          ),
+        ),
+    ),
+    definition: /*#__PURE__*/ zod.object({
+      fields: /*#__PURE__*/ zod
+        .array(
+          /*#__PURE__*/ zod.object({
+            name: /*#__PURE__*/ zod
+              .string()
+              .check(
+                /*#__PURE__*/ zod.maxLength(
+                  postApiOrganizationsOrganizationIdProjectsProjectIdSchemasBodyDefinitionFieldsItemNameMax,
+                ),
+              )
+              .check(
+                /*#__PURE__*/ zod.regex(
+                  postApiOrganizationsOrganizationIdProjectsProjectIdSchemasBodyDefinitionFieldsItemNameRegExp,
+                ),
+              ),
+            type: /*#__PURE__*/ zod.enum([
+              "text",
+              "longtext",
+              "number",
+              "boolean",
+              "date",
+            ]),
+            label: /*#__PURE__*/ zod.optional(
+              /*#__PURE__*/ zod
+                .string()
+                .check(/*#__PURE__*/ zod.minLength(1))
+                .check(
+                  /*#__PURE__*/ zod.maxLength(
+                    postApiOrganizationsOrganizationIdProjectsProjectIdSchemasBodyDefinitionFieldsItemLabelMax,
+                  ),
+                ),
+            ),
+            validation: /*#__PURE__*/ zod.object({
+              required: /*#__PURE__*/ zod.boolean(),
+            }),
+          }),
+        )
+        .check(
+          /*#__PURE__*/ zod.maxLength(
+            postApiOrganizationsOrganizationIdProjectsProjectIdSchemasBodyDefinitionFieldsMax,
+          ),
+        ),
+    }),
+  });
+
+export const postApiOrganizationsOrganizationIdProjectsProjectIdSchemasResponseDefinitionFieldsItemNameMax = 64;
+
+export const postApiOrganizationsOrganizationIdProjectsProjectIdSchemasResponseDefinitionFieldsItemNameRegExp =
+  /^[a-zA-Z_][a-zA-Z0-9_]*$/;
+export const postApiOrganizationsOrganizationIdProjectsProjectIdSchemasResponseDefinitionFieldsItemLabelMax = 200;
+
+export const postApiOrganizationsOrganizationIdProjectsProjectIdSchemasResponseDefinitionFieldsMax = 200;
+
+export const PostApiOrganizationsOrganizationIdProjectsProjectIdSchemasResponse =
+  /*#__PURE__*/ zod.object({
+    id: /*#__PURE__*/ zod.uuid(),
+    name: /*#__PURE__*/ zod.string(),
+    label: /*#__PURE__*/ zod.nullable(/*#__PURE__*/ zod.string()),
+    definition: /*#__PURE__*/ zod.object({
+      fields: /*#__PURE__*/ zod
+        .array(
+          /*#__PURE__*/ zod.object({
+            name: /*#__PURE__*/ zod
+              .string()
+              .check(
+                /*#__PURE__*/ zod.maxLength(
+                  postApiOrganizationsOrganizationIdProjectsProjectIdSchemasResponseDefinitionFieldsItemNameMax,
+                ),
+              )
+              .check(
+                /*#__PURE__*/ zod.regex(
+                  postApiOrganizationsOrganizationIdProjectsProjectIdSchemasResponseDefinitionFieldsItemNameRegExp,
+                ),
+              ),
+            type: /*#__PURE__*/ zod.enum([
+              "text",
+              "longtext",
+              "number",
+              "boolean",
+              "date",
+            ]),
+            label: /*#__PURE__*/ zod.optional(
+              /*#__PURE__*/ zod
+                .string()
+                .check(/*#__PURE__*/ zod.minLength(1))
+                .check(
+                  /*#__PURE__*/ zod.maxLength(
+                    postApiOrganizationsOrganizationIdProjectsProjectIdSchemasResponseDefinitionFieldsItemLabelMax,
+                  ),
+                ),
+            ),
+            validation: /*#__PURE__*/ zod.object({
+              required: /*#__PURE__*/ zod.boolean(),
+            }),
+          }),
+        )
+        .check(
+          /*#__PURE__*/ zod.maxLength(
+            postApiOrganizationsOrganizationIdProjectsProjectIdSchemasResponseDefinitionFieldsMax,
+          ),
+        ),
+    }),
+    createdAt: /*#__PURE__*/ zod.iso.datetime({ offset: true }),
+    updatedAt: /*#__PURE__*/ zod.iso.datetime({ offset: true }),
+  });
+
+/**
+ * @summary Modifier un type de contenu
+ */
+export const PutApiOrganizationsOrganizationIdProjectsProjectIdSchemasSchemaIdParams =
+  /*#__PURE__*/ zod.object({
+    organizationId: /*#__PURE__*/ zod.uuid(),
+    projectId: /*#__PURE__*/ zod.uuid(),
+    schemaId: /*#__PURE__*/ zod.uuid(),
+  });
+
+export const putApiOrganizationsOrganizationIdProjectsProjectIdSchemasSchemaIdBodyNameMax = 64;
+
+export const putApiOrganizationsOrganizationIdProjectsProjectIdSchemasSchemaIdBodyNameRegExp =
+  /^[a-zA-Z_][a-zA-Z0-9_]*$/;
+export const putApiOrganizationsOrganizationIdProjectsProjectIdSchemasSchemaIdBodyLabelMax = 200;
+
+export const putApiOrganizationsOrganizationIdProjectsProjectIdSchemasSchemaIdBodyDefinitionFieldsItemNameMax = 64;
+
+export const putApiOrganizationsOrganizationIdProjectsProjectIdSchemasSchemaIdBodyDefinitionFieldsItemNameRegExp =
+  /^[a-zA-Z_][a-zA-Z0-9_]*$/;
+export const putApiOrganizationsOrganizationIdProjectsProjectIdSchemasSchemaIdBodyDefinitionFieldsItemLabelMax = 200;
+
+export const putApiOrganizationsOrganizationIdProjectsProjectIdSchemasSchemaIdBodyDefinitionFieldsMax = 200;
+
+export const PutApiOrganizationsOrganizationIdProjectsProjectIdSchemasSchemaIdBody =
+  /*#__PURE__*/ zod.object({
+    name: /*#__PURE__*/ zod
+      .string()
+      .check(
+        /*#__PURE__*/ zod.maxLength(
+          putApiOrganizationsOrganizationIdProjectsProjectIdSchemasSchemaIdBodyNameMax,
+        ),
+      )
+      .check(
+        /*#__PURE__*/ zod.regex(
+          putApiOrganizationsOrganizationIdProjectsProjectIdSchemasSchemaIdBodyNameRegExp,
+        ),
+      ),
+    label: /*#__PURE__*/ zod.nullable(
+      /*#__PURE__*/ zod
+        .string()
+        .check(/*#__PURE__*/ zod.minLength(1))
+        .check(
+          /*#__PURE__*/ zod.maxLength(
+            putApiOrganizationsOrganizationIdProjectsProjectIdSchemasSchemaIdBodyLabelMax,
+          ),
+        ),
+    ),
+    definition: /*#__PURE__*/ zod.object({
+      fields: /*#__PURE__*/ zod
+        .array(
+          /*#__PURE__*/ zod.object({
+            name: /*#__PURE__*/ zod
+              .string()
+              .check(
+                /*#__PURE__*/ zod.maxLength(
+                  putApiOrganizationsOrganizationIdProjectsProjectIdSchemasSchemaIdBodyDefinitionFieldsItemNameMax,
+                ),
+              )
+              .check(
+                /*#__PURE__*/ zod.regex(
+                  putApiOrganizationsOrganizationIdProjectsProjectIdSchemasSchemaIdBodyDefinitionFieldsItemNameRegExp,
+                ),
+              ),
+            type: /*#__PURE__*/ zod.enum([
+              "text",
+              "longtext",
+              "number",
+              "boolean",
+              "date",
+            ]),
+            label: /*#__PURE__*/ zod.optional(
+              /*#__PURE__*/ zod
+                .string()
+                .check(/*#__PURE__*/ zod.minLength(1))
+                .check(
+                  /*#__PURE__*/ zod.maxLength(
+                    putApiOrganizationsOrganizationIdProjectsProjectIdSchemasSchemaIdBodyDefinitionFieldsItemLabelMax,
+                  ),
+                ),
+            ),
+            validation: /*#__PURE__*/ zod.object({
+              required: /*#__PURE__*/ zod.boolean(),
+            }),
+          }),
+        )
+        .check(
+          /*#__PURE__*/ zod.maxLength(
+            putApiOrganizationsOrganizationIdProjectsProjectIdSchemasSchemaIdBodyDefinitionFieldsMax,
+          ),
+        ),
+    }),
+  });
+
+export const putApiOrganizationsOrganizationIdProjectsProjectIdSchemasSchemaIdResponseDefinitionFieldsItemNameMax = 64;
+
+export const putApiOrganizationsOrganizationIdProjectsProjectIdSchemasSchemaIdResponseDefinitionFieldsItemNameRegExp =
+  /^[a-zA-Z_][a-zA-Z0-9_]*$/;
+export const putApiOrganizationsOrganizationIdProjectsProjectIdSchemasSchemaIdResponseDefinitionFieldsItemLabelMax = 200;
+
+export const putApiOrganizationsOrganizationIdProjectsProjectIdSchemasSchemaIdResponseDefinitionFieldsMax = 200;
+
+export const PutApiOrganizationsOrganizationIdProjectsProjectIdSchemasSchemaIdResponse =
+  /*#__PURE__*/ zod.object({
+    id: /*#__PURE__*/ zod.uuid(),
+    name: /*#__PURE__*/ zod.string(),
+    label: /*#__PURE__*/ zod.nullable(/*#__PURE__*/ zod.string()),
+    definition: /*#__PURE__*/ zod.object({
+      fields: /*#__PURE__*/ zod
+        .array(
+          /*#__PURE__*/ zod.object({
+            name: /*#__PURE__*/ zod
+              .string()
+              .check(
+                /*#__PURE__*/ zod.maxLength(
+                  putApiOrganizationsOrganizationIdProjectsProjectIdSchemasSchemaIdResponseDefinitionFieldsItemNameMax,
+                ),
+              )
+              .check(
+                /*#__PURE__*/ zod.regex(
+                  putApiOrganizationsOrganizationIdProjectsProjectIdSchemasSchemaIdResponseDefinitionFieldsItemNameRegExp,
+                ),
+              ),
+            type: /*#__PURE__*/ zod.enum([
+              "text",
+              "longtext",
+              "number",
+              "boolean",
+              "date",
+            ]),
+            label: /*#__PURE__*/ zod.optional(
+              /*#__PURE__*/ zod
+                .string()
+                .check(/*#__PURE__*/ zod.minLength(1))
+                .check(
+                  /*#__PURE__*/ zod.maxLength(
+                    putApiOrganizationsOrganizationIdProjectsProjectIdSchemasSchemaIdResponseDefinitionFieldsItemLabelMax,
+                  ),
+                ),
+            ),
+            validation: /*#__PURE__*/ zod.object({
+              required: /*#__PURE__*/ zod.boolean(),
+            }),
+          }),
+        )
+        .check(
+          /*#__PURE__*/ zod.maxLength(
+            putApiOrganizationsOrganizationIdProjectsProjectIdSchemasSchemaIdResponseDefinitionFieldsMax,
+          ),
+        ),
+    }),
+    createdAt: /*#__PURE__*/ zod.iso.datetime({ offset: true }),
+    updatedAt: /*#__PURE__*/ zod.iso.datetime({ offset: true }),
+  });
+
+/**
+ * @summary Supprimer un type de contenu
+ */
+export const DeleteApiOrganizationsOrganizationIdProjectsProjectIdSchemasSchemaIdParams =
+  /*#__PURE__*/ zod.object({
+    organizationId: /*#__PURE__*/ zod.uuid(),
+    projectId: /*#__PURE__*/ zod.uuid(),
+    schemaId: /*#__PURE__*/ zod.uuid(),
+  });
+
+export const DeleteApiOrganizationsOrganizationIdProjectsProjectIdSchemasSchemaIdResponse =
+  /*#__PURE__*/ zod.void();

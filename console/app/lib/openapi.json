@@ -298,12 +298,6 @@
             "items": {
               "type": "string",
               "enum": [
-                "content.read",
-                "content.read_draft",
-                "content.write",
-                "content.publish",
-                "schema.read",
-                "schema.write",
                 "member.read",
                 "member.manage",
                 "member.manage_admin",
@@ -315,7 +309,13 @@
                 "org.settings",
                 "org.billing",
                 "org.transfer",
-                "org.delete"
+                "org.delete",
+                "content.read",
+                "content.read_draft",
+                "content.write",
+                "content.publish",
+                "schema.read",
+                "schema.write"
               ]
             }
           }
@@ -465,6 +465,97 @@
           }
         },
         "required": ["id", "organizationName", "projectName", "roleName", "expiresAt"]
+      },
+      "Schema": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string"
+          },
+          "label": {
+            "type": "string",
+            "nullable": true
+          },
+          "definition": {
+            "$ref": "#/components/schemas/SchemaDefinition"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": ["id", "name", "label", "definition", "createdAt", "updatedAt"]
+      },
+      "SchemaDefinition": {
+        "type": "object",
+        "properties": {
+          "fields": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SchemaField"
+            },
+            "maxItems": 200
+          }
+        },
+        "required": ["fields"]
+      },
+      "SchemaField": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "maxLength": 64,
+            "pattern": "^[a-zA-Z_][a-zA-Z0-9_]*$",
+            "example": "title"
+          },
+          "type": {
+            "type": "string",
+            "enum": ["text", "longtext", "number", "boolean", "date"]
+          },
+          "label": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "validation": {
+            "type": "object",
+            "properties": {
+              "required": {
+                "type": "boolean"
+              }
+            },
+            "required": ["required"]
+          }
+        },
+        "required": ["name", "type", "validation"]
+      },
+      "SchemaInput": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "maxLength": 64,
+            "pattern": "^[a-zA-Z_][a-zA-Z0-9_]*$"
+          },
+          "label": {
+            "type": "string",
+            "nullable": true,
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "definition": {
+            "$ref": "#/components/schemas/SchemaDefinition"
+          }
+        },
+        "required": ["name", "label", "definition"]
       }
     },
     "parameters": {}
@@ -1810,6 +1901,182 @@
                 }
               }
             }
+          }
+        }
+      }
+    },
+    "/api/organizations/{organizationId}/projects/{projectId}/schemas": {
+      "get": {
+        "summary": "Les types de contenu d'un projet",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "organizationId",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "projectId",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Liste",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Schema"
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "summary": "Créer un type de contenu",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "organizationId",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "projectId",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SchemaInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Créé",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Schema"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/organizations/{organizationId}/projects/{projectId}/schemas/{schemaId}": {
+      "put": {
+        "summary": "Modifier un type de contenu",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "organizationId",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "projectId",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "schemaId",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SchemaInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Modifié",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Schema"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "summary": "Supprimer un type de contenu",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "organizationId",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "projectId",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "schemaId",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Supprimé"
           }
         }
       }

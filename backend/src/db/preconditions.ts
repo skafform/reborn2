@@ -24,6 +24,7 @@ const GUARDED_TABLES = [
   "roles",
   "role_permissions",
   "organization_members",
+  "schemas",
 ] as const;
 
 export type PreconditionFailure = { check: string; detail: string };
