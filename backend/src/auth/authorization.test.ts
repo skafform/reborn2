@@ -90,25 +90,6 @@ async function addMemberWithRole(
   );
 }
 
-async function addProjectMember(
-  organizationId: string,
-  ownerId: string,
-  projectId: string,
-  userId: string,
-  roleName: string,
-) {
-  await withContext({ userId: ownerId, organizationId }, async (tx) => {
-    const [role] = await tx
-      .select()
-      .from(roles)
-      .where(and(eq(roles.organizationId, organizationId), eq(roles.name, roleName)));
-    assert.ok(role);
-    await tx
-      .insert(projectMembers)
-      .values({ projectId, organizationId, userId, roleId: role.id });
-  });
-}
-
 describe("autorisation", () => {
   let owner = "";
   let viewer = "";
@@ -163,19 +144,19 @@ describe("autorisation", () => {
   });
 
   describe("can()", () => {
-    it("laisse le owner écrire et publier", async () => {
+    it("laisse le owner tout faire", async () => {
       const actor = await resolveActor(owner, organizationId);
-      assert.equal(can(actor, PERMISSIONS.contentWrite), true);
-      assert.equal(can(actor, PERMISSIONS.contentPublish), true);
+      assert.equal(can(actor, PERMISSIONS.memberManage), true);
+      assert.equal(can(actor, PERMISSIONS.roleManage), true);
       assert.equal(can(actor, PERMISSIONS.orgDelete), true);
     });
 
-    it("empêche un viewer d'écrire", async () => {
+    it("laisse un viewer lire sans modifier", async () => {
       const actor = await resolveActor(viewer, organizationId);
-      assert.equal(can(actor, PERMISSIONS.contentRead), true);
-      assert.equal(can(actor, PERMISSIONS.contentReadDraft), true);
-      assert.equal(can(actor, PERMISSIONS.contentWrite), false);
-      assert.equal(can(actor, PERMISSIONS.contentPublish), false);
+      // C'est ce qui distingue `member.read` de `member.manage` : sans cette
+      // colonne, les deux n'en feraient qu'une (ADR 0004).
+      assert.equal(can(actor, PERMISSIONS.memberRead), true);
+      assert.equal(can(actor, PERMISSIONS.memberManage), false);
       assert.equal(can(actor, PERMISSIONS.projectCreate), false);
       assert.equal(can(actor, PERMISSIONS.orgSettings), false);
     });
@@ -188,19 +169,54 @@ describe("autorisation", () => {
     });
   });
 
+  /**
+   * ⚠️ **Le fixture est composé de vocabulaire du socle**, pas emprunté au CMS.
+   *
+   * Ces trois vérifications passaient par un `contributor` et `content.write`
+   * — les rôles de projet système ne détenant que du contenu. Elles
+   * affirmaient donc en creux « un contributor détient content.write », un
+   * fait du CMS, tout en prétendant éprouver la portée. Et elles seraient
+   * restées vertes si la résolution de portée avait cassé pour **toute**
+   * permission non liée au contenu, puisque aucune n'était exercée.
+   *
+   * Un rôle personnalisé de portée projet portant `member.read` éprouve la
+   * même mécanique — rôles personnalisés, résolution, `can()` — avec une clé
+   * que le socle possède. Rien ne lie une clé à une portée : c'est vérifié,
+   * `createRole` ne contraint que l'unicité du nom.
+   */
   describe("portée d'un membre de projet", () => {
-    let contributor = "";
+    let scoped = "";
     let otherProjectId = "";
 
     before(async () => {
-      contributor = await makeUser("contributor");
-      await addProjectMember(
-        organizationId,
-        owner,
-        projectId,
-        contributor,
-        "contributor",
+      scoped = await makeUser("scoped");
+
+      const roleId = await withContext(
+        { userId: owner, organizationId },
+        async (tx) => {
+          const [role] = await tx
+            .insert(roles)
+            .values({
+              organizationId,
+              scope: "project",
+              name: "annuaire du projet",
+              isSystem: false,
+            })
+            .returning({ id: roles.id });
+          assert.ok(role);
+          await tx
+            .insert(rolePermissions)
+            .values({ roleId: role.id, permissionKey: PERMISSIONS.memberRead });
+          return role.id;
+        },
       );
+
+      await withContext({ userId: owner, organizationId }, (tx) =>
+        tx
+          .insert(projectMembers)
+          .values({ projectId, organizationId, userId: scoped, roleId }),
+      );
+
       const other = await createProject({
         userId: owner,
         organizationId,
@@ -210,25 +226,25 @@ describe("autorisation", () => {
     });
 
     it("accorde ses droits dans le projet assigné", async () => {
-      const actor = await resolveActor(contributor, organizationId);
+      const actor = await resolveActor(scoped, organizationId);
       assert.equal(actor.grant?.scope, "project");
-      assert.equal(can(actor, PERMISSIONS.contentWrite, projectId), true);
+      assert.equal(can(actor, PERMISSIONS.memberRead, projectId), true);
       assert.equal(
-        can(actor, PERMISSIONS.contentPublish, projectId),
+        can(actor, PERMISSIONS.memberManage, projectId),
         false,
-        "un contributor ne publie pas",
+        "ce que le rôle ne porte pas reste refusé",
       );
     });
 
     it("les refuse dans un autre projet de la même organization", async () => {
-      const actor = await resolveActor(contributor, organizationId);
-      assert.equal(can(actor, PERMISSIONS.contentWrite, otherProjectId), false);
+      const actor = await resolveActor(scoped, organizationId);
+      assert.equal(can(actor, PERMISSIONS.memberRead, otherProjectId), false);
     });
 
     it("les refuse pour une action portant sur l'organization entière", async () => {
-      const actor = await resolveActor(contributor, organizationId);
+      const actor = await resolveActor(scoped, organizationId);
       assert.equal(
-        can(actor, PERMISSIONS.contentWrite),
+        can(actor, PERMISSIONS.memberRead),
         false,
         "sans projet cible, l'action vise l'organization",
       );
@@ -265,7 +281,7 @@ describe("autorisation", () => {
         "role creation is owner-only",
       );
       assert.throws(
-        () => requireCanDefineRole(actor, [PERMISSIONS.contentWrite]),
+        () => requireCanDefineRole(actor, [PERMISSIONS.memberRead]),
         /role\.manage/,
         "refused for lacking role.manage, not for over-granting",
       );
@@ -281,20 +297,15 @@ describe("autorisation", () => {
       const delegate = await makeUser("delegate");
       const roleId = await customRole(organizationId, owner, "role-keeper", [
         PERMISSIONS.roleManage,
-        PERMISSIONS.contentWrite,
+        PERMISSIONS.memberRead,
       ]);
       await addMemberWithRole(organizationId, owner, delegate, roleId);
       const actor = await resolveActor(delegate, organizationId);
 
-      assert.doesNotThrow(() =>
-        requireCanDefineRole(actor, [PERMISSIONS.contentWrite]),
-      );
+      assert.doesNotThrow(() => requireCanDefineRole(actor, [PERMISSIONS.memberRead]));
       assert.throws(
         () =>
-          requireCanDefineRole(actor, [
-            PERMISSIONS.contentWrite,
-            PERMISSIONS.orgDelete,
-          ]),
+          requireCanDefineRole(actor, [PERMISSIONS.memberRead, PERMISSIONS.orgDelete]),
         /org\.delete/,
         "a delegate cannot grant beyond the delegation",
       );
@@ -303,10 +314,7 @@ describe("autorisation", () => {
     it("laisse le owner définir un rôle avec ce qu'il détient", async () => {
       const actor = await resolveActor(owner, organizationId);
       assert.doesNotThrow(() =>
-        requireCanDefineRole(actor, [
-          PERMISSIONS.contentRead,
-          PERMISSIONS.contentWrite,
-        ]),
+        requireCanDefineRole(actor, [PERMISSIONS.memberRead, PERMISSIONS.memberManage]),
       );
     });
 
@@ -325,7 +333,7 @@ describe("autorisation", () => {
           requireCanAssignRole(admin, {
             name: "admin",
             isSystem: true,
-            permissions: [PERMISSIONS.contentRead],
+            permissions: [PERMISSIONS.memberRead],
           }),
         /member\.manage_admin/,
       );
@@ -335,7 +343,7 @@ describe("autorisation", () => {
           requireCanAssignRole(admin, {
             name: "viewer",
             isSystem: true,
-            permissions: [PERMISSIONS.contentRead],
+            permissions: [PERMISSIONS.memberRead],
           }),
         "un admin assigne bien les rôles non privilégiés",
       );
@@ -346,7 +354,7 @@ describe("autorisation", () => {
     it("échoue en 403 quand la ressource est visible mais l'action interdite", async () => {
       const actor = await resolveActor(viewer, organizationId);
       assert.throws(
-        () => requirePermission(actor, PERMISSIONS.contentWrite),
+        () => requirePermission(actor, PERMISSIONS.memberManage),
         (error: unknown) => {
           assert.ok(error instanceof AuthorizationError);
           assert.equal(error.status, 403);
