@@ -1,16 +1,15 @@
 import assert from "node:assert/strict";
+import "../test-support/bootstrap.ts";
 import { randomUUID } from "node:crypto";
 import { after, before, describe, it } from "node:test";
 import { and, eq } from "drizzle-orm";
 import { resolveActor } from "../auth/authorization.ts";
 import { AuthorizationError } from "../auth/escalation.ts";
 import { auth } from "../auth.ts";
-import { PERMISSIONS } from "../config/permissions.ts";
 import { closePool, withContext } from "../db/client.ts";
 import { organizationMembers, roles } from "../db/schema.ts";
 import { destroyOrganization, destroyUsers } from "../test-support/cleanup.ts";
 import {
-  API_KEY_PERMISSIONS,
   ApiKeyError,
   createApiKey,
   deleteApiKey,
@@ -96,50 +95,6 @@ describe("clés API", () => {
       assert.equal(stored?.token, null, "seul le hachage est conservé");
       assert.ok(stored?.hint.startsWith("sk_"), "le préfixe reste affichable");
       assert.ok(!stored?.hint.includes(token.slice(10)));
-    });
-  });
-
-  /**
-   * ⚠️ **Une table de correspondance, testée comme telle.** Ces quatre
-   * vérifications créaient une vraie clé et touchaient la base pour lire un
-   * `Record` de trois entrées — le fixture n'existait que pour atteindre une
-   * constante. Depuis que `resolveApiKey` rend le `kind` sans l'interpréter,
-   * ce qu'un type accorde se vérifie sans organization, sans projet et sans
-   * jeton.
-   */
-  describe("capacités", () => {
-    it("la clé publique lit, mais n'écrit pas et ne voit pas les brouillons", () => {
-      const granted = new Set(API_KEY_PERMISSIONS.public);
-      assert.equal(granted.has(PERMISSIONS.contentRead), true);
-      assert.equal(granted.has(PERMISSIONS.contentReadDraft), false);
-      assert.equal(granted.has(PERMISSIONS.contentWrite), false);
-    });
-
-    it("la clé preview voit les brouillons, sans écrire", () => {
-      const granted = new Set(API_KEY_PERMISSIONS.preview);
-      assert.equal(granted.has(PERMISSIONS.contentReadDraft), true);
-      assert.equal(granted.has(PERMISSIONS.contentWrite), false);
-    });
-
-    it("la clé secrète écrit et publie", () => {
-      const granted = new Set(API_KEY_PERMISSIONS.secret);
-      assert.equal(granted.has(PERMISSIONS.contentWrite), true);
-      assert.equal(granted.has(PERMISSIONS.contentPublish), true);
-      assert.equal(granted.has(PERMISSIONS.schemaWrite), true);
-    });
-
-    it("aucune clé ne touche à l'administration", () => {
-      for (const kind of ["public", "preview", "secret"] as const) {
-        const granted = new Set(API_KEY_PERMISSIONS[kind]);
-        for (const permission of [
-          PERMISSIONS.memberManage,
-          PERMISSIONS.roleManage,
-          PERMISSIONS.apiKeyManage,
-          PERMISSIONS.orgDelete,
-        ] as const) {
-          assert.equal(granted.has(permission), false, `${kind} / ${permission}`);
-        }
-      }
     });
   });
 

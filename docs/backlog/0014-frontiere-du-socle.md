@@ -1,6 +1,6 @@
 # 0014 — Poser la frontière du socle au premier module de CMS
 
-**État** : ouvert
+**État** : **fait** — 2026-08-22
 **Priorité** : 🔴 **Au premier fichier de l'étape 6b**, jamais après
 **Ouvert le** : 2026-08-21
 
@@ -118,6 +118,30 @@ créées**. Exactement le motif de la migration 0027, désactivation du trigger
 Les deux doivent rester d'accord, et **rien ne le vérifie aujourd'hui** — un
 contrôle de préconditions au démarrage serait le bon endroit
 ([backlog #0007](0007-amorcage-et-verification-db.md) fait déjà ça pour RLS).
+
+## 4 — ⚠️ Ce que poser la frontière a révélé
+
+Quatre découvertes, toutes de la même forme : **du code de socle utilisant une
+clé de contenu en passager** — un exemple attrapé parce qu'il était à portée,
+pas parce qu'il était le sujet. Aucune n'aurait été trouvée autrement.
+
+| Découverte | Ce que c'était vraiment |
+|---|---|
+| La visibilité d'un projet | ⚠️ **Un vrai défaut** : un rôle personnalisé sans `content.read` ne voyait aucun projet, donc jamais l'écran de clés pour lequel il existait |
+| La table des portées de clés | Le socle interprétait un type de clé. Meilleure conception une fois retirée, frontière ou pas |
+| Les tests de portée | Ils affirmaient en creux un fait du CMS, et seraient restés verts si la portée cassait pour toute clé non liée au contenu |
+| Le chargement des modules | Un processus qui ne passe pas par `app.ts` semait des rôles amputés, et l'échec ne ressemblait pas à sa cause |
+
+Le code de production n'avait que **deux** vrais accrochages. Tout le reste
+était dans les tests, qui prenaient la permission la plus proche sous la main.
+
+⚠️ **Le balayage a été fait avant le déménagement**, pas découvert au
+compilateur : chaque clé de contenu nommée dans `src/` a été classée en *sujet*
+(elle part), *passager* (réécrit en vocabulaire du socle) ou *donnée* (une
+chaîne qui traverse le fil — corps JSON, réponses — que le socle transporte
+sans en connaître le sens, comme un `kind` de clé). Les cinq dernières sont des
+données. La quatrième découverte, elle, a échappé au balayage : elle ne porte
+pas sur du vocabulaire nommé.
 
 ## 3 — Le tag
 

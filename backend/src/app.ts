@@ -1,6 +1,19 @@
 import { createRoute, OpenAPIHono, z } from "@hono/zod-openapi";
 import { HTTPException } from "hono/http-exception";
 import { auth } from "./auth.ts";
+/**
+ * ⚠️ **Import à effet de bord, et le seul du dépôt qui traverse la frontière.**
+ *
+ * Ce fichier est le point de composition : la seule place du socle autorisée à
+ * savoir que `src/cms/` existe, et la règle de lint l'exempte nommément. Sans
+ * cet import, le registre de permissions ne contiendrait pas le vocabulaire du
+ * contenu, et **une organization neuve naîtrait avec des rôles amputés**
+ * (ADR 0019).
+ *
+ * Le supprimer ne casse aucun typage. Ce qui l'attrape est le test de
+ * `GET /api/permissions`, qui exige d'y voir `content.publish`.
+ */
+import "./cms/permissions.ts";
 import { env } from "./config/env.ts";
 import { managementRoutes } from "./http/routes.ts";
 import { previewRoutes } from "./mail/preview.ts";

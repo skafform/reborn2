@@ -425,6 +425,20 @@ organization dès sa création — les adhésions passent donc devant.
 
 **Compléter l'API au fil de l'eau**, quand un écran révèle un manque.
 
+## La frontière du socle est posée
+
+`src/cms/` existe, et une règle Biome interdit à tout le reste de `src/` de
+l'importer — **éprouvée dans les deux sens** sur une sonde jetable. Le tag
+`avant-cms` marque le dernier commit avant le premier fichier de CMS.
+
+⚠️ **Deux points de composition sont exemptés, nommés** : `src/app.ts` pour le
+serveur, `src/test-support/bootstrap.ts` pour un processus de test. Ce n'est
+pas une exemption « pour les tests » — un fichier de test n'importe toujours
+pas `src/cms/`, il importe le bootstrap.
+
+Ce que la pose a révélé — quatre découvertes, dont un vrai défaut — est dans
+[backlog #0014](backlog/0014-frontiere-du-socle.md#4--️-ce-que-poser-la-frontière-a-révélé).
+
 ## Étape 6b — là où le CMS commence
 
 `schemas`, `documents`, API de livraison. **Trois décisions à prendre avant**,

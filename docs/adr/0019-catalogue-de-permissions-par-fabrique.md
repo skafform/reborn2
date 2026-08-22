@@ -101,9 +101,30 @@ aujourd'hui ni demain. Cette décision ne couvre qu'**une moitié du système**.
 donc c'est un vrai ralentisseur, pas un mur.
 
 ⚠️ **Le registre n'est complet que si les modules sont chargés.** Sans
-conséquence pour `can()` ; déterminant pour le semage des rôles, qui créerait
-des organizations aux rôles incomplets. Un contrôle de préconditions au
-démarrage — le registre contre la table `permissions` — reste à écrire.
+conséquence pour `can()` — on ne peut pas tenir une permission non
+enregistrée — mais **déterminant pour le semage des rôles**.
+
+Ça s'est vérifié en posant la frontière, et l'échec ne ressemblait pas à sa
+cause : les permissions de contenu parties dans `src/cms/`, un test qui appelle
+les services sans passer par `app.ts` semait un rôle `guest` **sans aucune
+permission**, dont le grant résolvait `null`. Le test qui a cassé parlait
+d'invitations.
+
+D'où **deux points de composition, nommés et exemptés de la règle d'import** :
+
+| Fichier | Le processus qu'il compose |
+|---|---|
+| `src/app.ts` | Le serveur |
+| `src/test-support/bootstrap.ts` | Un processus de test |
+
+⚠️ **Ce n'est pas une exemption « pour les tests ».** Un fichier de test n'a
+toujours pas le droit d'importer `src/cms/` — il importe le bootstrap. La
+catégorie exemptée est « ce qui compose un processus », qui compte deux membres
+et se lit dans `biome.json`.
+
+Un contrôle de préconditions au démarrage — le registre contre la table
+`permissions` — reste souhaitable : il transformerait cet échec en message
+plutôt qu'en énigme.
 
 **La matrice s'inverse** : les attributions passent de rôle → permissions à
 permission → rôles. Ça colle mieux à

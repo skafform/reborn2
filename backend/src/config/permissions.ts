@@ -140,51 +140,11 @@ export function permissionsOf(role: SystemRoleName): readonly Permission[] {
 // ---------------------------------------------------------------------------
 
 /**
- * ⚠️ **Le vocabulaire du contenu est encore ici**, alors qu'il appartient au
- * CMS. Le sortir n'est pas un déplacement de clés : `services/api-keys.ts` et
- * `services/organizations.ts` s'en **servent** — la portée d'une clé publique
- * *est* une liste de permissions de contenu, et la visibilité d'un projet est
- * gardée par `content.read`. Voir docs/backlog #0014.
+ * ⚠️ **Uniquement celles du socle.** Le vocabulaire du contenu — `content.*`,
+ * `schema.*` — vit dans `src/cms/permissions.ts`, et une règle de lint interdit
+ * à ce fichier de l'importer.
  */
 export const PERMISSIONS = {
-  contentRead: definePermission("content.read", {
-    description: "Read published content",
-    roles: ["admin", "viewer", "editor", "contributor", "guest"],
-  }),
-
-  contentReadDraft: definePermission("content.read_draft", {
-    description: "Read drafts",
-    roles: ["admin", "viewer", "editor", "contributor", "guest"],
-  }),
-
-  contentWrite: definePermission("content.write", {
-    description: "Create and edit content",
-    roles: ["admin", "editor", "contributor"],
-  }),
-
-  contentPublish: definePermission("content.publish", {
-    description: "Publish content",
-    // ⚠️ `contributor` en est exclu, et c'est toute la différence entre les
-    // deux rôles : écrire n'est pas publier.
-    roles: ["admin", "editor"],
-  }),
-
-  schemaRead: definePermission("schema.read", {
-    description: "Read content type definitions",
-    roles: ["admin", "viewer", "editor", "contributor", "guest"],
-  }),
-
-  /**
-   * ⚠️ Exclue à `editor`, même s'il peut écrire du contenu : modifier un
-   * schéma est un changement **structurel**, qui peut casser des documents
-   * existants — pas une modification de contenu
-   * (architecture/content-schemas.md).
-   */
-  schemaWrite: definePermission("schema.write", {
-    description: "Create and edit content types",
-    roles: ["admin"],
-  }),
-
   memberRead: definePermission("member.read", {
     description: "See who is in the organization",
     // Un `viewer` est « un admin sans écriture » : il voit l'équipe sans

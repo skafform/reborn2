@@ -17,6 +17,33 @@
       }
     }
   },
+  "overrides": [
+    {
+      "includes": [
+        "src/**",
+        "!src/cms/**",
+        "!src/app.ts",
+        "!src/test-support/bootstrap.ts"
+      ],
+      "linter": {
+        "rules": {
+          "style": {
+            "noRestrictedImports": {
+              "level": "error",
+              "options": {
+                "patterns": [
+                  {
+                    "group": ["**/cms/**"],
+                    "message": "Le socle ne dépend jamais du CMS. La flèche va dans un seul sens (ADR 0019). Seuls les deux points de composition — src/app.ts et src/test-support/bootstrap.ts — sont exemptés."
+                  }
+                ]
+              }
+            }
+          }
+        }
+      }
+    }
+  ],
   "formatter": {
     "enabled": true,
     "indentStyle": "space",

@@ -3,7 +3,7 @@ import { and, eq, isNull, or } from "drizzle-orm";
 import type { Actor } from "../auth/authorization.ts";
 import { requirePermission } from "../auth/escalation.ts";
 import { API_KEY_TOKEN_BYTES } from "../config/constants.ts";
-import { PERMISSIONS, type Permission } from "../config/permissions.ts";
+import { PERMISSIONS } from "../config/permissions.ts";
 import { withContext } from "../db/client.ts";
 import { apiKeys, environments, projects } from "../db/schema.ts";
 import { ServiceError } from "./service-error.ts";
@@ -27,34 +27,6 @@ export type ResolvedApiKey = {
   environmentId: string;
   organizationId: string;
   kind: ApiKeyKind;
-};
-
-/**
- * Ce qu'un type de clé accorde.
- *
- * ⚠️ **Plus lu par ce module.** `resolveApiKey` rend désormais le `kind` sans
- * l'interpréter : ce qu'un type de clé *veut dire* est une question de
- * contenu, tranchée là où elle est vérifiée. La table attend son unique
- * consommateur, l'API de livraison.
- */
-export const API_KEY_PERMISSIONS: Record<ApiKeyKind, readonly Permission[]> = {
-  /** Sites consommateurs : contenu publié seulement. */
-  public: [PERMISSIONS.contentRead, PERMISSIONS.schemaRead],
-  /** Prévisualisation : y compris les brouillons. */
-  preview: [
-    PERMISSIONS.contentRead,
-    PERMISSIONS.contentReadDraft,
-    PERMISSIONS.schemaRead,
-  ],
-  /** Scripts de migration : lecture, écriture, publication et schémas. */
-  secret: [
-    PERMISSIONS.contentRead,
-    PERMISSIONS.contentReadDraft,
-    PERMISSIONS.contentWrite,
-    PERMISSIONS.contentPublish,
-    PERMISSIONS.schemaRead,
-    PERMISSIONS.schemaWrite,
-  ],
 };
 
 const PREFIX: Record<ApiKeyKind, string> = {

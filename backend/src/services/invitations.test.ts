@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import "../test-support/bootstrap.ts";
 import { randomUUID } from "node:crypto";
 import { after, before, describe, it } from "node:test";
 import { and, eq, sql } from "drizzle-orm";
