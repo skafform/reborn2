@@ -246,6 +246,139 @@ describe("types de contenu", () => {
     });
   });
 
+  /**
+   * La copie depuis la bibliothèque, et le diagnostic à trois états
+   * ([ADR 0018](../../../docs/adr/0018-bibliotheque-de-schemas-table-separee.md)).
+   *
+   * ⚠️ **Tout se lit par comparaison d'empreintes**, jamais par un diff. Une
+   * copie fraîche et sa source pointent la **même ligne de version** — c'est ce
+   * que la table partagée achète, et c'est ce qui rend `identical` trivial.
+   */
+  describe("copie depuis la bibliothèque", () => {
+    let library = "";
+    let libraryId = "";
+    let copyId = "";
+
+    const listed = async () => {
+      const response = await call(base, owner);
+      return (await response.json()) as {
+        id: string;
+        name: string;
+        origin: { name: string; state: string } | null;
+      }[];
+    };
+
+    const originOf = async (id: string) =>
+      (await listed()).find((entry) => entry.id === id)?.origin ?? null;
+
+    before(async () => {
+      library = `/api/organizations/${organizationId}/library`;
+      const created = await call(library, owner, {
+        method: "POST",
+        body: JSON.stringify({
+          name: "shared",
+          label: "Shared",
+          definition: { fields: [field("title")] },
+        }),
+      });
+      libraryId = ((await created.json()) as { id: string }).id;
+    });
+
+    it("copie sous le nom de la bibliothèque, et la copie est identique", async () => {
+      const copied = await call(`${base}/copy`, owner, {
+        method: "POST",
+        body: JSON.stringify({ librarySchemaId: libraryId }),
+      });
+      assert.equal(copied.status, 201);
+      const copy = (await copied.json()) as { id: string; name: string };
+      copyId = copy.id;
+      assert.equal(copy.name, "shared", "le nom vient de la bibliothèque");
+
+      assert.deepEqual(await originOf(copyId), {
+        librarySchemaId: libraryId,
+        name: "shared",
+        state: "identical",
+      });
+    });
+
+    it("refuse une seconde copie, dont le nom est déjà pris", async () => {
+      const again = await call(`${base}/copy`, owner, {
+        method: "POST",
+        body: JSON.stringify({ librarySchemaId: libraryId }),
+      });
+      assert.equal(again.status, 409);
+    });
+
+    it("laisse `null` à un type créé directement", async () => {
+      const created = await call(base, owner, {
+        method: "POST",
+        body: JSON.stringify({
+          name: "homegrown",
+          label: null,
+          definition: { fields: [field("title")] },
+        }),
+      });
+      const { id } = (await created.json()) as { id: string };
+      assert.equal(
+        await originOf(id),
+        null,
+        "pas de provenance n'est pas une anomalie",
+      );
+    });
+
+    it("dit `library_ahead` quand la bibliothèque avance et que la copie ne bouge pas", async () => {
+      await call(`${library}/${libraryId}`, owner, {
+        method: "PUT",
+        body: JSON.stringify({
+          name: "shared",
+          label: "Shared",
+          definition: { fields: [field("title"), field("body", "longtext", false)] },
+        }),
+      });
+
+      const origin = await originOf(copyId);
+      assert.equal(origin?.state, "library_ahead");
+    });
+
+    /**
+     * ⚠️ **Ce troisième état en confond deux** — « seule la copie a bougé » et
+     * « les deux ont bougé ». Ici les deux ont bougé, et le diagnostic reste
+     * juste : l'empreinte de la copie n'est plus un état connu de la
+     * bibliothèque.
+     */
+    it("dit `locally_modified` dès que la copie sort de l'historique de sa source", async () => {
+      await call(`${base}/${copyId}`, owner, {
+        method: "PUT",
+        body: JSON.stringify({
+          name: "shared",
+          label: "Local",
+          definition: { fields: [field("title")] },
+        }),
+      });
+
+      const origin = await originOf(copyId);
+      assert.equal(origin?.state, "locally_modified");
+    });
+
+    /**
+     * ⚠️ **Le seul test qui éprouve le `ON DELETE SET NULL (copied_from)`**,
+     * écrit à la main dans la migration. Un `SET NULL` nu annulerait aussi
+     * `organization_id`, qui est `NOT NULL` : la suppression échouerait ici, au
+     * lieu de laisser la copie vivre sans provenance.
+     */
+    it("laisse la copie vivre quand son entrée de bibliothèque disparaît", async () => {
+      const removed = await call(`${library}/${libraryId}`, owner, {
+        method: "DELETE",
+      });
+      assert.equal(removed.status, 204, "supprimer ne doit pas buter sur la copie");
+
+      const rows = await listed();
+      const copy = rows.find((entry) => entry.id === copyId);
+      assert.ok(copy, "la copie survit à sa source");
+      assert.equal(copy.origin, null, "elle ne perd que sa provenance");
+    });
+  });
+
   it("ne montre rien à un étranger", async () => {
     const stranger = await createVerifiedUser("schema-etranger");
     users.push(stranger.id);

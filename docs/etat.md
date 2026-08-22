@@ -7,7 +7,7 @@ travail : où on en est, ce qui reste, par quoi commencer.
 
 Étapes 1 à 6a de la [feuille de route](roadmap.md), et beaucoup de socle
 depuis : rôles personnalisés, adhésions, routes de clés, chaîne du contrat,
-CI. **225 tests au vert**, typecheck et lint propres des deux côtés.
+CI. **231 tests au vert**, typecheck et lint propres des deux côtés.
 
 | | |
 |---|---|
@@ -170,6 +170,7 @@ planter.
 | `POST …/schemas/{id}/restore` | `schema.write` — restaurer en est une écriture |
 | `GET`/`POST `/organizations/{id}/library` | `schema.read` pour lire, `library.write` pour curer |
 | `PUT`/`DELETE …/library/{id}`, `…/history`, `…/restore` | idem — la lecture large, l'écriture à sa clé |
+| `POST …/projects/{pid}/schemas/copy` | `schema.read` **et** `schema.write` — aucune clé nouvelle |
 | `POST …/api-keys/{id}/revoke`, `DELETE …/api-keys/{id}` | idem — et la suppression exige la révocation |
 
 `/me` existe parce que **le nom du rôle ne suffit pas** : les rôles sont
@@ -470,7 +471,7 @@ n'existe pas. Les ajouter n'invalidera aucune empreinte.
 |---|---|
 | **2** | Versionnage — voir *Par quoi reprendre* ci-dessous |
 | **3a** | ✅ `library_schemas` — table, journal, versionnage, routes, écran |
-| **3b** | La copie dans un environnement, et la divergence à trois états |
+| **3b** | ✅ La copie dans un environnement, et la divergence à trois états |
 | **4** | `documents`, et les références **présentes dès sa conception** |
 
 ### Par quoi reprendre — l'étape 2, dans cet ordre
@@ -596,17 +597,42 @@ Deux morceaux de console **extraits au deuxième consommateur**, comme
 entre la lignée et son écran — `restore` et `schemaId` — et les deux
 `clientAction` les lisent sous ces noms-là.
 
+### La copie et la divergence — faites
+
+`schemas.copied_from` (migration 0031), `POST …/schemas/copy`, et le diagnostic
+rendu **par la liste** — chaque type de contenu porte son `origin`, `null` s'il
+a été créé directement.
+
+⚠️ **`ON DELETE SET NULL (copied_from)`, écrit à la main.** Drizzle ne sait pas
+exprimer la forme à liste de colonnes (PostgreSQL 15+, vérifié sur 17.10), et un
+`SET NULL` nu annulerait aussi `organization_id`, qui est `NOT NULL` : supprimer
+une entrée de bibliothèque **échouerait** au lieu de laisser ses copies vivre
+sans provenance. Un test l'éprouve — c'est le seul qui couvre cette clause.
+
+⚠️ **La clé et l'index sont *aussi* déclarés dans Drizzle**, avec une clause
+moins précise que celle réellement posée. Les omettre laisserait la prochaine
+génération les réémettre — le piège de la migration 0024.
+
+⚠️ **La copie prend le nom de la bibliothèque, sans possibilité de le changer.**
+Le nom fait partie de l'empreinte : une copie renommée à la naissance se lirait
+`locally_modified` avant que personne n'y touche. Un nom pris donne un 409.
+
+⚠️ **`locally_modified` en confond deux** — « seule la copie a bougé » et « les
+deux ont bougé ». L'écran affiche « Modified » avec une infobulle qui le dit en
+toutes lettres, pour ne pas le survendre.
+
+**Éprouvé plutôt qu'affirmé** : une sonde jetable a confirmé que l'état
+d'origine arrive dans la console comme une **union**
+(`"identical" | "library_ahead" | "locally_modified"`) et non comme `string` —
+ajouter un état côté serveur casse donc le typecheck de la console.
+
 ### Par quoi reprendre — maintenant
 
-**La copie et la divergence** : `schemas.copied_from` avec sa clé composite
-`(organization_id, copied_from)` — ⚠️ **le seul lien du modèle qui traverse
-deux niveaux de cadrage**, et ça doit se lire comme délibéré —, l'opération
-*copier dans un environnement*, et le diagnostic à trois états par comparaison
-d'empreintes.
-
-⚠️ Le troisième état s'appelle `locally_modified` et **non**
-`diverged_from_library` : il confond « seule la copie a bougé » et « les deux
-ont bougé », et aucun écran ne doit le survendre.
+L'**étape 4** : les `documents`. ⚠️ Les **références** y sont présentes dès la
+conception ([ADR 0020](adr/0020-references-entre-documents.md)), la table
+d'index naît **avec** `documents` et jamais avant, et la clôture du publié
+opère sur un **ensemble** dès le premier jour, même à un membre
+([ADR 0021](adr/0021-ensemble-publie-clos-par-reference.md)).
 
 ⚠️ Et un souhait resté en plan, qui aurait transformé une énigme en message :
 un contrôle au démarrage comparant le **registre de permissions** à la table
@@ -658,6 +684,13 @@ Dix items clos.
   contrôle de préconditions énumérait les tables à vérifier et en avait manqué
   **cinq sur treize**. La forme sûre est l'**exclusion** : on protège tout, on
   retire nommément, et chaque retrait porte sa justification
+- **Une contrainte écrite à la main doit *aussi* exister dans le schéma
+  Drizzle** — sinon la prochaine génération la réémet. La clause peut y être
+  moins précise que celle réellement posée ; ce qui compte est que le cliché la
+  connaisse
+- **`ON DELETE SET NULL` nu annule *toutes* les colonnes de la clé** — sur une
+  clé composite dont une colonne est `NOT NULL`, la suppression échoue. La
+  forme à liste de colonnes (PostgreSQL 15+) est ce qu'il faut
 - **`@better-auth/cli` génère un schéma périmé** — utiliser
   `scripts/migrate-auth.ts`
 - **drizzle-kit génère parfois un ordre invalide** — contrainte unique après la

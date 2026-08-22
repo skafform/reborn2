@@ -74,6 +74,28 @@ export const schemas = pgTable(
      * voulu : lire un schéma ne doit pas coûter une jointure.
      */
     currentHash: text("current_hash").notNull(),
+    /**
+     * D'où vient ce type de contenu, s'il a été copié de la bibliothèque
+     * ([ADR 0018](../../../docs/adr/0018-bibliotheque-de-schemas-table-separee.md)).
+     * `null` pour un type créé directement.
+     *
+     * ⚠️ **Le seul lien du modèle qui traverse deux niveaux de cadrage** :
+     * `schemas` est cadrée par environnement, `library_schemas` par
+     * organization. La clé est donc composite sur `(organization_id,
+     * copied_from)`, et ça doit se lire comme délibéré.
+     *
+     * ⚠️ **Apparier par le nom aurait cassé au premier renommage** — or c'est
+     * précisément « quels projets utilisent une version modifiée de ce
+     * schéma ? » qui doit rester fiable.
+     *
+     * ⚠️ **Son `ON DELETE SET NULL` ne porte que sur cette colonne**, et il est
+     * écrit à la main dans la migration : Drizzle ne sait pas exprimer la forme
+     * à liste de colonnes (PostgreSQL 15+), et un `SET NULL` nu annulerait
+     * aussi `organization_id`, qui est `NOT NULL` — la suppression d'une entrée
+     * de bibliothèque échouerait alors, au lieu de laisser ses copies vivre
+     * sans provenance.
+     */
+    copiedFrom: uuid("copied_from"),
     ...timestamps,
   },
   (table) => [
@@ -94,6 +116,21 @@ export const schemas = pgTable(
       foreignColumns: [schemaVersions.organizationId, schemaVersions.hash],
       name: "schemas_current_version_fk",
     }),
+    /**
+     * ⚠️ **Déclarée ici sans son `ON DELETE`, qui vit dans la migration.**
+     * Drizzle ne sait pas écrire la forme à liste de colonnes ; l'omettre du
+     * schéma laisserait en revanche la prochaine génération réémettre la
+     * contrainte — le piège de la migration 0024. Le cliché la connaît donc,
+     * avec une clause moins précise que celle réellement posée.
+     */
+    foreignKey({
+      columns: [table.organizationId, table.copiedFrom],
+      foreignColumns: [librarySchemas.organizationId, librarySchemas.id],
+      name: "schemas_copied_from_fk",
+    }),
+    // « Quelles copies viennent de cette entrée de bibliothèque ? » — la
+    // question pour laquelle la colonne existe.
+    index("schemas_copied_from_idx").on(table.organizationId, table.copiedFrom),
   ],
 );
 

@@ -202,10 +202,30 @@ Une organization tient une bibliothèque de schémas que ses projets copient.
 
 ### Ce qui est construit
 
-`library_schemas` et `library_schema_history` existent, avec le même
-versionnage que les types de contenu : empreinte, courant, journal en ajout
-seul, restauration par déplacement du pointeur. Reste la **copie** et le
-**diagnostic**.
+Tout : `library_schemas`, son journal, la **copie** et le **diagnostic**.
+
+La copie se fait par `POST …/projects/{pid}/schemas/copy`, avec le seul
+identifiant de l'entrée source dans le corps. ⚠️ **Elle prend le nom de la
+bibliothèque, sans possibilité de le changer** — le nom fait partie de
+l'empreinte, donc une copie renommée à la naissance se lirait
+`locally_modified` avant que personne n'y touche. Un nom déjà pris dans
+l'environnement donne un 409 qui le nomme.
+
+⚠️ **Aucune version n'est écrite à la copie** : elle existe déjà, posée par la
+bibliothèque. C'est tout l'intérêt de la table partagée — une copie fraîche et
+sa source désignent la **même ligne**, donc `identical` est une égalité de
+chaînes et non un diff.
+
+Le diagnostic est rendu **par la liste** des types de contenu : chacun porte un
+`origin`, `null` s'il a été créé directement. Le second état tient dans un seul
+`EXISTS` sur le journal de la bibliothèque.
+
+⚠️ **La provenance disparaît sans emporter la copie.** La clé porte
+`ON DELETE SET NULL (copied_from)` — la forme à **liste de colonnes**, écrite à
+la main dans la migration parce que Drizzle ne sait pas l'exprimer. Un
+`SET NULL` nu annulerait aussi `organization_id`, qui est `NOT NULL` :
+supprimer une entrée de bibliothèque échouerait, au lieu de laisser ses copies
+vivre sans provenance comme cette décision le demande.
 
 ⚠️ **`schema_versions` est partagée avec `schemas`, le journal non.** Le
 partage n'est pas une économie de table : « le hachage de la copie est-il dans

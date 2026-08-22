@@ -109,11 +109,10 @@ ajustement de rôle, pas une chirurgie du catalogue. Voir
 
 ## Ce qui est construit (2026-08-22)
 
-`library_schemas`, son journal `library_schema_history`, six routes et un écran.
-La bibliothèque se versionne comme le reste. **Restent** la copie dans un
-environnement, `schemas.copied_from`, et le diagnostic à trois états.
+Tout : `library_schemas` et son journal, la copie, `schemas.copied_from`, et le
+diagnostic à trois états rendu par la liste des types de contenu.
 
-Deux points que l'implémentation a précisés, et qui ne se déduisaient pas de
+Trois points que l'implémentation a précisés, et qui ne se déduisaient pas de
 cette décision :
 
 ⚠️ **`schema_versions` est partagée entre bibliothèque et types de contenu ; le
@@ -130,6 +129,19 @@ rattachement, table de journal — coûterait plus à lire que les deux versions
 les deux cas divergent déjà. Ce qui est partagé l'est parce que c'est le même
 objet : `fingerprint` et la table des versions.
 
+⚠️ **`ON DELETE SET NULL` sur `copied_from` doit porter une liste de
+colonnes.** « Les copies perdent leur provenance » supposait cette clause ; la
+forme nue aurait annulé aussi `organization_id`, qui est `NOT NULL`, et la
+suppression d'une entrée de bibliothèque aurait **échoué**. La forme à liste
+existe depuis PostgreSQL 15, Drizzle ne sait pas l'écrire, et elle est donc
+posée à la main dans la migration — la contrainte restant déclarée côté Drizzle
+avec une clause moins précise, pour que le cliché la connaisse.
+
 **Lire la bibliothèque est `schema.read`**, décidé à l'implémentation : cette
 décision ne nommait qu'une clé d'écriture, et une clé de lecture de plus ne
 réglerait aucun problème réel.
+
+**La copie prend le nom de la source**, sans renommage possible. Le nom fait
+partie de l'empreinte (ADR 0016), donc renommer à la copie produirait un
+`locally_modified` avant que personne n'ait rien modifié — un diagnostic faux
+dès la naissance. Un conflit de nom donne un 409 qui le nomme.

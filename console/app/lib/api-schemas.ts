@@ -789,66 +789,81 @@ export const GetApiOrganizationsOrganizationIdProjectsProjectIdSchemasParams =
     projectId: /*#__PURE__*/ zod.uuid(),
   });
 
-export const getApiOrganizationsOrganizationIdProjectsProjectIdSchemasResponseDefinitionFieldsItemNameMax = 64;
+export const getApiOrganizationsOrganizationIdProjectsProjectIdSchemasResponseOneDefinitionFieldsItemNameMax = 64;
 
-export const getApiOrganizationsOrganizationIdProjectsProjectIdSchemasResponseDefinitionFieldsItemNameRegExp =
+export const getApiOrganizationsOrganizationIdProjectsProjectIdSchemasResponseOneDefinitionFieldsItemNameRegExp =
   /^[a-zA-Z_][a-zA-Z0-9_]*$/;
-export const getApiOrganizationsOrganizationIdProjectsProjectIdSchemasResponseDefinitionFieldsItemLabelMax = 200;
+export const getApiOrganizationsOrganizationIdProjectsProjectIdSchemasResponseOneDefinitionFieldsItemLabelMax = 200;
 
-export const getApiOrganizationsOrganizationIdProjectsProjectIdSchemasResponseDefinitionFieldsMax = 200;
+export const getApiOrganizationsOrganizationIdProjectsProjectIdSchemasResponseOneDefinitionFieldsMax = 200;
 
 export const GetApiOrganizationsOrganizationIdProjectsProjectIdSchemasResponseItem =
-  /*#__PURE__*/ zod.object({
-    id: /*#__PURE__*/ zod.uuid(),
-    name: /*#__PURE__*/ zod.string(),
-    label: /*#__PURE__*/ zod.nullable(/*#__PURE__*/ zod.string()),
-    definition: /*#__PURE__*/ zod.object({
-      fields: /*#__PURE__*/ zod
-        .array(
-          /*#__PURE__*/ zod.object({
-            name: /*#__PURE__*/ zod
-              .string()
-              .check(
-                /*#__PURE__*/ zod.maxLength(
-                  getApiOrganizationsOrganizationIdProjectsProjectIdSchemasResponseDefinitionFieldsItemNameMax,
-                ),
-              )
-              .check(
-                /*#__PURE__*/ zod.regex(
-                  getApiOrganizationsOrganizationIdProjectsProjectIdSchemasResponseDefinitionFieldsItemNameRegExp,
-                ),
-              ),
-            type: /*#__PURE__*/ zod.enum([
-              "text",
-              "longtext",
-              "number",
-              "boolean",
-              "date",
-            ]),
-            label: /*#__PURE__*/ zod.optional(
-              /*#__PURE__*/ zod
+  /*#__PURE__*/ zod.intersection(
+    /*#__PURE__*/ zod.object({
+      id: /*#__PURE__*/ zod.uuid(),
+      name: /*#__PURE__*/ zod.string(),
+      label: /*#__PURE__*/ zod.nullable(/*#__PURE__*/ zod.string()),
+      definition: /*#__PURE__*/ zod.object({
+        fields: /*#__PURE__*/ zod
+          .array(
+            /*#__PURE__*/ zod.object({
+              name: /*#__PURE__*/ zod
                 .string()
-                .check(/*#__PURE__*/ zod.minLength(1))
                 .check(
                   /*#__PURE__*/ zod.maxLength(
-                    getApiOrganizationsOrganizationIdProjectsProjectIdSchemasResponseDefinitionFieldsItemLabelMax,
+                    getApiOrganizationsOrganizationIdProjectsProjectIdSchemasResponseOneDefinitionFieldsItemNameMax,
+                  ),
+                )
+                .check(
+                  /*#__PURE__*/ zod.regex(
+                    getApiOrganizationsOrganizationIdProjectsProjectIdSchemasResponseOneDefinitionFieldsItemNameRegExp,
                   ),
                 ),
-            ),
-            validation: /*#__PURE__*/ zod.object({
-              required: /*#__PURE__*/ zod.boolean(),
+              type: /*#__PURE__*/ zod.enum([
+                "text",
+                "longtext",
+                "number",
+                "boolean",
+                "date",
+              ]),
+              label: /*#__PURE__*/ zod.optional(
+                /*#__PURE__*/ zod
+                  .string()
+                  .check(/*#__PURE__*/ zod.minLength(1))
+                  .check(
+                    /*#__PURE__*/ zod.maxLength(
+                      getApiOrganizationsOrganizationIdProjectsProjectIdSchemasResponseOneDefinitionFieldsItemLabelMax,
+                    ),
+                  ),
+              ),
+              validation: /*#__PURE__*/ zod.object({
+                required: /*#__PURE__*/ zod.boolean(),
+              }),
             }),
-          }),
-        )
-        .check(
-          /*#__PURE__*/ zod.maxLength(
-            getApiOrganizationsOrganizationIdProjectsProjectIdSchemasResponseDefinitionFieldsMax,
+          )
+          .check(
+            /*#__PURE__*/ zod.maxLength(
+              getApiOrganizationsOrganizationIdProjectsProjectIdSchemasResponseOneDefinitionFieldsMax,
+            ),
           ),
-        ),
+      }),
+      createdAt: /*#__PURE__*/ zod.iso.datetime({ offset: true }),
+      updatedAt: /*#__PURE__*/ zod.iso.datetime({ offset: true }),
     }),
-    createdAt: /*#__PURE__*/ zod.iso.datetime({ offset: true }),
-    updatedAt: /*#__PURE__*/ zod.iso.datetime({ offset: true }),
-  });
+    /*#__PURE__*/ zod.object({
+      origin: /*#__PURE__*/ zod.nullable(
+        /*#__PURE__*/ zod.object({
+          librarySchemaId: /*#__PURE__*/ zod.uuid(),
+          name: /*#__PURE__*/ zod.string(),
+          state: /*#__PURE__*/ zod.enum([
+            "identical",
+            "library_ahead",
+            "locally_modified",
+          ]),
+        }),
+      ),
+    }),
+  );
 export const GetApiOrganizationsOrganizationIdProjectsProjectIdSchemasResponse =
   /*#__PURE__*/ zod.array(
     GetApiOrganizationsOrganizationIdProjectsProjectIdSchemasResponseItem,
@@ -1297,6 +1312,81 @@ export const PostApiOrganizationsOrganizationIdProjectsProjectIdSchemasSchemaIdR
         .check(
           /*#__PURE__*/ zod.maxLength(
             postApiOrganizationsOrganizationIdProjectsProjectIdSchemasSchemaIdRestoreResponseDefinitionFieldsMax,
+          ),
+        ),
+    }),
+    createdAt: /*#__PURE__*/ zod.iso.datetime({ offset: true }),
+    updatedAt: /*#__PURE__*/ zod.iso.datetime({ offset: true }),
+  });
+
+/**
+ * @summary Copier un schéma de la bibliothèque dans ce projet
+ */
+export const PostApiOrganizationsOrganizationIdProjectsProjectIdSchemasCopyParams =
+  /*#__PURE__*/ zod.object({
+    organizationId: /*#__PURE__*/ zod.uuid(),
+    projectId: /*#__PURE__*/ zod.uuid(),
+  });
+
+export const PostApiOrganizationsOrganizationIdProjectsProjectIdSchemasCopyBody =
+  /*#__PURE__*/ zod.object({
+    librarySchemaId: /*#__PURE__*/ zod.uuid(),
+  });
+
+export const postApiOrganizationsOrganizationIdProjectsProjectIdSchemasCopyResponseDefinitionFieldsItemNameMax = 64;
+
+export const postApiOrganizationsOrganizationIdProjectsProjectIdSchemasCopyResponseDefinitionFieldsItemNameRegExp =
+  /^[a-zA-Z_][a-zA-Z0-9_]*$/;
+export const postApiOrganizationsOrganizationIdProjectsProjectIdSchemasCopyResponseDefinitionFieldsItemLabelMax = 200;
+
+export const postApiOrganizationsOrganizationIdProjectsProjectIdSchemasCopyResponseDefinitionFieldsMax = 200;
+
+export const PostApiOrganizationsOrganizationIdProjectsProjectIdSchemasCopyResponse =
+  /*#__PURE__*/ zod.object({
+    id: /*#__PURE__*/ zod.uuid(),
+    name: /*#__PURE__*/ zod.string(),
+    label: /*#__PURE__*/ zod.nullable(/*#__PURE__*/ zod.string()),
+    definition: /*#__PURE__*/ zod.object({
+      fields: /*#__PURE__*/ zod
+        .array(
+          /*#__PURE__*/ zod.object({
+            name: /*#__PURE__*/ zod
+              .string()
+              .check(
+                /*#__PURE__*/ zod.maxLength(
+                  postApiOrganizationsOrganizationIdProjectsProjectIdSchemasCopyResponseDefinitionFieldsItemNameMax,
+                ),
+              )
+              .check(
+                /*#__PURE__*/ zod.regex(
+                  postApiOrganizationsOrganizationIdProjectsProjectIdSchemasCopyResponseDefinitionFieldsItemNameRegExp,
+                ),
+              ),
+            type: /*#__PURE__*/ zod.enum([
+              "text",
+              "longtext",
+              "number",
+              "boolean",
+              "date",
+            ]),
+            label: /*#__PURE__*/ zod.optional(
+              /*#__PURE__*/ zod
+                .string()
+                .check(/*#__PURE__*/ zod.minLength(1))
+                .check(
+                  /*#__PURE__*/ zod.maxLength(
+                    postApiOrganizationsOrganizationIdProjectsProjectIdSchemasCopyResponseDefinitionFieldsItemLabelMax,
+                  ),
+                ),
+            ),
+            validation: /*#__PURE__*/ zod.object({
+              required: /*#__PURE__*/ zod.boolean(),
+            }),
+          }),
+        )
+        .check(
+          /*#__PURE__*/ zod.maxLength(
+            postApiOrganizationsOrganizationIdProjectsProjectIdSchemasCopyResponseDefinitionFieldsMax,
           ),
         ),
     }),

@@ -467,33 +467,21 @@
         },
         "required": ["id", "organizationName", "projectName", "roleName", "expiresAt"]
       },
-      "Schema": {
-        "type": "object",
-        "properties": {
-          "id": {
-            "type": "string",
-            "format": "uuid"
+      "ListedSchema": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/Schema"
           },
-          "name": {
-            "type": "string"
-          },
-          "label": {
-            "type": "string",
-            "nullable": true
-          },
-          "definition": {
-            "$ref": "#/components/schemas/SchemaDefinition"
-          },
-          "createdAt": {
-            "type": "string",
-            "format": "date-time"
-          },
-          "updatedAt": {
-            "type": "string",
-            "format": "date-time"
+          {
+            "type": "object",
+            "properties": {
+              "origin": {
+                "$ref": "#/components/schemas/SchemaOrigin"
+              }
+            },
+            "required": ["origin"]
           }
-        },
-        "required": ["id", "name", "label", "definition", "createdAt", "updatedAt"]
+        ]
       },
       "SchemaDefinition": {
         "type": "object",
@@ -537,6 +525,52 @@
           }
         },
         "required": ["name", "type", "validation"]
+      },
+      "SchemaOrigin": {
+        "type": "object",
+        "nullable": true,
+        "properties": {
+          "librarySchemaId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string"
+          },
+          "state": {
+            "type": "string",
+            "enum": ["identical", "library_ahead", "locally_modified"]
+          }
+        },
+        "required": ["librarySchemaId", "name", "state"]
+      },
+      "Schema": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string"
+          },
+          "label": {
+            "type": "string",
+            "nullable": true
+          },
+          "definition": {
+            "$ref": "#/components/schemas/SchemaDefinition"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": ["id", "name", "label", "definition", "createdAt", "updatedAt"]
       },
       "SchemaInput": {
         "type": "object",
@@ -627,6 +661,16 @@
           }
         },
         "required": ["hash"]
+      },
+      "SchemaCopyInput": {
+        "type": "object",
+        "properties": {
+          "librarySchemaId": {
+            "type": "string",
+            "format": "uuid"
+          }
+        },
+        "required": ["librarySchemaId"]
       },
       "LibrarySchema": {
         "allOf": [
@@ -2036,7 +2080,7 @@
                 "schema": {
                   "type": "array",
                   "items": {
-                    "$ref": "#/components/schemas/Schema"
+                    "$ref": "#/components/schemas/ListedSchema"
                   }
                 }
               }
@@ -2271,6 +2315,52 @@
         "responses": {
           "200": {
             "description": "Restauré",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Schema"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/organizations/{organizationId}/projects/{projectId}/schemas/copy": {
+      "post": {
+        "summary": "Copier un schéma de la bibliothèque dans ce projet",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "organizationId",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "projectId",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SchemaCopyInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Copié",
             "content": {
               "application/json": {
                 "schema": {

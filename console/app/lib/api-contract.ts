@@ -44,6 +44,8 @@ import {
   PostApiOrganizationsOrganizationIdProjectsProjectIdInvitationsBody,
   PostApiOrganizationsOrganizationIdProjectsProjectIdInvitationsResponse,
   PostApiOrganizationsOrganizationIdProjectsProjectIdSchemasBody,
+  PostApiOrganizationsOrganizationIdProjectsProjectIdSchemasCopyBody,
+  PostApiOrganizationsOrganizationIdProjectsProjectIdSchemasCopyResponse,
   PostApiOrganizationsOrganizationIdProjectsProjectIdSchemasResponse,
   PostApiOrganizationsOrganizationIdProjectsProjectIdSchemasSchemaIdRestoreBody,
   PostApiOrganizationsOrganizationIdProjectsProjectIdSchemasSchemaIdRestoreResponse,
@@ -172,6 +174,18 @@ export type ContentType = z.infer<
 
 export const NewContentTypeSchema =
   PostApiOrganizationsOrganizationIdProjectsProjectIdSchemasBody;
+
+/**
+ * Copier une entrée de bibliothèque dans ce projet.
+ *
+ * ⚠️ **Aucun nom dans le corps** : la copie prend celui de la bibliothèque. Le
+ * nom fait partie de l'empreinte, donc une copie renommée à la naissance se
+ * lirait « modifiée localement » avant que personne n'y touche.
+ */
+export const CopyFromLibrarySchema =
+  PostApiOrganizationsOrganizationIdProjectsProjectIdSchemasCopyBody;
+export const CopiedContentTypeSchema =
+  PostApiOrganizationsOrganizationIdProjectsProjectIdSchemasCopyResponse;
 export const CreatedContentTypeSchema =
   PostApiOrganizationsOrganizationIdProjectsProjectIdSchemasResponse;
 

@@ -8,6 +8,7 @@ import { fingerprint, type VersionedContent } from "./fingerprint.ts";
 import { CMS_PERMISSIONS } from "./permissions.ts";
 import {
   type HistoryAction,
+  librarySchemas,
   schemaHistory,
   schemas,
   schemaVersions,
@@ -38,22 +39,96 @@ const columns = {
   updatedAt: schemas.updatedAt,
 };
 
-export function listSchemas(
+/**
+ * L'état d'une copie par rapport à la bibliothèque dont elle vient
+ * ([ADR 0018](../../../docs/adr/0018-bibliotheque-de-schemas-table-separee.md)),
+ * lu par **comparaison d'empreintes** — jamais par un moteur de diff.
+ *
+ * ⚠️ **`locally_modified` en confond deux** : « seule la copie a bougé » et
+ * « les deux ont bougé ». Le diagnostic reste juste, il est seulement moins
+ * précis que son nom ne le suggère — d'où ce nom-là et non
+ * `diverged_from_library`, pour qu'aucun écran ne le survende. Les distinguer
+ * imposerait de comparer des plages d'historique : hors périmètre.
+ */
+export const ORIGIN_STATES = [
+  "identical",
+  "library_ahead",
+  "locally_modified",
+] as const;
+export type OriginState = (typeof ORIGIN_STATES)[number];
+
+export async function listSchemas(
   actor: Actor,
   organizationId: string,
   environmentId: string,
 ) {
   requirePermission(actor, CMS_PERMISSIONS.schemaRead);
 
-  return withContext({ userId: actor.userId, organizationId }, (tx) =>
+  const rows = await withContext({ userId: actor.userId, organizationId }, (tx) =>
     tx
-      .select(columns)
+      .select({
+        ...columns,
+        currentHash: schemas.currentHash,
+        libraryId: librarySchemas.id,
+        libraryName: librarySchemas.name,
+        libraryHash: librarySchemas.currentHash,
+        /**
+         * ⚠️ **Le second état tient dans cet `EXISTS`** : l'empreinte de la
+         * copie a-t-elle jamais été un état de l'entrée de bibliothèque ? Si
+         * oui sans être la courante, c'est la bibliothèque qui a avancé.
+         */
+        knownToLibrary: sql<boolean>`exists (
+          select 1 from library_schema_history h
+           where h.organization_id = ${schemas.organizationId}
+             and h.library_schema_id = ${schemas.copiedFrom}
+             and h.hash = ${schemas.currentHash}
+        )`,
+      })
       .from(schemas)
+      // ⚠️ `leftJoin` : un type créé directement n'a pas de provenance, et ce
+      // n'est pas une anomalie.
+      .leftJoin(
+        librarySchemas,
+        and(
+          eq(librarySchemas.organizationId, schemas.organizationId),
+          eq(librarySchemas.id, schemas.copiedFrom),
+        ),
+      )
       .where(eq(schemas.environmentId, environmentId))
       // Un ordre explicite : sans lui, Postgres n'en promet aucun, et la liste
       // se réordonnerait d'une visite à l'autre.
       .orderBy(asc(schemas.name)),
   );
+
+  return rows.map(
+    ({
+      currentHash,
+      libraryId,
+      libraryName,
+      libraryHash,
+      knownToLibrary,
+      ...schema
+    }) => ({
+      ...schema,
+      origin:
+        libraryId && libraryName
+          ? {
+              librarySchemaId: libraryId,
+              name: libraryName,
+              state: originState(currentHash, libraryHash, knownToLibrary),
+            }
+          : null,
+    }),
+  );
+}
+
+function originState(
+  copy: string,
+  library: string | null,
+  known: boolean,
+): OriginState {
+  if (copy === library) return "identical";
+  return known ? "library_ahead" : "locally_modified";
 }
 
 /**
@@ -161,6 +236,81 @@ export async function createSchema(input: {
       organizationId,
       schemaId: created.id,
       hash,
+      action: "saved",
+      actorUserId: actor.userId,
+    });
+
+    return created;
+  });
+}
+
+/**
+ * Copier une entrée de bibliothèque **dans un environnement**.
+ *
+ * ⚠️ **Jamais « dans un projet »** : un projet ne contient pas de schéma, il
+ * contient des environnements. La copie n'existe donc que là où elle a été
+ * faite — si le projet gagne un `staging` un jour, **rien ne s'y propage**, y
+ * copier sera un geste délibéré de plus (ADR 0018).
+ *
+ * ⚠️ **Sous le nom de la bibliothèque, sans possibilité de le changer.** Le nom
+ * fait partie de l'empreinte : une copie renommée à la naissance se lirait
+ * `locally_modified` avant que personne n'y touche. Un nom déjà pris donne donc
+ * un 409 qui le nomme, ce qui est plus honnête qu'un diagnostic faux.
+ *
+ * ⚠️ **Aucune permission nouvelle** : copier crée un type de contenu, donc
+ * `schema.write` ; et lire la bibliothèque est `schema.read`. Les deux sont
+ * exigées, chacune pour ce qu'elle couvre.
+ */
+export async function copyFromLibrary(input: {
+  actor: Actor;
+  organizationId: string;
+  environmentId: string;
+  librarySchemaId: string;
+}) {
+  const { actor, organizationId, environmentId, librarySchemaId } = input;
+  requirePermission(actor, CMS_PERMISSIONS.schemaRead);
+  requirePermission(actor, CMS_PERMISSIONS.schemaWrite);
+
+  return withContext({ userId: actor.userId, organizationId }, async (tx) => {
+    const [source] = await tx
+      .select({
+        name: librarySchemas.name,
+        label: librarySchemas.label,
+        definition: librarySchemas.definition,
+        currentHash: librarySchemas.currentHash,
+      })
+      .from(librarySchemas)
+      .where(
+        and(
+          eq(librarySchemas.id, librarySchemaId),
+          eq(librarySchemas.organizationId, organizationId),
+        ),
+      );
+    if (!source) throw new SchemaError(404, "unknown_schema", "introuvable");
+
+    await rejectDuplicateName(tx, environmentId, source.name);
+
+    const { currentHash, ...fields } = source;
+    // ⚠️ **Pas de `storeVersion` ici** : la version existe déjà, écrite par la
+    // bibliothèque. C'est *tout l'intérêt* de la table partagée — une copie
+    // fraîche et sa source pointent la même ligne, donc `identical` est une
+    // égalité de chaînes et non un diff.
+    const [created] = await tx
+      .insert(schemas)
+      .values({
+        environmentId,
+        organizationId,
+        ...fields,
+        currentHash,
+        copiedFrom: librarySchemaId,
+      })
+      .returning(columns);
+    if (!created) throw new Error("schema insert returned no row");
+
+    await appendHistory(tx, {
+      organizationId,
+      schemaId: created.id,
+      hash: currentHash,
       action: "saved",
       actorUserId: actor.userId,
     });

@@ -9,9 +9,13 @@ import {
 } from "react-router";
 import { api, apiVoid, displayableError, postJson } from "../lib/api";
 import {
+  type ContentType,
   ContentTypeHistorySchema,
   ContentTypesSchema,
+  CopiedContentTypeSchema,
+  CopyFromLibrarySchema,
   CreatedContentTypeSchema,
+  LibrarySchemasSchema,
   NewContentTypeSchema,
   RestoreContentTypeSchema,
   RestoredContentTypeSchema,
@@ -48,13 +52,17 @@ export async function clientLoader({ params, request }: Route.ClientLoaderArgs) 
   const base = `/organizations/${params.organizationId}/projects/${params.projectId}/schemas`;
   const opened = new URL(request.url).searchParams.get("history");
 
-  const [contentTypes, history] = await Promise.all([
+  const [contentTypes, library, history] = await Promise.all([
     api(base, ContentTypesSchema),
+    // La bibliothèque est chargée d'emblée : le bouton doit savoir s'il y a
+    // quelque chose à copier avant qu'on clique.
+    api(`/organizations/${params.organizationId}/library`, LibrarySchemasSchema),
     opened ? api(`${base}/${opened}/history`, ContentTypeHistorySchema) : null,
   ]);
 
   return {
     contentTypes,
+    library,
     history: opened && history ? { schemaId: opened, ...history } : null,
   };
 }
@@ -68,6 +76,17 @@ export async function clientAction({ params, request }: Route.ClientActionArgs) 
     if (typeof deleteId === "string") {
       await apiVoid(`${base}/${deleteId}`, { method: "DELETE" });
       return { deleted: true };
+    }
+
+    const copyFrom = form.get("copyFrom");
+    if (typeof copyFrom === "string") {
+      await postJson(
+        `${base}/copy`,
+        CopyFromLibrarySchema,
+        { librarySchemaId: copyFrom },
+        CopiedContentTypeSchema,
+      );
+      return { copied: true };
     }
 
     const restore = form.get("restore");
@@ -96,6 +115,45 @@ export async function clientAction({ params, request }: Route.ClientActionArgs) 
   }
 }
 
+/**
+ * D'où vient un type de contenu, et où il en est par rapport à sa source.
+ *
+ * ⚠️ **« Modified » ne dit pas *qui* a bougé.** Le diagnostic confond « seule
+ * la copie a changé » et « les deux ont changé » (ADR 0018) — le libellé est
+ * choisi pour ne pas le survendre, et le titre de l'infobulle le dit en toutes
+ * lettres.
+ */
+function Origin({ origin }: { origin: ContentType["origin"] }) {
+  // Un type créé directement n'a pas de provenance, et ce n'est pas un manque.
+  if (!origin) return <>—</>;
+
+  // ⚠️ Typé depuis le contrat, donc **exhaustif** : ajouter un état côté
+  // serveur casse ce typecheck plutôt que d'afficher un libellé de repli que
+  // personne n'aurait relu.
+  const reading: Record<
+    NonNullable<ContentType["origin"]>["state"],
+    readonly [string, string]
+  > = {
+    identical: ["In sync", "Identical to the library entry it came from"],
+    library_ahead: [
+      "Library ahead",
+      "The library moved on; this copy is still on a state the library had",
+    ],
+    locally_modified: [
+      "Modified",
+      "No longer a state the library ever had — this copy, the library, or both have changed",
+    ],
+  };
+  const [label, explanation] = reading[origin.state];
+
+  return (
+    <span className="console-identity" title={explanation}>
+      {label}
+      <code className="console-hint">{origin.name}</code>
+    </span>
+  );
+}
+
 export default function ProjectContentTypes({
   loaderData,
   actionData,
@@ -106,9 +164,11 @@ export default function ProjectContentTypes({
   const navigate = useNavigate();
   const { pathname } = useLocation();
   const [open, setOpen] = useState(false);
+  const [copying, setCopying] = useState(false);
 
   useEffect(() => {
     if (actionData && "created" in actionData) setOpen(false);
+    if (actionData && "copied" in actionData) setCopying(false);
   }, [actionData]);
 
   const { history } = loaderData;
@@ -120,7 +180,19 @@ export default function ProjectContentTypes({
       <div className="console-page-header">
         <h1>Content types</h1>
         {canWrite && (
-          <HeaderAction onClick={() => setOpen(true)}>+ New content type</HeaderAction>
+          <div className="console-row-actions">
+            {/* Rien à copier n'est pas la même chose que ne pas pouvoir : le
+                bouton disparaît quand la bibliothèque est vide, plutôt que
+                d'ouvrir une liste vide. */}
+            {loaderData.library.length > 0 && (
+              <HeaderAction onClick={() => setCopying(true)}>
+                Copy from library
+              </HeaderAction>
+            )}
+            <HeaderAction onClick={() => setOpen(true)}>
+              + New content type
+            </HeaderAction>
+          </div>
         )}
       </div>
 
@@ -130,6 +202,9 @@ export default function ProjectContentTypes({
       {actionData && "created" in actionData && <Banner>Content type created.</Banner>}
       {actionData && "deleted" in actionData && <Banner>Content type deleted.</Banner>}
       {actionData && "restored" in actionData && <Banner>Version restored.</Banner>}
+      {actionData && "copied" in actionData && (
+        <Banner>Copied from the library. The copy is independent from now on.</Banner>
+      )}
 
       <Section
         title="Types"
@@ -147,6 +222,7 @@ export default function ProjectContentTypes({
               <tr>
                 <th>Name</th>
                 <th>Fields</th>
+                <th>Origin</th>
                 <th>Updated</th>
                 <th />
               </tr>
@@ -162,6 +238,9 @@ export default function ProjectContentTypes({
                   </td>
                   <td className="console-muted">
                     {type.definition.fields.map((f) => f.name).join(", ") || "—"}
+                  </td>
+                  <td className="console-muted">
+                    <Origin origin={type.origin} />
                   </td>
                   <td className="console-muted">{day(type.updatedAt)}</td>
                   <td>
@@ -202,6 +281,39 @@ export default function ProjectContentTypes({
             </Button>
           </div>
         </Form>
+      </Modal>
+
+      <Modal open={copying} onClose={() => setCopying(false)} title="Copy from library">
+        <p className="console-muted">
+          The copy is independent: editing the library afterwards never changes what
+          this project holds. It keeps the library's name, and this screen tells you
+          when the two drift apart.
+        </p>
+
+        <table className="console-table">
+          <tbody>
+            {loaderData.library.map((schema) => (
+              <tr key={schema.id}>
+                <td>
+                  <span className="console-identity">
+                    {schema.label ?? schema.name}
+                    <code className="console-hint">{schema.name}</code>
+                  </span>
+                </td>
+                <td className="console-muted">
+                  {schema.definition.fields.map((f) => f.name).join(", ") || "—"}
+                </td>
+                <td>
+                  <Form method="post">
+                    <RowAction name="copyFrom" value={schema.id} disabled={busy}>
+                      Copy
+                    </RowAction>
+                  </Form>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
       </Modal>
 
       <Modal

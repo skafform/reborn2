@@ -16,10 +16,12 @@ import {
 } from "./library.ts";
 import { HISTORY_ACTIONS } from "./schema.ts";
 import {
+  copyFromLibrary,
   createSchema,
   deleteSchema,
   listSchemaHistory,
   listSchemas,
+  ORIGIN_STATES,
   restoreSchemaVersion,
   updateSchema,
 } from "./schemas.ts";
@@ -53,6 +55,28 @@ const SchemaSchema = z
     updatedAt: z.date(),
   })
   .openapi("Schema");
+
+/**
+ * D'où vient ce type de contenu, et où il en est par rapport à sa source.
+ *
+ * ⚠️ **`locally_modified` confond « seule la copie a bougé » et « les deux ont
+ * bougé »** (ADR 0018). Le nom est choisi pour qu'aucun écran ne le survende —
+ * il ne dit pas *qui* a divergé, seulement que la copie n'est plus un état
+ * connu de la bibliothèque.
+ */
+const OriginSchema = z
+  .object({
+    librarySchemaId: z.uuid(),
+    /** Le nom **côté bibliothèque**, qui peut différer de celui de la copie. */
+    name: z.string(),
+    state: z.enum(ORIGIN_STATES),
+  })
+  .openapi("SchemaOrigin");
+
+/** Un type de contenu tel que la liste le rend : avec sa provenance. */
+const ListedSchemaSchema = SchemaSchema.extend({
+  origin: OriginSchema.nullable(),
+}).openapi("ListedSchema");
 
 /**
  * ⚠️ **`name` est l'identifiant du type de contenu**, contraint comme celui
@@ -124,7 +148,7 @@ cmsRoutes.openapi(
     summary: "Les types de contenu d'un projet",
     middleware: [requireSession, requireOrganization] as const,
     request: { params: projectParams },
-    responses: { 200: json(z.array(SchemaSchema), "Liste") },
+    responses: { 200: json(z.array(ListedSchemaSchema), "Liste") },
   }),
   async (c) => {
     const { organizationId, projectId } = c.req.valid("param");
@@ -260,6 +284,44 @@ cmsRoutes.openapi(
         hash: c.req.valid("json").hash,
       }),
     );
+  },
+);
+
+cmsRoutes.openapi(
+  createRoute({
+    method: "post",
+    path: "/organizations/{organizationId}/projects/{projectId}/schemas/copy",
+    summary: "Copier un schéma de la bibliothèque dans ce projet",
+    // ⚠️ Aucune permission nouvelle : copier crée un type de contenu, donc
+    // `schema.write`, et lire la bibliothèque est `schema.read`. Le service
+    // exige les deux.
+    middleware: [requireSession, requireOrganization] as const,
+    request: {
+      params: projectParams,
+      body: {
+        content: {
+          "application/json": {
+            schema: z.object({ librarySchemaId: z.uuid() }).openapi("SchemaCopyInput"),
+          },
+        },
+      },
+    },
+    responses: { 201: json(SchemaSchema, "Copié") },
+  }),
+  async (c) => {
+    const { organizationId, projectId } = c.req.valid("param");
+    const environmentId = await masterEnvironment(
+      c.get("userId"),
+      organizationId,
+      projectId,
+    );
+    const created = await copyFromLibrary({
+      actor: c.get("actor"),
+      organizationId,
+      environmentId,
+      librarySchemaId: c.req.valid("json").librarySchemaId,
+    });
+    return c.json(created, 201);
   },
 );
 
