@@ -1,13 +1,8 @@
 import { randomUUID } from "node:crypto";
 import { and, eq, isNull, sql } from "drizzle-orm";
 import { union } from "drizzle-orm/pg-core";
-import { type Actor, can } from "../auth/authorization.ts";
-import {
-  PERMISSIONS,
-  type Permission,
-  permissionsOf,
-  SYSTEM_ROLES,
-} from "../config/permissions.ts";
+import { type Actor, reachesProject } from "../auth/authorization.ts";
+import { type Permission, permissionsOf, SYSTEM_ROLES } from "../config/permissions.ts";
 import { type Transaction, withContext } from "../db/client.ts";
 import {
   environments,
@@ -283,9 +278,12 @@ export async function createProject(input: {
 /**
  * Les projets qu'un acteur peut lire dans une organization.
  *
- * **On voit les projets que sa portée atteint** — une seule règle, exprimée par
- * `can()`, l'unique autorité d'autorisation. Une portée organization les
- * atteint tous ; une portée projet, ceux où l'on est membre.
+ * **On voit les projets que sa portée atteint** — `reachesProject`, et rien
+ * d'autre. Une portée organization les atteint tous ; une portée projet, ceux
+ * où l'on est membre.
+ *
+ * ⚠️ Ce n'est **pas** une permission : voir qu'un projet existe relève de
+ * l'appartenance, lire son contenu relève de `can()`.
  *
  * ⚠️ Le filtrage n'est **pas** une policy RLS. Une fois le contexte posé sur
  * l'organization, toutes ses lignes franchissent la frontière de locataire —
@@ -303,13 +301,13 @@ export async function listProjects(actor: Actor, organizationId: string) {
       .from(projects)
       .where(eq(projects.organizationId, organizationId)),
   );
-  return rows.filter((project) => can(actor, PERMISSIONS.contentRead, project.id));
+  return rows.filter((project) => reachesProject(actor, project.id));
 }
 
 /**
- * Un projet précis, si l'acteur peut le lire. `null` sinon — l'appelant en
- * fait un 404 : un projet qu'on ne peut pas voir est indiscernable d'un projet
- * qui n'existe pas (ADR 0012).
+ * Un projet précis, si la portée de l'acteur l'atteint. `null` sinon —
+ * l'appelant en fait un 404 : un projet qu'on ne peut pas voir est
+ * indiscernable d'un projet qui n'existe pas (ADR 0012).
  */
 export async function findProject(
   actor: Actor,
@@ -330,7 +328,7 @@ export async function findProject(
       ),
   );
   if (!project) return null;
-  return can(actor, PERMISSIONS.contentRead, project.id) ? project : null;
+  return reachesProject(actor, project.id) ? project : null;
 }
 
 /**

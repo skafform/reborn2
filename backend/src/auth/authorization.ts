@@ -146,6 +146,33 @@ export function can(actor: Actor, permission: Permission, projectId?: string): b
   return grant.projectIds.includes(projectId);
 }
 
+/**
+ * L'acteur atteint-il ce projet ?
+ *
+ * ⚠️ **Une question de portée, pas de permission.** Une portée organization
+ * les atteint tous ; une portée projet, ceux où l'on est membre. Voir qu'un
+ * projet existe relève de l'appartenance — lire son contenu relève de `can()`,
+ * et c'est une autre question.
+ *
+ * ⚠️ Ce test passait par `can(actor, content.read, projectId)`, dont seule la
+ * moitié « portée » servait : les six rôles système détiennent tous
+ * `content.read`. La moitié « permission » était un passager, et elle mordait
+ * dès qu'un rôle personnalisé existait — `apikey.manage` sans `content.read`
+ * ne voyait aucun projet, donc n'atteignait jamais l'écran de clés pour lequel
+ * ce rôle avait été créé.
+ *
+ * Si la confidentialité d'un projet devient un jour une fonctionnalité —
+ * des projets cachés à certains membres par conception — elle arrivera avec
+ * son propre nom. L'ancien test ne la protégeait pas, il la simulait par
+ * accident.
+ */
+export function reachesProject(actor: Actor, projectId: string): boolean {
+  const { grant } = actor;
+  if (!grant) return false;
+  if (grant.scope === "organization") return true;
+  return grant.projectIds.includes(projectId);
+}
+
 /** Toutes les permissions détenues — sert aux garde-fous d'escalade. */
 export function heldPermissions(actor: Actor): ReadonlySet<Permission> {
   return actor.grant?.permissions ?? new Set();

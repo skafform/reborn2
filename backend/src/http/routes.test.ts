@@ -1028,6 +1028,65 @@ describe("routes de gestion", () => {
       );
     });
 
+    /**
+     * ⚠️ **Le défaut que `reachesProject` répare.** La visibilité d'un projet
+     * passait par `can(actor, content.read, id)`, dont seule la moitié
+     * « portée » servait — les six rôles système détiennent tous
+     * `content.read`. Dès qu'un rôle personnalisé s'en passait, il ne voyait
+     * aucun projet et prenait 404 sur chacun : donc jamais l'écran de clés
+     * pour lequel il avait été créé.
+     */
+    it("lets a role without content.read reach the projects it administers", async () => {
+      const created = await call(`/api/organizations/${organizationId}/roles`, owner, {
+        method: "POST",
+        body: JSON.stringify({
+          name: "integrations",
+          scope: "organization",
+          // Gère les clés, ne lit rien. Un rôle plausible, et le cas qui
+          // cassait.
+          permissions: ["apikey.manage"],
+        }),
+      });
+      assert.equal(created.status, 201);
+      const { id: roleId } = (await created.json()) as { id: string };
+
+      const integrator = await signUp("integrateur");
+      sessions.push(integrator);
+      await withContext({ userId: owner.userId, organizationId }, (tx) =>
+        tx.insert(organizationMembers).values({
+          organizationId,
+          userId: integrator.userId,
+          roleId,
+        }),
+      );
+
+      const project = await call(
+        `/api/organizations/${organizationId}/projects`,
+        owner,
+        { method: "POST", body: JSON.stringify({ name: "Intégrations" }) },
+      );
+      const { id: projectId } = (await project.json()) as { id: string };
+
+      const list = await call(
+        `/api/organizations/${organizationId}/projects`,
+        integrator,
+      );
+      assert.ok(
+        ((await list.json()) as { id: string }[]).some((p) => p.id === projectId),
+        "voir un projet est une question de portée, pas de `content.read`",
+      );
+
+      const one = await call(
+        `/api/organizations/${organizationId}/projects/${projectId}`,
+        integrator,
+      );
+      assert.equal(one.status, 200, "et l'ouvrir aussi");
+
+      await call(`/api/organizations/${organizationId}/projects/${projectId}`, owner, {
+        method: "DELETE",
+      });
+    });
+
     it("refuses a viewer, who holds neither org.settings nor project.delete", async () => {
       const response = await call(`/api/organizations/${organizationId}`, viewer, {
         method: "PUT",
