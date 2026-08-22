@@ -2,11 +2,11 @@ import { useEffect, useState } from "react";
 import { Form, useNavigation, useOutletContext } from "react-router";
 import { api, apiVoid, displayableError, postJson } from "../lib/api";
 import {
-  type ContentType,
   ContentTypesSchema,
   CreatedContentTypeSchema,
   NewContentTypeSchema,
 } from "../lib/api-contract";
+import { contentTypeBody, FIELD_TYPES } from "../lib/content-type-body";
 import { day } from "../lib/format";
 import {
   Banner,
@@ -20,27 +20,6 @@ import {
 } from "../ui/controls";
 import type { Route } from "./+types/project-content-types";
 import type { ProjectContext } from "./project";
-
-/**
- * Ce qu'un champ peut être, **tiré du contrat** et non redéclaré.
- *
- * ⚠️ Les libellés sont à nous, les valeurs appartiennent au serveur : le
- * typage rejette une valeur qui n'existe pas chez lui, et rejettera la liste
- * le jour où un type s'ajoutera sans qu'on l'affiche.
- */
-type FieldType = ContentType["definition"]["fields"][number]["type"];
-
-const TYPES: readonly { value: FieldType; label: string }[] = [
-  { value: "text", label: "Text" },
-  { value: "longtext", label: "Long text" },
-  { value: "number", label: "Number" },
-  { value: "boolean", label: "Boolean" },
-  { value: "date", label: "Date" },
-];
-
-/** Une chaîne de formulaire ramenée au vocabulaire du contrat. */
-const asFieldType = (value: string | undefined): FieldType =>
-  TYPES.find((type) => type.value === value)?.value ?? "text";
 
 /**
  * Les types de contenu d'un projet.
@@ -65,34 +44,10 @@ export async function clientAction({ params, request }: Route.ClientActionArgs) 
       return { deleted: true };
     }
 
-    /*
-     * Les champs arrivent en trois listes parallèles — `fieldName`,
-     * `fieldType`, `fieldRequired` — parce qu'un formulaire HTML ne rend pas
-     * d'objets. L'ordre des entrées est celui du DOM, donc celui de
-     * l'affichage : c'est **la disposition du formulaire**, et le serveur en
-     * fait de la donnée (ADR 0016).
-     */
-    const names = form.getAll("fieldName").map(String);
-    const types = form.getAll("fieldType").map(String);
-    const required = new Set(form.getAll("fieldRequired").map(String));
-
     await postJson(
       base,
       NewContentTypeSchema,
-      {
-        name: String(form.get("name")),
-        label: String(form.get("label")).trim() || null,
-        definition: {
-          fields: names
-            .map((name, index) => ({
-              name: name.trim(),
-              type: asFieldType(types[index]),
-              validation: { required: required.has(String(index)) },
-            }))
-            // Une ligne laissée vide n'est pas un champ.
-            .filter((field) => field.name !== ""),
-        },
-      },
+      contentTypeBody(form),
       CreatedContentTypeSchema,
     );
     return { created: true };
@@ -216,7 +171,7 @@ export default function ProjectContentTypes({
                 name="fieldType"
                 aria-label="Field type"
               >
-                {TYPES.map((type) => (
+                {FIELD_TYPES.map((type) => (
                   <option key={type.value} value={type.value}>
                     {type.label}
                   </option>

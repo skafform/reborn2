@@ -15,6 +15,10 @@
     "verbatimModuleSyntax": true,
     "resolveJsonModule": true,
     "skipLibCheck": true,
+    /* Les tests s'exécutent sous `node --test`, qui résout les chemins
+       lui-même là où Vite s'en passe : un fichier de test importe donc son
+       sujet avec son extension. Sans effet sur le reste — rien n'est émis. */
+    "allowImportingTsExtensions": true,
     "noEmit": true
   }
 }

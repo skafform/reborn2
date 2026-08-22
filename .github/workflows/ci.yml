@@ -176,6 +176,13 @@ jobs:
         working-directory: console
         run: pnpm lint
 
+      # Sous `node:test`, comme le backend — aucune dépendance de test, et Node
+      # exécute déjà le TypeScript. La console n'en a qu'un aujourd'hui
+      # (docs/backlog #0012), et il ne touche ni au DOM ni au réseau.
+      - name: Test
+        working-directory: console
+        run: pnpm test
+
       - name: Build
         working-directory: console
         run: pnpm build
