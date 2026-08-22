@@ -463,9 +463,35 @@ Les ajouter plus tard n'invalidera aucune empreinte.
 
 | | |
 |---|---|
-| **2** | Versionnage — la normalisation canonique **d'abord, seule, exhaustivement testée** |
+| **2** | Versionnage — voir *Par quoi reprendre* ci-dessous |
 | **3** | `library_schemas`, la copie, la divergence à trois états |
 | **4** | `documents` — ⚠️ bloquée par les références entre documents |
+
+### Par quoi reprendre — l'étape 2, dans cet ordre
+
+⚠️ **La normalisation canonique d'abord, seule, et exhaustivement testée
+avant que quoi que ce soit s'en serve.** C'est la seule fonction du projet
+dont un bug se paie en invalidant des données clients : elle devient
+l'identité de chaque version.
+
+1. **`src/cms/normalise.ts`** — tri profond des clés, sérialisation stable,
+   **ordre des tableaux préservé** (c'est de la donnée). Sa suite de tests est
+   ce qui protège tous les hachages déjà écrits
+2. **Le hachage, avec son tag** : `sha256-1:<hex>`, jamais l'hexadécimal nu
+   ([ADR 0016](adr/0016-versionnage-des-schemas-adresse-par-contenu.md))
+3. **`schema_versions`** — clé `(organization_id, hash)`, déduplication **par
+   organization**, jamais globale
+4. **`schema_history`** — journal par schéma, en ajout seul. La lignée vit
+   ici, **jamais** en `parent_hash` sur la version
+5. **`schemas.current_hash`**, et la restauration : déplacer le pointeur,
+   ajouter une ligne d'historique, ne jamais réécrire le journal
+
+**Rien à rattraper** : aucun schéma n'existe encore chez personne. La version
+initiale et sa ligne d'historique font partie de la création.
+
+⚠️ Et un souhait resté en plan, qui aurait transformé une énigme en message :
+un contrôle au démarrage comparant le **registre de permissions** à la table
+`permissions` (ADR 0019).
 
 ## Repères de l'étape 6b
 
