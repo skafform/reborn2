@@ -1,13 +1,13 @@
 # Où en est le projet
 
-**Dernière mise à jour : 2026-08-21.** Point d'entrée pour reprendre le
+**Dernière mise à jour : 2026-08-22.** Point d'entrée pour reprendre le
 travail : où on en est, ce qui reste, par quoi commencer.
 
 ## Le socle est complet et commité
 
 Étapes 1 à 6a de la [feuille de route](roadmap.md), et beaucoup de socle
 depuis : rôles personnalisés, adhésions, routes de clés, chaîne du contrat,
-CI. **157 tests au vert**, typecheck et lint propres des deux côtés.
+CI. **190 tests au vert**, typecheck et lint propres des deux côtés.
 
 | | |
 |---|---|
@@ -475,9 +475,23 @@ avant que quoi que ce soit s'en serve.** C'est la seule fonction du projet
 dont un bug se paie en invalidant des données clients : elle devient
 l'identité de chaque version.
 
-1. **`src/cms/normalise.ts`** — tri profond des clés, sérialisation stable,
-   **ordre des tableaux préservé** (c'est de la donnée). Sa suite de tests est
-   ce qui protège tous les hachages déjà écrits
+1. ✅ **`src/cms/normalise.ts`** — fait, seul, 26 tests. Ce n'est pas une règle
+   maison : c'est **RFC 8785 (JSON Canonicalization Scheme)**, choisi pour que
+   le format survive à une réécriture dans un autre langage. Tri des clés par
+   **unités de code UTF-16**, ordre des tableaux intact, nombres par ECMA-262
+   §7.1.12.1, et **refus** de tout ce que JSON ne porte pas plutôt que la
+   coercition silencieuse de `JSON.stringify`.
+
+   ⚠️ **Générique, pas écrit contre `Definition`.** Nommer les champs un par un
+   était plus court et sans tri — écarté : le jour où `validation` gagne
+   `minLength`, une ligne oubliée laisserait la clé **hors de l'empreinte**.
+   Deux schémas différents, un seul hachage, aucun symptôme.
+
+   ⚠️ **Aucune normalisation Unicode**, parce que JCS n'en fait pas : deux
+   écritures d'un « é » dans un `label` donnent deux empreintes. Fausse
+   divergence, jamais une perte — et c'est ce que le tag rattrape si on change
+   d'avis. Sa suite de tests **est la spécification** : un test qui rougit est
+   un changement de format, donc un nouveau tag, pas une attente corrigée
 2. **Le hachage, avec son tag** : `sha256-1:<hex>`, jamais l'hexadécimal nu
    ([ADR 0016](adr/0016-versionnage-des-schemas-adresse-par-contenu.md))
 3. **`schema_versions`** — clé `(organization_id, hash)`, déduplication **par
