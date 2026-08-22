@@ -15,17 +15,39 @@ import type { Pool } from "pg";
  * Voir ADR 0003 et docs/architecture/database.md.
  */
 
-/** Tables applicatives : elles doivent toutes être sous RLS activé et forcé. */
-const GUARDED_TABLES = [
-  "organizations",
-  "projects",
-  "environments",
-  "permissions",
-  "roles",
-  "role_permissions",
-  "organization_members",
-  "schemas",
-] as const;
+/**
+ * ⚠️ **Une liste d'exclusion, pas une liste de tables gardées.**
+ *
+ * Ce contrôle a longtemps énuméré les tables à vérifier. Une liste écrite à la
+ * main dérive en silence : cinq tables sous RLS y manquaient — `api_keys`,
+ * `invitations`, `project_members`, et les deux du versionnage — donc une
+ * `FORCE` perdue sur l'une d'elles aurait laissé le serveur démarrer sans
+ * rien dire. C'est exactement la panne que ce fichier existe pour attraper.
+ *
+ * Inversé, l'oubli change de camp : **toute table de `public` est réputée
+ * multi-tenant** et doit être sous RLS activé *et* forcé. Ajouter une table
+ * sans ses policies fait refuser le démarrage, ce qui se voit immédiatement.
+ *
+ * ⚠️ **Le critère d'exclusion, à appliquer avant d'ajouter une cinquième
+ * entrée** : une table est exclue si elle n'appartient pas au modèle
+ * multi-tenant — c'est-à-dire si elle **n'a pas de colonne de cadrage par
+ * conception**, et donc rien sur quoi une policy pourrait porter. Ce n'est pas
+ * « les tables d'un autre propriétaire de schéma » ni « celles qu'on n'a pas
+ * envie de protéger » : Better-Auth doit lire n'importe quel compte au moment
+ * du login, avant qu'aucune session — donc aucun locataire — n'existe.
+ *
+ * Chaque entrée porte donc sa justification. Une liste d'exclusion dérive
+ * aussi ; c'est la justification qui l'en empêche.
+ *
+ * `drizzle.__drizzle_migrations` n'a pas à y figurer : elle vit hors de
+ * `public`, que ce contrôle est seul à examiner.
+ */
+export const NOT_TENANT_SCOPED: Readonly<Record<string, string>> = {
+  user: "Better-Auth doit lire un compte au login, avant toute session",
+  session: "portée par un compte, pas par un locataire",
+  account: "les identités fédérées d'un compte, hors modèle multi-tenant",
+  verification: "jetons éphémères, lus avant qu'un locataire soit connu",
+};
 
 export type PreconditionFailure = { check: string; detail: string };
 
@@ -63,41 +85,58 @@ export async function checkDatabasePreconditions(
     });
   }
 
-  const { rows: owned } = await pool.query<{ tablename: string }>(
-    `SELECT tablename FROM pg_tables
-      WHERE schemaname = 'public' AND tableowner = current_user
-        AND tablename = ANY($1)`,
-    [GUARDED_TABLES],
-  );
-  if (owned.length > 0) {
-    failures.push({
-      check: "not_table_owner",
-      detail: `le rôle applicatif possède ${owned.map((r) => r.tablename).join(", ")} — un propriétaire contourne RLS sauf FORCE`,
-    });
-  }
-
+  /**
+   * Toutes les tables ordinaires de `public`, l'exclusion retirée. `relkind`
+   * écarte vues et séquences ; `'p'` couvre une table partitionnée, dont il
+   * n'existe aucune aujourd'hui mais qui serait autrement invisible ici.
+   */
   const { rows: guarded } = await pool.query<{
     relname: string;
     enabled: boolean;
     forced: boolean;
+    owned_by_me: boolean;
   }>(
-    `SELECT c.relname, c.relrowsecurity AS enabled, c.relforcerowsecurity AS forced
+    `SELECT c.relname,
+            c.relrowsecurity      AS enabled,
+            c.relforcerowsecurity AS forced,
+            pg_get_userbyid(c.relowner) = current_user AS owned_by_me
        FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
-      WHERE n.nspname = 'public' AND c.relname = ANY($1)`,
-    [GUARDED_TABLES],
+      WHERE n.nspname = 'public'
+        AND c.relkind IN ('r', 'p')
+        AND NOT (c.relname = ANY($1))
+      ORDER BY c.relname`,
+    [Object.keys(NOT_TENANT_SCOPED)],
   );
 
-  const seen = new Map(guarded.map((row) => [row.relname, row]));
-  for (const table of GUARDED_TABLES) {
-    const row = seen.get(table);
-    if (!row) {
-      failures.push({ check: "table_exists", detail: `table absente : ${table}` });
-    } else if (!row.enabled || !row.forced) {
-      failures.push({
-        check: "rls_forced",
-        detail: `${table} : ROW LEVEL SECURITY ${row.enabled ? "activé" : "désactivé"}, FORCE ${row.forced ? "activé" : "désactivé"}`,
-      });
-    }
+  // ⚠️ Remplaçant du contrôle « table absente » que l'énumération portait :
+  // sans lui, une base dont les migrations n'ont jamais tourné passerait tout,
+  // n'ayant simplement rien à vérifier.
+  if (guarded.length === 0) {
+    failures.push({
+      check: "tables_exist",
+      detail:
+        "aucune table applicative dans `public` — les migrations n'ont pas tourné",
+    });
+  }
+
+  const owned = guarded.filter((row) => row.owned_by_me).map((row) => row.relname);
+  if (owned.length > 0) {
+    failures.push({
+      check: "not_table_owner",
+      detail: `le rôle applicatif possède ${owned.join(", ")} — un propriétaire contourne RLS sauf FORCE`,
+    });
+  }
+
+  for (const table of guarded) {
+    // ⚠️ **Les deux, jamais l'un seul.** `FORCE` est précisément ce qu'une
+    // migration de données interrompue perd — et sans lui, le propriétaire des
+    // tables échappe aux policies. Ne vérifier que l'activation n'attraperait
+    // que la moitié de la panne.
+    if (table.enabled && table.forced) continue;
+    failures.push({
+      check: "rls_forced",
+      detail: `${table.relname} : ROW LEVEL SECURITY ${table.enabled ? "activé" : "désactivé"}, FORCE ${table.forced ? "activé" : "désactivé"}`,
+    });
   }
 
   return failures;

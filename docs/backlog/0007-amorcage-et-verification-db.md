@@ -34,6 +34,28 @@ ni superuser ni porteur de `BYPASSRLS`, qu'il ne possède aucune table
 applicative, et que `rowsecurity` **et** `forcerowsecurity` sont actifs sur
 chacune.
 
+⚠️ **« Chacune » a été faux pendant longtemps, et l'est redevenu vrai le
+2026-08-22.** Le contrôle **énumérait** les tables à vérifier, et cette liste
+écrite à la main avait dérivé sans un bruit : `api_keys`, `invitations`,
+`project_members` y manquaient depuis leur création, `schema_versions` et
+`schema_history` depuis la leur — **cinq sur treize**. Une `FORCE` perdue sur
+l'une d'elles aurait laissé le serveur démarrer, ce qui est exactement la panne
+que ce fichier existe pour attraper.
+
+La liste est **inversée** : toute table de `public` est réputée multi-tenant,
+et seules les quatre tables de Better-Auth sont exclues — chacune avec sa
+justification écrite à côté, parce qu'une liste d'exclusion dérive aussi.
+Le critère est nommé : *pas de colonne de cadrage par conception*, donc rien
+sur quoi une policy pourrait porter.
+
+L'oubli change ainsi de camp. Ajouter une table sans ses policies fait
+**refuser le démarrage** au lieu de passer inaperçu.
+
+Deux tests éprouvent l'inversion plutôt que de la redire : l'un affirme
+qu'aucune table de `public` hors RLS n'échappe à l'exclusion, l'autre retire
+`FORCE` d'`api_keys` — une des cinq oubliées — et vérifie que le contrôle la
+voit, avant de la rétablir.
+
 Appelé au **démarrage du serveur** — qui refuse de démarrer plutôt que de
 servir avec une isolation inopérante — et en test, où il vaut spécification
 exécutable : sans lui, tous les tests d'isolation pourraient passer sur une

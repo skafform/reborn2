@@ -13,8 +13,14 @@ les deux :
   `backend/scripts/migrate-auth.ts` — voir ci-dessous.
 - **Tables applicatives** (`organizations`, `projects`, `environments`,
   `organization_members`, `project_members`, `invitations`, `api_keys`,
-  `schemas`, `documents`, `audit_log`) : gérées via **Drizzle ORM**, avec des
-  colonnes `user_id` en clé étrangère vers `user.id` (table Better-Auth).
+  `roles`, `permissions`, `role_permissions`, `schemas`, `schema_versions`,
+  `schema_history`, et à venir `documents`, `audit_log`) : gérées via
+  **Drizzle ORM**, avec des colonnes `user_id` en clé étrangère vers `user.id`
+  (table Better-Auth).
+
+  ⚠️ Les trois dernières construites vivent dans `backend/src/cms/schema.ts`,
+  pas dans `db/schema.ts` : le socle n'a aucune raison de porter les tables du
+  CMS, et `drizzle.config.ts` nomme les deux fichiers.
 
 Compromis accepté : pas de join SQL unique entre une table Better-Auth et une
 table applicative — deux requêtes séparées, assemblées en code applicatif.

@@ -7,13 +7,13 @@ travail : où on en est, ce qui reste, par quoi commencer.
 
 Étapes 1 à 6a de la [feuille de route](roadmap.md), et beaucoup de socle
 depuis : rôles personnalisés, adhésions, routes de clés, chaîne du contrat,
-CI. **211 tests au vert**, typecheck et lint propres des deux côtés.
+CI. **213 tests au vert**, typecheck et lint propres des deux côtés.
 
 | | |
 |---|---|
 | Serveur | Hono + `@hono/zod-openapi`, validation d'environnement au démarrage |
 | Authentification | Better-Auth sur `pg.Pool`, confirmation d'adresse obligatoire, réinitialisation |
-| Multi-tenant | 10 tables sous RLS **activé et forcé**, point de passage `withContext` |
+| Multi-tenant | 13 tables sous RLS **activé et forcé**, point de passage `withContext` |
 | Autorisation | Rôles personnalisables par organization, 18 permissions, `can()`, garde-fous |
 | Invitations | Jeton haché, email verrouillé, usage unique, plafond par organization, Inbox |
 | Emails | Gabarits maison sans dépendance, prévisualisation sur `/dev/emails` |
@@ -598,6 +598,10 @@ Dix items clos.
 - **Une migration de données sous RLS doit lever `FORCE`** — sinon elle ne
   touche aucune ligne, silencieusement, et si elle échoue entre-temps la table
   reste sans protection
+- **Une liste de choses à protéger, écrite à la main, dérive en silence** — le
+  contrôle de préconditions énumérait les tables à vérifier et en avait manqué
+  **cinq sur treize**. La forme sûre est l'**exclusion** : on protège tout, on
+  retire nommément, et chaque retrait porte sa justification
 - **`@better-auth/cli` génère un schéma périmé** — utiliser
   `scripts/migrate-auth.ts`
 - **drizzle-kit génère parfois un ordre invalide** — contrainte unique après la

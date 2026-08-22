@@ -83,6 +83,28 @@ seule table.
 Règle à tenir : **une policy ne référence jamais une autre table protégée par
 RLS.**
 
+## Une policy par opération, quand l'écriture n'est pas symétrique
+
+La plupart des tables portent deux policies : une `FOR SELECT`, une `FOR ALL`.
+`schema_versions` et `schema_history` n'en portent que deux `FOR SELECT` et
+`FOR INSERT` — **aucune pour `UPDATE`, aucune pour `DELETE`**.
+
+C'est la même règle que ci-dessus, prise à l'endroit : une table sans policy
+est **fermée**. Une version est immuable et un journal est en ajout seul ; ne
+pas écrire la policy rend ces deux propriétés vraies au lieu de promises. Un
+`FOR ALL` de confort les aurait laissées à la discipline du code.
+
+⚠️ **La cascade fonctionne quand même** : Postgres exécute les actions
+d'intégrité référentielle **hors** RLS. C'est ce qui permet de supprimer une
+organization avec tout son historique alors qu'aucune policy n'autorise le
+moindre `DELETE` dessus. Vérifié par un test, pas déduit du manuel — et le
+nettoyage de fin de suite l'exerce à chaque exécution.
+
+⚠️ **Conséquence à ne pas confondre avec une protection** : sans policy, un
+`UPDATE` ne lève pas d'erreur, il touche **zéro ligne**. C'est *fail-closed*,
+donc sûr, mais silencieux — un code qui tenterait la mise à jour croirait
+réussir.
+
 ## Migrer des données sous RLS
 
 `FORCE` soumet le propriétaire aux policies, donc un `UPDATE` de remplissage

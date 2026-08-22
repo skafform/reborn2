@@ -56,12 +56,18 @@ au même titre.
 
 ## Le CMS
 
-### 6b — Schémas de contenu et documents
+### 6b — Schémas de contenu et documents · **commencée**
 
-La prochaine étape. Trois décisions à prendre d'abord, listées dans
-[architecture/decisions-ouvertes.md](architecture/decisions-ouvertes.md) :
-quand la validation s'applique, versionnage des schémas, références entre
-documents.
+Les trois décisions qui la précédaient sont **prises**, chacune avec son ADR :
+[validation à l'écriture seulement](adr/0017-validation-a-l-ecriture-seulement.md),
+[versionnage adressé par contenu](adr/0016-versionnage-des-schemas-adresse-par-contenu.md),
+[références entre documents](adr/0020-references-entre-documents.md) et
+l'[invariant de clôture](adr/0021-ensemble-publie-clos-par-reference.md) qui en
+découle. `decisions-ouvertes.md` n'a plus rien avant la couche de contenu.
+
+Faits : `schemas`, puis le **versionnage** — forme canonique, empreinte,
+versions, journal, restauration. Restent la **bibliothèque de schémas** de
+l'organization et les **documents**. Le détail vit dans [etat.md](etat.md).
 
 ### 7 — API de livraison de contenu
 
