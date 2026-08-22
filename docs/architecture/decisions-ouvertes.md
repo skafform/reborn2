@@ -55,3 +55,8 @@ dépublier — en découlent au lieu d'être deux règles à tenir d'accord
   compter plusieurs ([multi-tenant.md](./multi-tenant.md#suppression))
 - ~~Qui exploite le service, et comment~~ → hors de l'application, en local
   ([ADR 0015](../adr/0015-exploitation-hors-ligne-jamais-dans-l-application.md))
+- ~~Le vocabulaire produit : schéma ou content type, document ou entry~~ →
+  **deux paires, une frontière** : l'UI dit *content type* et *entry*, le
+  technique garde `schemas` et `documents`. Le mot de l'instance suit le mot du
+  type — aucun leader ne croise les paires
+  ([admin-ui.md](./admin-ui.md#le-vocabulaire--deux-paires-une-frontière))

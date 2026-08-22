@@ -44,6 +44,36 @@ donc « viewer » ne garantit rien. Le serveur dit ce qu'on peut faire — par
 organization (`/me`), par projet (`…/projects/{id}/me`), par rôle
 (`assignable`) et par membre (`manageable`).
 
+## Le vocabulaire : deux paires, une frontière
+
+Le mot **produit** (l'UI) et le mot **technique** (tables, routes, clés de
+permission) sont séparés, et la frontière passe au même endroit partout :
+
+| Technique — tables, routes, permissions | Produit — l'UI |
+|---|---|
+| `schemas`, `/schemas`, `schema.read`/`schema.write` | **content type** |
+| `documents`, `/documents` | **entry** |
+
+⚠️ **Le mot de l'instance suit le mot du type, et ce n'est pas un goût.** Tous
+les acteurs établis fonctionnent par paires : Contentful et Strapi disent
+*content type → entry*, Sanity dit *document type → document*, personne ne
+croise les paires. « Content type » ayant été retenu (vérifié : aucun leader ne
+montre « schema » à un éditeur — Sanity nomme la séparation, `schema` dans le
+code, *document types* dans le Studio ; Strapi ne l'affiche jamais), l'instance
+est *entry*.
+
+L'UI dit d'ailleurs *entry* **rarement** : le geste quotidien affiche le nom du
+type — on navigue vers « Articles » — et le mot générique ne survit que dans
+les compteurs, les états vides et les libellés transverses.
+
+**« Library » reste le nom du lieu** ; ses entrées sont des content types.
+
+⚠️ Deux mots restent délibérément ouverts : celui de l'**API de livraison**
+(étape 7 — une surface produit pour développeurs, distincte de ce contrat-ci ;
+Contentful y dit `/entries`), et rien d'autre. Les tables et les six ADR qui
+disent `documents` ne bougent pas — les renommer réécrirait des décisions pour
+un bénéfice nul.
+
 ## Ce qui n'est pas construit
 
 - **Les écrans de contenu** — éditeur de documents, formulaires générés à partir

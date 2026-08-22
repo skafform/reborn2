@@ -599,6 +599,10 @@ tous les acteurs établis (vérifié : Sanity la nomme explicitement — `schema
 dans le code, *document types* pour les éditeurs ; Strapi n'affiche jamais
 « schema » ; Contentful et son *content model* sont le contre-exemple cité).
 L'utilisateur qui copie doit retrouver le même mot des deux côtés du geste.
+La paire des documents est tranchée de même : l'UI dira **entry** — le mot de
+l'instance suit le mot du type, et personne ne croise les paires — la table
+reste `documents`, mot de six ADR. Détail dans
+[admin-ui.md](architecture/admin-ui.md#le-vocabulaire--deux-paires-une-frontière).
 
 Deux morceaux de console **extraits au deuxième consommateur**, comme
 `menu.tsx` l'avait été : `ui/schema-fields.tsx` (le formulaire) et
