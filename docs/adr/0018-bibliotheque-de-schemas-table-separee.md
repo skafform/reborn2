@@ -106,3 +106,30 @@ un défaut à `owner` **et** `admin`. Mais c'est une clé distincte parce que ce
 défaut sera probablement revisité : le restreindre au `owner` doit rester un
 ajustement de rôle, pas une chirurgie du catalogue. Voir
 [roles-permissions.md](../architecture/roles-permissions.md).
+
+## Ce qui est construit (2026-08-22)
+
+`library_schemas`, son journal `library_schema_history`, six routes et un écran.
+La bibliothèque se versionne comme le reste. **Restent** la copie dans un
+environnement, `schemas.copied_from`, et le diagnostic à trois états.
+
+Deux points que l'implémentation a précisés, et qui ne se déduisaient pas de
+cette décision :
+
+⚠️ **`schema_versions` est partagée entre bibliothèque et types de contenu ; le
+journal ne l'est pas.** Le partage est *exigé* par le diagnostic — « le hachage
+de la copie est-il dans l'historique de la bibliothèque ? » n'a de sens que si
+les deux nomment les mêmes lignes. Le journal, lui, **doit** être une seconde
+table : une clé étrangère composite ne pointe que vers une table, et en faire
+une qui accepte les deux reviendrait à renoncer à la contrainte, donc au fait
+qu'une ligne ne puisse pas nommer un schéma fantôme.
+
+⚠️ **Le versionnage des deux est écrit deux fois, explicitement.** Ce qu'il
+faudrait paramétrer pour le factoriser — table portante, colonne de
+rattachement, table de journal — coûterait plus à lire que les deux versions, et
+les deux cas divergent déjà. Ce qui est partagé l'est parce que c'est le même
+objet : `fingerprint` et la table des versions.
+
+**Lire la bibliothèque est `schema.read`**, décidé à l'implémentation : cette
+décision ne nommait qu'une clé d'écriture, et une clé de lecture de plus ne
+réglerait aucun problème réel.

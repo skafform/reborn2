@@ -233,6 +233,47 @@ Le détail de la recherche, la démonstration de la dérive et les essais :
   - Auth utilisateur (email/password via Better-Auth) pour l'admin UI — voir
     [auth.md](./auth.md)
 
+## Schémas et bibliothèque
+
+Deux familles d'adresses, et la différence entre elles **est** la décision
+d'[ADR 0018](../adr/0018-bibliotheque-de-schemas-table-separee.md) :
+
+| | |
+|---|---|
+| `…/projects/{pid}/schemas` | Les types de contenu — sous un **projet** |
+| `/organizations/{id}/library` | La bibliothèque — sous l'**organization**, sans projet |
+
+⚠️ **Le mot « environnement » n'apparaît nulle part**, comme pour les clés API.
+Le chemin nomme un projet, le serveur résout `master`
+([environments.md](./environments.md)). Une entrée de bibliothèque, elle, n'a
+tout simplement pas d'environnement : elle appartient à l'organization seule, et
+l'adresse doit le dire.
+
+Chacune porte les mêmes deux routes de lignée : `…/{id}/history` rend le journal
+du plus récent au plus ancien, `…/{id}/restore` déplace le pointeur.
+
+**Aucune permission n'a été ajoutée pour la lignée.** Lire un historique est une
+lecture de schéma, restaurer en est une écriture — une fonctionnalité entière
+est arrivée sans que le vocabulaire bouge. Seule la **curation** de la
+bibliothèque a sa clé, `library.write` ; la **lire** reste `schema.read`.
+
+### ⚠️ Le contrat ne grave pas l'algorithme de hachage
+
+Une empreinte est validée comme `^[a-z0-9-]+:[0-9a-f]{64}$` — « un tag, puis un
+condensé hexadécimal », **sans dire lequel**.
+
+Écrire `sha256-1` dans la spec obligerait à republier le contrat le jour du
+changement de tag — or ce tag existe précisément pour pouvoir changer
+([ADR 0016](../adr/0016-versionnage-des-schemas-adresse-par-contenu.md)). La
+borne reste réelle : elle refuse une chaîne arbitraire avant qu'elle atteigne
+le service, et un test l'épingle en 400.
+
+### `currentHash` voyage avec ce qu'il désigne
+
+`GET …/history` rend `{ currentHash, entries }`, et une ligne de bibliothèque
+porte son `currentHash`. Sans lui, un écran ne saurait pas quelle entrée est
+l'état courant — et proposerait de restaurer celui où l'on est déjà.
+
 ## Clés API
 
 Trois **types** de clés, et autant de clés qu'on veut de chaque type — chacune

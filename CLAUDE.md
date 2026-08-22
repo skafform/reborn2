@@ -23,8 +23,25 @@ et la CI en font partie au même titre :
 - Clés API : publique, preview, secrète — par environnement
 - Console d'administration, et son contrat généré depuis OpenAPI
 
-**Pas encore** : schémas de contenu et documents (étape 6b) — c'est là que le
-CMS commence.
+**L'étape 6b a commencé** — le CMS vit dans `src/cms/`, derrière la frontière
+décrite plus bas :
+
+- Types de contenu (`schemas`), avec la forme d'une définition figée
+- Versionnage **adressé par contenu** — forme canonique RFC 8785, empreinte
+  `sha256-1:`, versions dédupliquées par organization, journal en ajout seul,
+  restauration par déplacement du pointeur ([ADR 0016](docs/adr/0016-versionnage-des-schemas-adresse-par-contenu.md))
+- Bibliothèque de schémas de l'organization, versionnée de même
+  ([ADR 0018](docs/adr/0018-bibliotheque-de-schemas-table-separee.md))
+
+**Pas encore** : la copie d'un schéma de bibliothèque dans un environnement et
+son diagnostic de divergence, puis les **documents** — avec les références
+entre eux, décidées mais non construites ([ADR 0020](docs/adr/0020-references-entre-documents.md),
+[ADR 0021](docs/adr/0021-ensemble-publie-clos-par-reference.md)).
+
+⚠️ **La normalisation canonique et l'empreinte sont gelées.** `normalise.ts` et
+`fingerprint.ts` portent l'identité de chaque version stockée : un test qui
+rougit y est un **changement de format**, donc un nouveau tag d'algorithme,
+jamais une attente corrigée.
 
 ⚠️ Le socle **a émergé** de ce projet, il n'a pas été conçu d'avance. Il n'est
 donc pas *prouvé* réutilisable — il en a l'air, et la seule preuve serait un
@@ -425,13 +442,23 @@ Deux documents à consulter avant toute décision technique :
 Ces contraintes ne se devinent pas en lisant le code. Les violer se paie par un
 refactor, pas par un bug immédiat.
 
-⚠️ **Au premier fichier de l'étape 6b, poser la frontière du socle** — le CMS
-dans `src/cms/`, une règle Biome interdisant à tout le reste de l'importer, et
-le catalogue de permissions rendu composable. Le socle et le CMS sont deux
-projets logiques dans un seul processus : rien dans le code ne rappellera
-jamais qu'il fallait créer ce répertoire, et chaque import qui traverse ensuite
-est une dette à défaire. La règle est **déjà éprouvée** et prête à copier dans
-[docs/backlog #0014](docs/backlog/0014-frontiere-du-socle.md).
+⚠️ **La frontière du socle est posée, et tenue mécaniquement.** Le CMS vit dans
+`src/cms/`, et une règle Biome (`noRestrictedImports` sur `**/cms/**` dans
+`backend/biome.json`) interdit à tout le reste de `src/` de l'importer. La
+flèche va dans un seul sens : le CMS importe le socle, jamais l'inverse
+([ADR 0019](docs/adr/0019-catalogue-de-permissions-par-fabrique.md)).
+
+**Deux points de composition sont exemptés, nommés** : `src/app.ts` pour le
+serveur, `src/test-support/bootstrap.ts` pour un processus de test. Ce n'est
+pas une exemption « pour les tests » — un fichier de test n'importe toujours pas
+`src/cms/`, il importe le bootstrap.
+
+⚠️ **Un module CMS doit être chargé pour que ses permissions existent.**
+`definePermission` est la seule source du catalogue, et elle s'exécute à
+l'import. Un processus qui ne passe ni par `app.ts` ni par le bootstrap sème des
+rôles système **amputés**, sans rien signaler. Ce qu'a révélé la pose de la
+frontière est dans
+[docs/backlog #0014](docs/backlog/0014-frontiere-du-socle.md#4--️-ce-que-poser-la-frontière-a-révélé).
 
 **Better-Auth n'utilise pas Drizzle.** La base a *deux propriétaires de
 schéma* : Better-Auth accède à Postgres par un `pg.Pool` direct pour ses

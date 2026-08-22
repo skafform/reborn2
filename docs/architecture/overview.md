@@ -24,14 +24,26 @@ chemin transverse à ce que l'on expose.
 
 ## Structure du projet
 
-**Pas de monorepo.** Deux dépôts distincts, déployés séparément :
+**Pas de monorepo, et pas non plus un dépôt à deux paquets.** Deux **serveurs
+distincts**, déployés séparément :
 
-- **API** — serveur Hono (ce dépôt)
-- **Admin UI** — console d'administration, son propre dépôt, son propre
-  serveur/instance (voir [admin-ui.md](./admin-ui.md))
+- **API** — serveur Hono, dans `backend/`
+- **Admin UI** — la console, dans `console/`, son propre serveur
+  (voir [admin-ui.md](./admin-ui.md))
+
+⚠️ **Ils vivent dans un seul git, par commodité de sauvegarde, et ce dépôt est
+un contenant — pas une frontière d'architecture.** Cette page a longtemps dit
+« deux dépôts distincts », ce qui était faux de la disposition et juste de
+l'intention. Ce qui compte est tenu mécaniquement : aucun import ne traverse
+(`noRestrictedImports` sur `../../**` dans `console/biome.json`), aucun
+workspace ne couvre les deux, et **aucun chemin de fichier** — y compris pour la
+spec OpenAPI, qui se récupère **par HTTP** sur le serveur en marche.
 
 Les deux communiquent exclusivement par HTTP, sous le même domaine racine
-(sous-domaines) pour que les cookies de session restent partagés.
+(sous-domaines) pour que les cookies de session restent partagés. En
+développement, un proxy Vite rend chaque requête *same-origin* : **aucun CORS
+n'est nécessaire en local**, et le backend n'a pas à être modifié pour une
+commodité de développement.
 
 ## Documents liés
 
@@ -43,7 +55,9 @@ Les deux communiquent exclusivement par HTTP, sous le même domaine racine
 - [roles-permissions.md](./roles-permissions.md) — rôles et règles d'accès
 - [securite.md](./securite.md) — modèle de sécurité, RLS et défense en profondeur
 - [invitations.md](./invitations.md) — inscription et invitations
-- [content-schemas.md](./content-schemas.md) — schémas dynamiques, draft/publish
+- [content-schemas.md](./content-schemas.md) — schémas dynamiques, leur
+  versionnage adressé par contenu, la bibliothèque de l'organization,
+  draft/publish
 - [api.md](./api.md) — couche API et clés API
 - [localisation.md](./localisation.md) — contenu multilingue
 - [assets.md](./assets.md) — fichiers et images
